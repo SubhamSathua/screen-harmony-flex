@@ -2,87 +2,72 @@ package com.prism.screenharmony.flex.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryDark,
-    onPrimary = OnPrimaryDark,
-    primaryContainer = PrimaryContainerDark,
-    onPrimaryContainer = OnPrimaryContainerDark,
-    secondary = SecondaryDark,
-    onSecondary = OnSecondaryDark,
-    secondaryContainer = SecondaryContainerDark,
-    onSecondaryContainer = OnSecondaryContainerDark,
-    tertiary = TertiaryDark,
-    onTertiary = OnTertiaryDark,
-    tertiaryContainer = TertiaryContainerDark,
-    onTertiaryContainer = OnTertiaryContainerDark,
-    error = ErrorDark,
-    onError = OnErrorDark,
-    errorContainer = ErrorContainerDark,
-    onErrorContainer = OnErrorContainerDark,
-    background = BackgroundDark,
-    onBackground = OnBackgroundDark,
-    surface = SurfaceDark,
-    onSurface = OnSurfaceDark,
-    surfaceVariant = SurfaceVariantDark,
-    onSurfaceVariant = OnSurfaceVariantDark,
-    outline = OutlineDark,
-    outlineVariant = OutlineVariantDark
-)
+enum class AppThemeMode(val label: String) {
+    SYSTEM("System Default"),
+    LIGHT("Light"),
+    DARK("Dark")
+}
 
-private val LightColorScheme = lightColorScheme(
-    primary = PrimaryLight,
-    onPrimary = OnPrimaryLight,
-    primaryContainer = PrimaryContainerLight,
-    onPrimaryContainer = OnPrimaryContainerLight,
-    secondary = SecondaryLight,
-    onSecondary = OnSecondaryLight,
-    secondaryContainer = SecondaryContainerLight,
-    onSecondaryContainer = OnSecondaryContainerLight,
-    tertiary = TertiaryLight,
-    onTertiary = OnTertiaryLight,
-    tertiaryContainer = TertiaryContainerLight,
-    onTertiaryContainer = OnTertiaryContainerLight,
-    error = ErrorLight,
-    onError = OnErrorLight,
-    errorContainer = ErrorContainerLight,
-    onErrorContainer = OnErrorContainerLight,
-    background = BackgroundLight,
-    onBackground = OnBackgroundLight,
-    surface = SurfaceLight,
-    onSurface = OnSurfaceLight,
-    surfaceVariant = SurfaceVariantLight,
-    onSurfaceVariant = OnSurfaceVariantLight,
-    outline = OutlineLight,
-    outlineVariant = OutlineVariantLight
-)
+class ThemeState(
+    themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    isAmoled: Boolean = false,
+    palette: AppColorPalette = AppColorPalette.TEAL_SAGE
+) {
+    var themeMode by mutableStateOf(themeMode)
+    var isAmoled by mutableStateOf(isAmoled)
+    var palette by mutableStateOf(palette)
+}
+
+val LocalThemeState = compositionLocalOf { ThemeState() }
 
 @Composable
 fun ScreenHarmonyFlexTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Set to false by default to showcase our custom #498783 brand color, or true if dynamic
-    dynamicColor: Boolean = false,
+    themeState: ThemeState = LocalThemeState.current,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    val systemDark = isSystemInDarkTheme()
+    val isDark = when (themeState.themeMode) {
+        AppThemeMode.SYSTEM -> systemDark
+        AppThemeMode.LIGHT -> false
+        AppThemeMode.DARK -> true
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    val context = LocalContext.current
+    val baseScheme: ColorScheme = when (themeState.palette) {
+        AppColorPalette.MATERIAL_YOU -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            } else {
+                if (isDark) TealDarkColorScheme else TealLightColorScheme
+            }
+        }
+        AppColorPalette.TEAL_SAGE -> if (isDark) TealDarkColorScheme else TealLightColorScheme
+        AppColorPalette.OCEAN_BLUE -> if (isDark) BlueDarkColorScheme else BlueLightColorScheme
+        AppColorPalette.EMERALD_GREEN -> if (isDark) GreenDarkColorScheme else GreenLightColorScheme
+        AppColorPalette.SUNSET_CORAL -> if (isDark) CoralDarkColorScheme else CoralLightColorScheme
+        AppColorPalette.LAVENDER_PURPLE -> if (isDark) PurpleDarkColorScheme else PurpleLightColorScheme
+        AppColorPalette.ROSE_PINK -> if (isDark) PinkDarkColorScheme else PinkLightColorScheme
+        AppColorPalette.AMBER_GOLD -> if (isDark) AmberDarkColorScheme else AmberLightColorScheme
+    }
+
+    val finalColorScheme = if (isDark && themeState.isAmoled) {
+        baseScheme.toAmoled()
+    } else {
+        baseScheme
+    }
+
+    CompositionLocalProvider(LocalThemeState provides themeState) {
+        MaterialTheme(
+            colorScheme = finalColorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
