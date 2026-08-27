@@ -89,11 +89,15 @@ fun ScreenHarmonyFlexApp() {
 
     // Live permission tracking
     var isUsageGranted by remember { mutableStateOf(PermissionHelper.isUsageAccessGranted(context)) }
+    var isOverlayGranted by remember { mutableStateOf(PermissionHelper.isOverlayGranted(context)) }
+    var isBatteryIgnored by remember { mutableStateOf(PermissionHelper.isBatteryOptimizationIgnored(context)) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isUsageGranted = PermissionHelper.isUsageAccessGranted(context)
+                isOverlayGranted = PermissionHelper.isOverlayGranted(context)
+                isBatteryIgnored = PermissionHelper.isBatteryOptimizationIgnored(context)
                 AppBlockerService.start(context)
             }
         }
@@ -102,6 +106,8 @@ fun ScreenHarmonyFlexApp() {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
+
+    val hasCrucialPermissions = isUsageGranted && isOverlayGranted
 
     val navContainerColor = MaterialTheme.colorScheme.surfaceContainer
     val navContentColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -235,46 +241,107 @@ fun ScreenHarmonyFlexApp() {
                                         .padding(innerPadding)
                                         .fillMaxSize()
                                 ) {
-                                    // Prominent Permission Alert Banner if Usage Access not granted
-                                    if (!isUsageGranted) {
+                                    // Background Permissions Setup Card (Visible until Crucial permissions are granted)
+                                    if (!hasCrucialPermissions || !isBatteryIgnored) {
                                         Card(
-                                            onClick = { PermissionHelper.openUsageAccessSettings(context) },
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(horizontal = 16.dp, vertical = 8.dp),
-                                            shape = RoundedCornerShape(18.dp),
+                                            shape = RoundedCornerShape(20.dp),
                                             colors = CardDefaults.cardColors(
-                                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                                             )
                                         ) {
-                                            Row(
-                                                modifier = Modifier.padding(16.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Rounded.Warning,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(28.dp),
-                                                    tint = MaterialTheme.colorScheme.error
-                                                )
-                                                Spacer(modifier = Modifier.width(14.dp))
-                                                Column(modifier = Modifier.weight(1f)) {
+                                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Security,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(24.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(10.dp))
                                                     Text(
-                                                        text = "Usage Access Required",
-                                                        style = MaterialTheme.typography.titleMedium,
+                                                        text = "Background Permissions Needed",
+                                                        style = MaterialTheme.typography.titleSmall,
                                                         fontWeight = FontWeight.Bold
                                                     )
-                                                    Text(
-                                                        text = "Tap to grant permission. Only Usage Access is needed to block apps.",
-                                                        style = MaterialTheme.typography.bodySmall
-                                                    )
                                                 }
-                                                Icon(
-                                                    imageVector = Icons.Rounded.ArrowForward,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(20.dp)
+
+                                                Text(
+                                                    text = "To block apps seamlessly while you use other apps, grant the following permissions:",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
+
+                                                // 1. Usage Access
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text("1. Usage Access", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                                                        Text("Detects open apps", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    }
+                                                    if (isUsageGranted) {
+                                                        Text("✓ Granted", style = MaterialTheme.typography.labelSmall, color = Color(0xFF34A853), fontWeight = FontWeight.Bold)
+                                                    } else {
+                                                        Button(
+                                                            onClick = { PermissionHelper.openUsageAccessSettings(context) },
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                                        ) {
+                                                            Text("Grant", fontSize = 11.sp)
+                                                        }
+                                                    }
+                                                }
+
+                                                // 2. Display Over Other Apps (Overlay)
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text("2. Display Over Other Apps", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                                                        Text("Shows lock wall over Chrome & apps", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    }
+                                                    if (isOverlayGranted) {
+                                                        Text("✓ Granted", style = MaterialTheme.typography.labelSmall, color = Color(0xFF34A853), fontWeight = FontWeight.Bold)
+                                                    } else {
+                                                        Button(
+                                                            onClick = { PermissionHelper.openOverlaySettings(context) },
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                                        ) {
+                                                            Text("Grant", fontSize = 11.sp)
+                                                        }
+                                                    }
+                                                }
+
+                                                // 3. Battery Optimization
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text("3. Unrestricted Battery", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                                                        Text("Keeps service alive in background", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    }
+                                                    if (isBatteryIgnored) {
+                                                        Text("✓ Granted", style = MaterialTheme.typography.labelSmall, color = Color(0xFF34A853), fontWeight = FontWeight.Bold)
+                                                    } else {
+                                                        Button(
+                                                            onClick = { PermissionHelper.openBatteryOptimizationSettings(context) },
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                                        ) {
+                                                            Text("Grant", fontSize = 11.sp)
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -444,12 +511,16 @@ fun SettingsTabScreen() {
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var isUsageGranted by remember { mutableStateOf(PermissionHelper.isUsageAccessGranted(context)) }
+    var isOverlayGranted by remember { mutableStateOf(PermissionHelper.isOverlayGranted(context)) }
+    var isBatteryIgnored by remember { mutableStateOf(PermissionHelper.isBatteryOptimizationIgnored(context)) }
     var isAccessibilityGranted by remember { mutableStateOf(PermissionHelper.isAccessibilityGranted(context)) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isUsageGranted = PermissionHelper.isUsageAccessGranted(context)
+                isOverlayGranted = PermissionHelper.isOverlayGranted(context)
+                isBatteryIgnored = PermissionHelper.isBatteryOptimizationIgnored(context)
                 isAccessibilityGranted = PermissionHelper.isAccessibilityGranted(context)
             }
         }
@@ -591,14 +662,15 @@ fun SettingsTabScreen() {
                 }
             }
 
-            item { SectionHeader(title = "Permissions & Engines") }
+            item { SectionHeader(title = "Permissions & Background Enforcement") }
 
             item {
                 GroupedContainer {
+                    // 1. Usage Access
                     GroupedItemRow(
-                        icon = Icons.Rounded.CheckCircle,
+                        icon = Icons.Rounded.QueryStats,
                         title = "Usage Access (Apps)",
-                        subtitle = if (isUsageGranted) "Active • Primary app blocker" else "Required • Tap to grant permission"
+                        subtitle = if (isUsageGranted) "Active • Detects foreground apps" else "Required • Tap to grant permission"
                     ) {
                         if (isUsageGranted) {
                             Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
@@ -621,6 +693,61 @@ fun SettingsTabScreen() {
 
                     ItemDivider()
 
+                    // 2. Display Over Other Apps (Overlay)
+                    GroupedItemRow(
+                        icon = Icons.Rounded.Layers,
+                        title = "Display Over Other Apps",
+                        subtitle = if (isOverlayGranted) "Active • Pops up lock screen over apps" else "Crucial • Allows lock screen to open in background"
+                    ) {
+                        if (isOverlayGranted) {
+                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                            }
+                        } else {
+                            Button(
+                                onClick = { PermissionHelper.openOverlaySettings(context) },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                            ) {
+                                Text("Grant", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    ItemDivider()
+
+                    // 3. Battery Optimization
+                    GroupedItemRow(
+                        icon = Icons.Rounded.BatteryChargingFull,
+                        title = "Unrestricted Battery",
+                        subtitle = if (isBatteryIgnored) "Active • Never killed by OS" else "Recommended • Keeps background service alive"
+                    ) {
+                        if (isBatteryIgnored) {
+                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                            }
+                        } else {
+                            FilledTonalButton(
+                                onClick = { PermissionHelper.openBatteryOptimizationSettings(context) },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                            ) {
+                                Text("Grant", fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    ItemDivider()
+
+                    // 4. Accessibility
                     GroupedItemRow(
                         icon = Icons.Rounded.Language,
                         title = "Accessibility (Websites)",

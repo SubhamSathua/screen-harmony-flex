@@ -44,12 +44,23 @@ class BlockedActivity : ComponentActivity() {
         setShowWhenLocked(true)
         setTurnScreenOn(true)
 
+        renderUI(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        Log.i(TAG, "BlockedActivity onNewIntent")
+        renderUI(intent)
+    }
+
+    private fun renderUI(intent: Intent) {
         val target = intent.getStringExtra("TARGET") ?: "App"
         val isWebsite = intent.getBooleanExtra("IS_WEBSITE", false)
         val customQuote = intent.getStringExtra("QUOTE")
         val delaySeconds = intent.getIntExtra("DELAY_SECONDS", 5).coerceAtLeast(0)
 
-        Log.i(TAG, "BlockedActivity created for target='$target', isWebsite=$isWebsite, delay=${delaySeconds}s")
+        Log.i(TAG, "BlockedActivity renderUI for target='$target', isWebsite=$isWebsite, delay=${delaySeconds}s")
 
         val (displayName, appIcon) = if (!isWebsite) {
             getAppDetails(target)
