@@ -53,13 +53,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
                         (matchingAppRule.wallConfig as WallConfig.StandardQuote).quote
                     } else null
 
-                    val delaySec = if (matchingAppRule.pauseConfig.type == PauseType.DELAY) {
-                        matchingAppRule.pauseConfig.extraValue ?: 5
-                    } else if (matchingAppRule.pauseConfig.type == PauseType.STRICT) {
-                        0
-                    } else {
-                        5
-                    }
+                    val delaySec = matchingAppRule.blockDurationSeconds
 
                     // Perform Home Action & launch Lock Wall
                     performGlobalAction(GLOBAL_ACTION_HOME)
@@ -95,13 +89,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
                             (rule.wallConfig as WallConfig.StandardQuote).quote
                         } else null
 
-                        val delaySec = if (rule.pauseConfig.type == PauseType.DELAY) {
-                            rule.pauseConfig.extraValue ?: 5
-                        } else if (rule.pauseConfig.type == PauseType.STRICT) {
-                            0
-                        } else {
-                            5
-                        }
+                        val delaySec = rule.blockDurationSeconds
 
                         redirectAndBlock(urlNode, domain, customQuote, delaySec)
                     }

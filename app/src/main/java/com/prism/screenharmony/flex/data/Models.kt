@@ -149,6 +149,7 @@ data class BlockRule(
     val conditions: List<BlockCondition> = emptyList(),
     val blockType: BlockType = BlockType.HARD,
     val wallConfig: WallConfig = WallConfig.StandardQuote(),
+    val blockDurationSeconds: Int = 5,
     val lastPausedAt: Long? = null,
     val pauseDurationMinutes: Int? = null
 ) {

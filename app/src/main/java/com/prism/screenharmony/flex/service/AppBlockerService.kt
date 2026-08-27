@@ -109,13 +109,7 @@ class AppBlockerService : Service() {
                                         (matchingRule.wallConfig as WallConfig.StandardQuote).quote
                                     } else null
 
-                                    val delaySec = if (matchingRule.pauseConfig.type == PauseType.DELAY) {
-                                        matchingRule.pauseConfig.extraValue ?: 5
-                                    } else if (matchingRule.pauseConfig.type == PauseType.STRICT) {
-                                        0
-                                    } else {
-                                        5
-                                    }
+                                    val delaySec = matchingRule.blockDurationSeconds
 
                                     executeBlockTakeover(
                                         targetPackage = currentForeground,
