@@ -2,43 +2,36 @@ package com.prism.screenharmony.flex.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.sp
 import com.prism.screenharmony.flex.R
 
-val fontProvider = GoogleFont.Provider(
-    providerAuthority = "com.google.android.gms.fonts",
-    providerPackage = "com.google.android.gms",
-    certificates = R.array.com_google_android_gms_fonts_certs
-)
-
-// 1. Nunito - Whole App Font
-val nunitoFontName = GoogleFont("Nunito")
+// 1. Nunito - Whole App Font (Locally bundled in APK)
 val NunitoFontFamily = FontFamily(
-    Font(googleFont = nunitoFontName, fontProvider = fontProvider, weight = FontWeight.Normal),
-    Font(googleFont = nunitoFontName, fontProvider = fontProvider, weight = FontWeight.Medium),
-    Font(googleFont = nunitoFontName, fontProvider = fontProvider, weight = FontWeight.SemiBold),
-    Font(googleFont = nunitoFontName, fontProvider = fontProvider, weight = FontWeight.Bold),
-    Font(googleFont = nunitoFontName, fontProvider = fontProvider, weight = FontWeight.ExtraBold)
+    Font(resId = R.font.nunito_regular, weight = FontWeight.Normal),
+    Font(resId = R.font.nunito_regular, weight = FontWeight.Medium),
+    Font(resId = R.font.nunito_regular, weight = FontWeight.SemiBold),
+    Font(resId = R.font.nunito_regular, weight = FontWeight.Bold),
+    Font(resId = R.font.nunito_regular, weight = FontWeight.ExtraBold)
 )
 
-// 2. Playfair Display - Branding & Logo Font
-val playfairFontName = GoogleFont("Playfair Display")
+// 2. Playfair Display - Branding & Header Font (Locally bundled in APK)
 val PlayfairFontFamily = FontFamily(
-    Font(googleFont = playfairFontName, fontProvider = fontProvider, weight = FontWeight.Normal),
-    Font(googleFont = playfairFontName, fontProvider = fontProvider, weight = FontWeight.Bold),
-    Font(googleFont = playfairFontName, fontProvider = fontProvider, weight = FontWeight.Black)
+    Font(resId = R.font.playfair_regular, weight = FontWeight.Normal),
+    Font(resId = R.font.playfair_regular, weight = FontWeight.Medium),
+    Font(resId = R.font.playfair_regular, weight = FontWeight.SemiBold),
+    Font(resId = R.font.playfair_regular, weight = FontWeight.Bold),
+    Font(resId = R.font.playfair_regular, weight = FontWeight.ExtraBold)
 )
 
-// 3. JetBrains Mono - Numbers, Version Codes, Date & Times
-val jetbrainsMonoFontName = GoogleFont("JetBrains Mono")
+// 3. JetBrains Mono - Numbers, Version Codes, Date & Times (Locally bundled in APK)
 val JetBrainsMonoFontFamily = FontFamily(
-    Font(googleFont = jetbrainsMonoFontName, fontProvider = fontProvider, weight = FontWeight.Normal),
-    Font(googleFont = jetbrainsMonoFontName, fontProvider = fontProvider, weight = FontWeight.Medium),
-    Font(googleFont = jetbrainsMonoFontName, fontProvider = fontProvider, weight = FontWeight.Bold)
+    Font(resId = R.font.jetbrains_mono_regular, weight = FontWeight.Normal),
+    Font(resId = R.font.jetbrains_mono_regular, weight = FontWeight.Medium),
+    Font(resId = R.font.jetbrains_mono_bold, weight = FontWeight.Bold),
+    Font(resId = R.font.jetbrains_mono_bold, weight = FontWeight.ExtraBold)
 )
 
 // App Typography configured with Nunito as default
