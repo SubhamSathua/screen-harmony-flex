@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.prism.screenharmony.flex.data.*
 import com.prism.screenharmony.flex.ui.components.*
 import com.prism.screenharmony.flex.ui.theme.JetBrainsMonoFontFamily
+import com.prism.screenharmony.flex.ui.theme.NunitoFontFamily
 import com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily
 import com.prism.screenharmony.flex.utils.formatDelay
 
@@ -58,7 +59,7 @@ fun CreateBlockPage(
                 title = {
                     Text(
                         text = if (rule.name.isEmpty()) "Create Block" else rule.name,
-                        fontFamily = PlayfairFontFamily,
+                        fontFamily = NunitoFontFamily,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )

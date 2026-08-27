@@ -232,9 +232,9 @@ fun ScreenHarmonyFlexApp() {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
                                                     text = "ScreenHarmony",
-                                                    fontFamily = PlayfairFontFamily,
+                                                    fontFamily = NunitoFontFamily,
                                                     style = MaterialTheme.typography.headlineSmall,
-                                                    fontWeight = FontWeight.Bold,
+                                                    fontWeight = FontWeight.ExtraBold,
                                                     color = MaterialTheme.colorScheme.primary
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
@@ -582,10 +582,9 @@ fun SettingsTabScreen() {
                 title = {
                     Text(
                         text = "Settings",
-                        fontFamily = PlayfairFontFamily,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        fontFamily = NunitoFontFamily,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             )
