@@ -215,9 +215,28 @@ fun ScreenHarmonyFlexApp() {
                                             titleContentColor = MaterialTheme.colorScheme.onBackground
                                         ),
                                         title = {
-                                            Column {
-                                                Text("Blocks", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                                                Text("Usage Access Engine • Real-time enforcement", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = "ScreenHarmony",
+                                                    fontFamily = PlayfairFontFamily,
+                                                    style = MaterialTheme.typography.headlineSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = MaterialTheme.colorScheme.primaryContainer
+                                                ) {
+                                                    Text(
+                                                        text = "FLEX",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontFamily = JetBrainsMonoFontFamily,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     )
@@ -427,7 +446,7 @@ fun ParentalTabScreen() {
                     Text(
                         text = familyCode,
                         style = MaterialTheme.typography.headlineLarge,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = JetBrainsMonoFontFamily,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 4.sp,
                         color = MaterialTheme.colorScheme.primary
@@ -790,12 +809,26 @@ fun SettingsTabScreen() {
 
                     ItemDivider()
 
+                    val versionName = remember {
+                        try {
+                            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                            pInfo.versionName ?: "0.1.0"
+                        } catch (e: Exception) {
+                            "0.1.0"
+                        }
+                    }
+
                     GroupedItemRow(
                         icon = Icons.Rounded.Info,
                         title = "App Version",
-                        subtitle = "ScreenHarmony Flex v0.2.0"
+                        subtitle = "ScreenHarmony Flex v$versionName"
                     ) {
-                        Text("v0.2.0", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = "v$versionName",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = JetBrainsMonoFontFamily,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }

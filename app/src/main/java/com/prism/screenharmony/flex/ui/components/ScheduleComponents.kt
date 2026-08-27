@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.prism.screenharmony.flex.data.DayBitmask
 import com.prism.screenharmony.flex.data.TimeSlot
+import com.prism.screenharmony.flex.ui.theme.JetBrainsMonoFontFamily
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -69,7 +70,8 @@ fun ScheduleGraph(timeSlots: List<TimeSlot>) {
                     text = label,
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = JetBrainsMonoFontFamily
                     ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
@@ -109,20 +111,17 @@ fun ScheduleGraph(timeSlots: List<TimeSlot>) {
                             allSegments.filter { it.first == name }.forEach { segment ->
                                 val start = segment.second.start.toFloat()
                                 val end = segment.second.endInclusive.toFloat()
-                                val total = 1440f
-
-                                val heightFraction = ((end - start) / total).coerceAtLeast(0.02f)
-                                val offsetFraction = start / total
+                                val topOffset = (start / 1440f) * parentHeight.value
+                                val height = ((end - start) / 1440f) * parentHeight.value
 
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .fillMaxHeight(heightFraction)
-                                        .offset(y = parentHeight * offsetFraction)
-                                        .background(
-                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                            RoundedCornerShape(2.dp)
-                                        )
+                                        .padding(horizontal = 1.dp)
+                                        .offset(y = topOffset.dp)
+                                        .height(height.coerceAtLeast(4f).dp)
+                                        .clip(RoundedCornerShape(3.dp))
+                                        .background(MaterialTheme.colorScheme.primary)
                                 )
                             }
                         }
@@ -142,7 +141,39 @@ fun ScheduleGraph(timeSlots: List<TimeSlot>) {
 }
 
 @Composable
-fun WeeklyScheduleCard(timeSlots: List<TimeSlot>, onClick: () -> Unit) {
+fun TimeSelectionCard(
+    label: String,
+    time: LocalTime,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val formatter = DateTimeFormatter.ofPattern("hh:mm a")
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = time.format(formatter),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                fontFamily = JetBrainsMonoFontFamily,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+fun WeeklyScheduleCard(
+    timeSlots: List<TimeSlot>,
+    onClick: () -> Unit
+) {
+    val formatter = DateTimeFormatter.ofPattern("hh:mm a")
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -157,19 +188,15 @@ fun WeeklyScheduleCard(timeSlots: List<TimeSlot>, onClick: () -> Unit) {
                     modifier = Modifier.size(44.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Rounded.Schedule,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Icon(Icons.Rounded.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                     }
                 }
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(16.dp))
                 Column {
-                    Text(text = "Weekly Schedule", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(text = "Weekly Schedule", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    val daysSummary = timeSlots.flatMap { DayBitmask.toNames(it.dayBitmask) }.distinct().joinToString(", ")
                     Text(
-                        text = if (timeSlots.isEmpty()) "Set specific days and active hours" else "${timeSlots.size} schedule rules configured",
+                        text = if (daysSummary.isNotEmpty()) daysSummary else "No days configured",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -177,27 +204,19 @@ fun WeeklyScheduleCard(timeSlots: List<TimeSlot>, onClick: () -> Unit) {
                 Spacer(modifier = Modifier.weight(1f))
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
             }
-            if (timeSlots.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(16.dp))
-                ScheduleGraph(timeSlots)
-            }
-        }
-    }
-}
 
-@Composable
-fun TimeSelectionCard(label: String, time: LocalTime, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val formatter = DateTimeFormatter.ofPattern("hh:mm a")
-    Card(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = time.format(formatter), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (timeSlots.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                val first = timeSlots.first()
+                Text(
+                    text = "${first.startTime.format(formatter)} - ${first.endTime.format(formatter)}" + if (timeSlots.size > 1) " (+${timeSlots.size - 1} more)" else "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = JetBrainsMonoFontFamily,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 60.dp)
+                )
+            }
         }
     }
 }
@@ -277,16 +296,16 @@ fun AddTimeDialog(onDismiss: () -> Unit, onAdd: (TimeSlot) -> Unit) {
     }
 
     if (showStartTimePicker) {
-        TimePickerDialog(initialTime = startTime, onDismiss = { showStartTimePicker = false }, onTimeSelected = { startTime = it })
+        AppTimePickerDialog(initialTime = startTime, onDismiss = { showStartTimePicker = false }, onTimeSelected = { startTime = it })
     }
     if (showEndTimePicker) {
-        TimePickerDialog(initialTime = endTime, onDismiss = { showEndTimePicker = false }, onTimeSelected = { endTime = it })
+        AppTimePickerDialog(initialTime = endTime, onDismiss = { showEndTimePicker = false }, onTimeSelected = { endTime = it })
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TimePickerDialog(initialTime: LocalTime, onDismiss: () -> Unit, onTimeSelected: (LocalTime) -> Unit) {
+fun AppTimePickerDialog(initialTime: LocalTime, onDismiss: () -> Unit, onTimeSelected: (LocalTime) -> Unit) {
     val timePickerState = rememberTimePickerState(initialHour = initialTime.hour, initialMinute = initialTime.minute)
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 6.dp) {

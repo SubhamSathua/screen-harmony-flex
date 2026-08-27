@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.prism.screenharmony.flex.data.*
 import com.prism.screenharmony.flex.ui.components.*
+import com.prism.screenharmony.flex.ui.theme.JetBrainsMonoFontFamily
 import com.prism.screenharmony.flex.utils.formatDelay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -415,7 +416,17 @@ fun WeeklyScheduleBottomSheet(timeSlots: List<TimeSlot>, onTimeSlotsChanged: (Li
         Column(modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Weekly Schedule", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                IconButton(onClick = { showAddDialog = true }) { Icon(Icons.Rounded.Add, contentDescription = "Add Time") }
+                FilledIconButton(
+                    onClick = { showAddDialog = true },
+                    shape = CircleShape,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(Icons.Rounded.Add, contentDescription = "Add Time", modifier = Modifier.size(24.dp))
+                }
             }
             ScheduleGraph(timeSlots)
             LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
@@ -423,7 +434,12 @@ fun WeeklyScheduleBottomSheet(timeSlots: List<TimeSlot>, onTimeSlotsChanged: (Li
                     val formatter = java.time.format.DateTimeFormatter.ofPattern("hh:mm a")
                     ListItem(
                         headlineContent = { Text(DayBitmask.toNames(slot.dayBitmask).joinToString(", ")) },
-                        supportingContent = { Text("${slot.startTime.format(formatter)} - ${slot.endTime.format(formatter)}") },
+                        supportingContent = {
+                            Text(
+                                text = "${slot.startTime.format(formatter)} - ${slot.endTime.format(formatter)}",
+                                fontFamily = JetBrainsMonoFontFamily
+                            )
+                        },
                         trailingContent = { IconButton(onClick = { onTimeSlotsChanged(timeSlots - slot) }) { Icon(Icons.Rounded.Delete, contentDescription = "Delete") } }
                     )
                 }

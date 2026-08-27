@@ -220,7 +220,8 @@ fun BlockWallScreen(
                 ) {
                     Text(
                         text = "Take a Breath",
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontFamily = com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily,
                         color = MaterialTheme.colorScheme.primary,
                         letterSpacing = 2.sp,
                         fontWeight = FontWeight.Bold
@@ -232,6 +233,7 @@ fun BlockWallScreen(
                             lineHeight = 36.sp,
                             fontWeight = FontWeight.Medium
                         ),
+                        fontFamily = com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -268,6 +270,7 @@ fun BlockWallScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = if (isButtonEnabled) "Go Home" else "Wait ${timeLeft}s",
+                    fontFamily = if (isButtonEnabled) com.prism.screenharmony.flex.ui.theme.NunitoFontFamily else com.prism.screenharmony.flex.ui.theme.JetBrainsMonoFontFamily,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold
                 )
