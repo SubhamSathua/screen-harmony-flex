@@ -55,6 +55,7 @@ class AppBlockerService : Service() {
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "AppBlockerService onCreate")
+        BlockRepository.initialize(this)
         createNotificationChannels()
     }
 
@@ -164,10 +165,7 @@ class AppBlockerService : Service() {
     }
 
     /**
-     * Executes multi-layer block takeover:
-     * 1. Direct HOME kickout
-     * 2. BlockedActivity launch on top
-     * 3. High-Priority FullScreenIntent backup
+     * Executes block takeover directly into BlockedActivity.
      */
     private fun executeBlockTakeover(
         targetPackage: String,
@@ -176,18 +174,7 @@ class AppBlockerService : Service() {
     ) {
         Log.i(TAG, "Executing block takeover for $targetPackage")
 
-        // 1. Kick user to Home screen first
-        try {
-            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                addCategory(Intent.CATEGORY_HOME)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            startActivity(homeIntent)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to trigger HOME kickout", e)
-        }
-
-        // 2. Launch BlockedActivity
+        // Launch BlockedActivity directly on top
         val blockIntent = Intent(this, BlockedActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
@@ -206,7 +193,7 @@ class AppBlockerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // 3. Post Full-Screen Intent Notification
+        // 1. Post Full-Screen Intent Notification
         try {
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val lockNotification = NotificationCompat.Builder(this, LOCK_CHANNEL_ID)
@@ -224,7 +211,7 @@ class AppBlockerService : Service() {
             Log.e(TAG, "Failed to post lock notification", e)
         }
 
-        // 4. Start activity directly
+        // 2. Start activity directly
         try {
             startActivity(blockIntent)
             Log.i(TAG, "BlockedActivity launched successfully")

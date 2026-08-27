@@ -167,16 +167,20 @@ The generated APK will be located at:
 
 ScreenHarmony Flex uses an isolated `version.properties` file to update version codes and semantic versions without modifying `build.gradle.kts` files. This eliminates mandatory Gradle project syncs in Android Studio when updating versions.
 
-To increment the version:
+To increment or customize the version:
 
 ```powershell
-# Interactive prompt (Major / Minor / Patch)
+# Interactive prompt (Major / Minor / Patch / Custom)
 .\bump-version.ps1
 
 # Direct increment
 .\bump-version.ps1 -Type patch
 .\bump-version.ps1 -Type minor
 .\bump-version.ps1 -Type major
+
+# Custom version bump
+.\bump-version.ps1 -Type custom -Version "1.4.0" -Code 15
+.\bump-version.ps1 "2.0.0"
 ```
 
 ---

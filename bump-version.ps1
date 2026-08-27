@@ -1,12 +1,29 @@
+[CmdletBinding()]
 param (
-    [Parameter(Mandatory = $false, Position = 0)]
-    [ValidateSet("major", "minor", "patch", "1", "2", "3", "")]
-    [string]$BumpType = ""
+    [Parameter(Position = 0, Mandatory = $false)]
+    [Alias("Type", "t")]
+    [string]$BumpType = "",
+
+    [Parameter(Mandatory = $false)]
+    [Alias("v", "VersionName", "Version")]
+    [string]$CustomVersion = "",
+
+    [Parameter(Mandatory = $false)]
+    [Alias("c", "VersionCode", "Code")]
+    [Nullable[int]]$CustomCode = $null
 )
 
 $ErrorActionPreference = "Stop"
 
-$propsFile = Join-Path $PSScriptRoot "version.properties"
+# Set console output encoding to UTF-8 for clean emoji rendering
+try {
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {}
+
+$scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+if (-not $scriptDir) { $scriptDir = "." }
+$propsFile = Join-Path $scriptDir "version.properties"
 
 if (-not (Test-Path $propsFile)) {
     Write-Error "Could not find version.properties at $propsFile"
@@ -37,19 +54,32 @@ Write-Host " ScreenHarmony Flex - Version Bump" -ForegroundColor Cyan
 Write-Host " Current Version: $currentFormatted (Code: $code)" -ForegroundColor Yellow
 Write-Host "==========================================" -ForegroundColor Cyan
 
-if ([string]::IsNullOrWhiteSpace($BumpType)) {
+$choice = $BumpType
+
+if ([string]::IsNullOrWhiteSpace($choice)) {
     Write-Host ""
     Write-Host "Select version bump type:"
     Write-Host "  [1] major  -> ($($major + 1).0.0)"
     Write-Host "  [2] minor  -> ($major.$($minor + 1).0)"
     Write-Host "  [3] patch  -> ($major.$minor.$($patch + 1))"
+    Write-Host "  [4] custom -> (Specify custom version name & code)"
     Write-Host ""
-    $choice = Read-Host "Enter choice [1/2/3 or major/minor/patch]"
-} else {
-    $choice = $BumpType
+    $choice = Read-Host "Enter choice [1/2/3/4 or major/minor/patch/custom]"
 }
 
-switch -Regex ($choice.Trim().ToLower()) {
+$choice = $choice.Trim()
+
+if ($choice -match "^(\d+)\.(\d+)(?:\.(\d+))?$") {
+    $CustomVersion = $choice
+    $choice = "custom"
+}
+
+$newMajor = $major
+$newMinor = $minor
+$newPatch = $patch
+$newVersionCode = if ($CustomCode -ne $null) { [int]$CustomCode } else { $code + 1 }
+
+switch -Regex ($choice.ToLower()) {
     "^(1|major)$" {
         $newMajor = $major + 1
         $newMinor = 0
@@ -65,16 +95,43 @@ switch -Regex ($choice.Trim().ToLower()) {
         $newMinor = $minor
         $newPatch = $patch + 1
     }
+    "^(4|custom)$" {
+        if ([string]::IsNullOrWhiteSpace($CustomVersion)) {
+            Write-Host ""
+            $CustomVersion = Read-Host "Enter custom version name [X.Y.Z] (current: $currentFormatted)"
+        }
+
+        $CustomVersion = $CustomVersion.Trim()
+        if ($CustomVersion -match "^(\d+)\.(\d+)(?:\.(\d+))?$") {
+            $newMajor = [int]$Matches[1]
+            $newMinor = [int]$Matches[2]
+            $newPatch = if ($Matches[3]) { [int]$Matches[3] } else { 0 }
+        } else {
+            Write-Error "Invalid version format '$CustomVersion'. Expected format: X.Y or X.Y.Z (e.g., 2.0.0)"
+            exit 1
+        }
+
+        if ($CustomCode -eq $null) {
+            $inputCode = Read-Host "Enter custom version code [integer] (default: $($code + 1))"
+            if (-not [string]::IsNullOrWhiteSpace($inputCode)) {
+                if ($inputCode -match "^\d+$") {
+                    $newVersionCode = [int]$inputCode
+                } else {
+                    Write-Error "Invalid version code '$inputCode'. Expected a positive integer."
+                    exit 1
+                }
+            }
+        }
+    }
     Default {
-        Write-Error "Invalid choice: '$choice'. Please select major, minor, or patch."
+        Write-Error "Invalid choice: '$choice'. Please select major (1), minor (2), patch (3), or custom (4)."
         exit 1
     }
 }
 
 $newVersionName = "$newMajor.$newMinor.$newPatch"
-$newVersionCode = $code + 1
 
-# Write updated properties to version.properties (No Gradle Sync needed!)
+# Write updated properties to version.properties (UTF-8 without BOM / clean format)
 $newContent = @"
 VERSION_MAJOR=$newMajor
 VERSION_MINOR=$newMinor
@@ -82,7 +139,7 @@ VERSION_PATCH=$newPatch
 VERSION_CODE=$newVersionCode
 "@
 
-Set-Content -Path $propsFile -Value $newContent -NoNewline
+[System.IO.File]::WriteAllText($propsFile, $newContent + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding $false))
 
 Write-Host ""
 Write-Host "✅ Version successfully bumped without Gradle script changes!" -ForegroundColor Green

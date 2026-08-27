@@ -49,6 +49,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Initialize persistent disk repository
+        BlockRepository.initialize(this)
+
         // Start background usage blocker engine
         AppBlockerService.start(this)
 

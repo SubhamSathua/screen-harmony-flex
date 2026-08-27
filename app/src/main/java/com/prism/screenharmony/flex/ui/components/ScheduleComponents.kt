@@ -278,6 +278,7 @@ fun AddTimeDialog(onDismiss: () -> Unit, onAdd: (TimeSlot) -> Unit) {
                     TextButton(onClick = onDismiss) { Text("Cancel") }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
+                        enabled = selectedDays.isNotEmpty(),
                         onClick = {
                             onAdd(
                                 TimeSlot(

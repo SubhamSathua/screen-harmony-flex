@@ -1,17 +1,54 @@
 package com.prism.screenharmony.flex.data
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.time.DayOfWeek
 import java.time.LocalTime
 
 object BlockRepository {
     private const val TAG = "ScreenHarmony_Repository"
+    private const val PREFS_NAME = "screen_harmony_block_rules"
+    private const val KEY_RULES_JSON = "saved_rules_json"
 
-    private val _rules = MutableStateFlow<List<BlockRule>>(
-        listOf(
+    private val repositoryScope = CoroutineScope(Dispatchers.IO)
+    private var prefs: SharedPreferences? = null
+
+    private val _rules = MutableStateFlow<List<BlockRule>>(emptyList())
+    val rules: StateFlow<List<BlockRule>> = _rules.asStateFlow()
+
+    fun initialize(context: Context) {
+        if (prefs != null) return
+        val appContext = context.applicationContext
+        prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        loadFromDisk()
+    }
+
+    private fun loadFromDisk() {
+        val jsonStr = prefs?.getString(KEY_RULES_JSON, null)
+        if (!jsonStr.isNullOrBlank()) {
+            try {
+                val loadedRules = deserializeRules(jsonStr)
+                if (loadedRules.isNotEmpty()) {
+                    _rules.value = loadedRules
+                    Log.i(TAG, "Loaded ${loadedRules.size} persistent rules from disk.")
+                    return
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to parse saved rules JSON, falling back to default", e)
+            }
+        }
+
+        // Default initial rule if no saved data exists
+        val defaultRules = listOf(
             BlockRule(
                 id = "default_social_block",
                 name = "Social & Gaming",
@@ -23,23 +60,33 @@ object BlockRepository {
                     "com.roblox.client"
                 ),
                 selectedWebsites = setOf("instagram.com", "tiktok.com", "youtube.com"),
-                pauseConfig = PauseConfig(type = PauseType.DELAY, extraValue = 5),
+                pauseConfig = PauseConfig(type = PauseType.DELAY, extraValue = 10),
+                blockDurationSeconds = 5,
                 wallConfig = WallConfig.StandardQuote()
             )
         )
-    )
-    val rules: StateFlow<List<BlockRule>> = _rules.asStateFlow()
+        _rules.value = defaultRules
+        saveToDisk(defaultRules)
+    }
+
+    private fun saveToDisk(rulesList: List<BlockRule>) {
+        repositoryScope.launch {
+            try {
+                val jsonStr = serializeRules(rulesList)
+                prefs?.edit()?.putString(KEY_RULES_JSON, jsonStr)?.apply()
+                Log.d(TAG, "Successfully saved ${rulesList.size} rules to persistent disk.")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save rules to disk", e)
+            }
+        }
+    }
 
     fun getActiveRuleForApp(packageName: String): BlockRule? {
         val now = LocalTime.now()
         val day = DayOfWeek.from(java.time.LocalDate.now())
-        val matching = _rules.value.firstOrNull { rule ->
+        return _rules.value.firstOrNull { rule ->
             rule.selectedApps.contains(packageName) && rule.isCurrentlyBlocked(now, day)
         }
-        if (matching != null) {
-            Log.d(TAG, "getActiveRuleForApp: Found matching rule '${matching.name}' for '$packageName'")
-        }
-        return matching
     }
 
     fun getActiveRuleForWebsite(url: String): Pair<BlockRule, String>? {
@@ -52,7 +99,6 @@ object BlockRepository {
                 for (domain in rule.selectedWebsites) {
                     val cleanDomain = domain.lowercase().trim()
                     if (cleanDomain.isNotEmpty() && cleanUrl.contains(cleanDomain)) {
-                        Log.d(TAG, "getActiveRuleForWebsite: Found matching rule '${rule.name}' for domain '$cleanDomain'")
                         return Pair(rule, cleanDomain)
                     }
                 }
@@ -65,28 +111,34 @@ object BlockRepository {
         Log.i(TAG, "addOrUpdateRule: '${rule.name}' with ${rule.selectedApps.size} apps, ${rule.selectedWebsites.size} websites")
         val current = _rules.value
         val exists = current.any { it.id == rule.id }
-        _rules.value = if (exists) {
+        val updated = if (exists) {
             current.map { if (it.id == rule.id) rule else it }
         } else {
             current + rule
         }
+        _rules.value = updated
+        saveToDisk(updated)
     }
 
     fun toggleRule(ruleId: String, isEnabled: Boolean) {
         Log.i(TAG, "toggleRule: id=$ruleId -> isEnabled=$isEnabled")
-        _rules.value = _rules.value.map {
+        val updated = _rules.value.map {
             if (it.id == ruleId) it.copy(isEnabled = isEnabled) else it
         }
+        _rules.value = updated
+        saveToDisk(updated)
     }
 
     fun deleteRule(ruleId: String) {
         Log.i(TAG, "deleteRule: id=$ruleId")
-        _rules.value = _rules.value.filterNot { it.id == ruleId }
+        val updated = _rules.value.filterNot { it.id == ruleId }
+        _rules.value = updated
+        saveToDisk(updated)
     }
 
     fun pauseRule(ruleId: String, durationMinutes: Int) {
         Log.i(TAG, "pauseRule: id=$ruleId for ${durationMinutes}m")
-        _rules.value = _rules.value.map {
+        val updated = _rules.value.map {
             if (it.id == ruleId) {
                 it.copy(
                     lastPausedAt = System.currentTimeMillis(),
@@ -94,14 +146,212 @@ object BlockRepository {
                 )
             } else it
         }
+        _rules.value = updated
+        saveToDisk(updated)
     }
 
     fun unpauseRule(ruleId: String) {
         Log.i(TAG, "unpauseRule: id=$ruleId")
-        _rules.value = _rules.value.map {
+        val updated = _rules.value.map {
             if (it.id == ruleId) {
                 it.copy(lastPausedAt = null, pauseDurationMinutes = null)
             } else it
         }
+        _rules.value = updated
+        saveToDisk(updated)
+    }
+
+    // ==========================================
+    // JSON SERIALIZATION / DESERIALIZATION
+    // ==========================================
+
+    private fun serializeRules(rulesList: List<BlockRule>): String {
+        val rootArray = JSONArray()
+        for (rule in rulesList) {
+            val obj = JSONObject().apply {
+                put("id", rule.id)
+                put("name", rule.name)
+                put("isEnabled", rule.isEnabled)
+                put("blockAppLaunch", rule.blockAppLaunch)
+                put("blockNotifications", rule.blockNotifications)
+                put("blockDurationSeconds", rule.blockDurationSeconds)
+                put("lastPausedAt", rule.lastPausedAt ?: JSONObject.NULL)
+                put("pauseDurationMinutes", rule.pauseDurationMinutes ?: JSONObject.NULL)
+
+                // Apps
+                val appsArray = JSONArray()
+                rule.selectedApps.forEach { appsArray.put(it) }
+                put("selectedApps", appsArray)
+
+                // Websites
+                val sitesArray = JSONArray()
+                rule.selectedWebsites.forEach { sitesArray.put(it) }
+                put("selectedWebsites", sitesArray)
+
+                // PauseConfig
+                val pauseObj = JSONObject().apply {
+                    put("type", rule.pauseConfig.type.name)
+                    put("extraValue", rule.pauseConfig.extraValue ?: JSONObject.NULL)
+                    put("typeTextLength", rule.pauseConfig.typeTextLength)
+                    put("typeTextCount", rule.pauseConfig.typeTextCount)
+                }
+                put("pauseConfig", pauseObj)
+
+                // Conditions (WeeklySchedule slots)
+                val condArray = JSONArray()
+                rule.conditions.forEach { cond ->
+                    if (cond is BlockCondition.WeeklySchedule) {
+                        val condObj = JSONObject().apply {
+                            put("type", "WeeklySchedule")
+                            put("id", cond.id)
+                            val slotsArray = JSONArray()
+                            cond.slots.forEach { slot ->
+                                val slotObj = JSONObject().apply {
+                                    put("id", slot.id)
+                                    put("dayBitmask", slot.dayBitmask)
+                                    put("startMinute", slot.startMinute)
+                                    put("endMinute", slot.endMinute)
+                                }
+                                slotsArray.put(slotObj)
+                            }
+                            put("slots", slotsArray)
+                        }
+                        condArray.put(condObj)
+                    }
+                }
+                put("conditions", condArray)
+
+                // WallConfig
+                val wallObj = JSONObject().apply {
+                    when (val wall = rule.wallConfig) {
+                        is WallConfig.StandardQuote -> {
+                            put("type", "StandardQuote")
+                            put("quote", wall.quote ?: JSONObject.NULL)
+                        }
+                        WallConfig.Emoji -> put("type", "Emoji")
+                        WallConfig.Task -> put("type", "Task")
+                    }
+                }
+                put("wallConfig", wallObj)
+            }
+            rootArray.put(obj)
+        }
+        return rootArray.toString()
+    }
+
+    private fun deserializeRules(jsonStr: String): List<BlockRule> {
+        val rootArray = JSONArray(jsonStr)
+        val result = mutableListOf<BlockRule>()
+
+        for (i in 0 until rootArray.length()) {
+            val obj = rootArray.getJSONObject(i)
+            val id = obj.getString("id")
+            val name = obj.getString("name")
+            val isEnabled = obj.optBoolean("isEnabled", true)
+            val blockAppLaunch = obj.optBoolean("blockAppLaunch", true)
+            val blockNotifications = obj.optBoolean("blockNotifications", false)
+            val blockDurationSeconds = obj.optInt("blockDurationSeconds", 5)
+            val lastPausedAt = if (obj.isNull("lastPausedAt")) null else obj.getLong("lastPausedAt")
+            val pauseDurationMinutes = if (obj.isNull("pauseDurationMinutes")) null else obj.getInt("pauseDurationMinutes")
+
+            // Apps
+            val selectedApps = mutableSetOf<String>()
+            val appsArray = obj.optJSONArray("selectedApps")
+            if (appsArray != null) {
+                for (j in 0 until appsArray.length()) {
+                    selectedApps.add(appsArray.getString(j))
+                }
+            }
+
+            // Websites
+            val selectedWebsites = mutableSetOf<String>()
+            val sitesArray = obj.optJSONArray("selectedWebsites")
+            if (sitesArray != null) {
+                for (j in 0 until sitesArray.length()) {
+                    selectedWebsites.add(sitesArray.getString(j))
+                }
+            }
+
+            // PauseConfig
+            val pauseConfig = if (obj.has("pauseConfig")) {
+                val pObj = obj.getJSONObject("pauseConfig")
+                val pType = try {
+                    PauseType.valueOf(pObj.getString("type"))
+                } catch (e: Exception) {
+                    PauseType.DELAY
+                }
+                val extraVal = if (pObj.isNull("extraValue")) null else pObj.getInt("extraValue")
+                PauseConfig(
+                    type = pType,
+                    extraValue = extraVal,
+                    typeTextLength = pObj.optInt("typeTextLength", 5),
+                    typeTextCount = pObj.optInt("typeTextCount", 3)
+                )
+            } else {
+                PauseConfig()
+            }
+
+            // Conditions
+            val conditions = mutableListOf<BlockCondition>()
+            val condArray = obj.optJSONArray("conditions")
+            if (condArray != null) {
+                for (j in 0 until condArray.length()) {
+                    val condObj = condArray.getJSONObject(j)
+                    if (condObj.optString("type") == "WeeklySchedule") {
+                        val condId = condObj.optString("id")
+                        val slots = mutableListOf<TimeSlot>()
+                        val slotsArray = condObj.optJSONArray("slots")
+                        if (slotsArray != null) {
+                            for (k in 0 until slotsArray.length()) {
+                                val sObj = slotsArray.getJSONObject(k)
+                                slots.add(
+                                    TimeSlot(
+                                        id = sObj.optString("id"),
+                                        dayBitmask = sObj.optInt("dayBitmask", DayBitmask.ALL),
+                                        startMinute = sObj.optInt("startMinute", 0),
+                                        endMinute = sObj.optInt("endMinute", 1439)
+                                    )
+                                )
+                            }
+                        }
+                        conditions.add(BlockCondition.WeeklySchedule(id = condId, slots = slots))
+                    }
+                }
+            }
+
+            // WallConfig
+            val wallConfig = if (obj.has("wallConfig")) {
+                val wObj = obj.getJSONObject("wallConfig")
+                when (wObj.optString("type")) {
+                    "StandardQuote" -> WallConfig.StandardQuote(
+                        quote = if (wObj.isNull("quote")) null else wObj.getString("quote")
+                    )
+                    "Emoji" -> WallConfig.Emoji
+                    "Task" -> WallConfig.Task
+                    else -> WallConfig.StandardQuote()
+                }
+            } else {
+                WallConfig.StandardQuote()
+            }
+
+            result.add(
+                BlockRule(
+                    id = id,
+                    name = name,
+                    isEnabled = isEnabled,
+                    selectedApps = selectedApps,
+                    selectedWebsites = selectedWebsites,
+                    blockAppLaunch = blockAppLaunch,
+                    blockNotifications = blockNotifications,
+                    pauseConfig = pauseConfig,
+                    conditions = conditions,
+                    blockDurationSeconds = blockDurationSeconds,
+                    wallConfig = wallConfig,
+                    lastPausedAt = lastPausedAt,
+                    pauseDurationMinutes = pauseDurationMinutes
+                )
+            )
+        }
+        return result
     }
 }

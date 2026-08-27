@@ -96,12 +96,16 @@ class BlockedActivity : ComponentActivity() {
 
     private fun goHome() {
         Log.d(TAG, "User clicked Go Home in BlockedActivity")
-        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_HOME)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        try {
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(homeIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting home intent", e)
         }
-        startActivity(homeIntent)
-        finish()
+        finishAndRemoveTask()
     }
 
     @Deprecated("Deprecated in Java")
