@@ -1,5 +1,6 @@
 package com.prism.screenharmony.flex.data
 
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -7,6 +8,8 @@ import java.time.DayOfWeek
 import java.time.LocalTime
 
 object BlockRepository {
+    private const val TAG = "ScreenHarmony_Repository"
+
     private val _rules = MutableStateFlow<List<BlockRule>>(
         listOf(
             BlockRule(
@@ -30,9 +33,13 @@ object BlockRepository {
     fun getActiveRuleForApp(packageName: String): BlockRule? {
         val now = LocalTime.now()
         val day = DayOfWeek.from(java.time.LocalDate.now())
-        return _rules.value.firstOrNull { rule ->
+        val matching = _rules.value.firstOrNull { rule ->
             rule.selectedApps.contains(packageName) && rule.isCurrentlyBlocked(now, day)
         }
+        if (matching != null) {
+            Log.d(TAG, "getActiveRuleForApp: Found matching rule '${matching.name}' for '$packageName'")
+        }
+        return matching
     }
 
     fun getActiveRuleForWebsite(url: String): Pair<BlockRule, String>? {
@@ -45,6 +52,7 @@ object BlockRepository {
                 for (domain in rule.selectedWebsites) {
                     val cleanDomain = domain.lowercase().trim()
                     if (cleanDomain.isNotEmpty() && cleanUrl.contains(cleanDomain)) {
+                        Log.d(TAG, "getActiveRuleForWebsite: Found matching rule '${rule.name}' for domain '$cleanDomain'")
                         return Pair(rule, cleanDomain)
                     }
                 }
@@ -54,6 +62,7 @@ object BlockRepository {
     }
 
     fun addOrUpdateRule(rule: BlockRule) {
+        Log.i(TAG, "addOrUpdateRule: '${rule.name}' with ${rule.selectedApps.size} apps, ${rule.selectedWebsites.size} websites")
         val current = _rules.value
         val exists = current.any { it.id == rule.id }
         _rules.value = if (exists) {
@@ -64,16 +73,19 @@ object BlockRepository {
     }
 
     fun toggleRule(ruleId: String, isEnabled: Boolean) {
+        Log.i(TAG, "toggleRule: id=$ruleId -> isEnabled=$isEnabled")
         _rules.value = _rules.value.map {
             if (it.id == ruleId) it.copy(isEnabled = isEnabled) else it
         }
     }
 
     fun deleteRule(ruleId: String) {
+        Log.i(TAG, "deleteRule: id=$ruleId")
         _rules.value = _rules.value.filterNot { it.id == ruleId }
     }
 
     fun pauseRule(ruleId: String, durationMinutes: Int) {
+        Log.i(TAG, "pauseRule: id=$ruleId for ${durationMinutes}m")
         _rules.value = _rules.value.map {
             if (it.id == ruleId) {
                 it.copy(
@@ -85,6 +97,7 @@ object BlockRepository {
     }
 
     fun unpauseRule(ruleId: String) {
+        Log.i(TAG, "unpauseRule: id=$ruleId")
         _rules.value = _rules.value.map {
             if (it.id == ruleId) {
                 it.copy(lastPausedAt = null, pauseDurationMinutes = null)

@@ -2,6 +2,7 @@ package com.prism.screenharmony.flex.ui.blocker
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.*
@@ -34,6 +35,10 @@ import kotlinx.coroutines.delay
 
 class BlockedActivity : ComponentActivity() {
 
+    companion object {
+        private const val TAG = "ScreenHarmony_LockWall"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setShowWhenLocked(true)
@@ -43,6 +48,8 @@ class BlockedActivity : ComponentActivity() {
         val isWebsite = intent.getBooleanExtra("IS_WEBSITE", false)
         val customQuote = intent.getStringExtra("QUOTE")
         val delaySeconds = intent.getIntExtra("DELAY_SECONDS", 5).coerceAtLeast(0)
+
+        Log.i(TAG, "BlockedActivity created for target='$target', isWebsite=$isWebsite, delay=${delaySeconds}s")
 
         val (displayName, appIcon) = if (!isWebsite) {
             getAppDetails(target)
@@ -77,6 +84,7 @@ class BlockedActivity : ComponentActivity() {
     }
 
     private fun goHome() {
+        Log.d(TAG, "User clicked Go Home in BlockedActivity")
         val homeIntent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK

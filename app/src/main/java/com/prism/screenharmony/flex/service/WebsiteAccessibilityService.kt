@@ -3,6 +3,7 @@ package com.prism.screenharmony.flex.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.prism.screenharmony.flex.data.BlockRepository
@@ -14,7 +15,12 @@ import kotlinx.coroutines.*
 class WebsiteAccessibilityService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var lastBlockedPackage: String? = null
     private var lastBlockedUrl: String? = null
+
+    companion object {
+        private const val TAG = "ScreenHarmony_Accessibility"
+    }
 
     // Common browser URL bar IDs
     private val browserUrlBarIds = mapOf(
@@ -26,10 +32,46 @@ class WebsiteAccessibilityService : AccessibilityService() {
         "com.brave.browser" to "com.brave.browser:id/url_bar"
     )
 
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        Log.i(TAG, "WebsiteAccessibilityService connected & active")
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         val packageName = event.packageName?.toString() ?: return
         if (packageName == this.packageName) return
 
+        // 1. Check if this is an app that needs to be blocked
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val matchingAppRule = BlockRepository.getActiveRuleForApp(packageName)
+            if (matchingAppRule != null) {
+                if (lastBlockedPackage != packageName) {
+                    lastBlockedPackage = packageName
+                    Log.i(TAG, "🚨 ACCESSIBILITY: Intercepted blocked app '$packageName' | Rule: '${matchingAppRule.name}'")
+
+                    val customQuote = if (matchingAppRule.wallConfig is WallConfig.StandardQuote) {
+                        (matchingAppRule.wallConfig as WallConfig.StandardQuote).quote
+                    } else null
+
+                    val delaySec = if (matchingAppRule.pauseConfig.type == PauseType.DELAY) {
+                        matchingAppRule.pauseConfig.extraValue ?: 5
+                    } else if (matchingAppRule.pauseConfig.type == PauseType.STRICT) {
+                        0
+                    } else {
+                        5
+                    }
+
+                    // Perform Home Action & launch Lock Wall
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                    launchBlockWall(target = packageName, isWebsite = false, quote = customQuote, delaySeconds = delaySec)
+                }
+                return
+            } else {
+                lastBlockedPackage = null
+            }
+        }
+
+        // 2. Check if browser URL needs to be blocked
         if (browserUrlBarIds.containsKey(packageName)) {
             checkAndBlockWebsite(packageName)
         }
@@ -47,6 +89,8 @@ class WebsiteAccessibilityService : AccessibilityService() {
                     val (rule, domain) = match
                     if (lastBlockedUrl != domain) {
                         lastBlockedUrl = domain
+                        Log.i(TAG, "🚨 ACCESSIBILITY: Blocked website '$domain' in '$packageName'")
+
                         val customQuote = if (rule.wallConfig is WallConfig.StandardQuote) {
                             (rule.wallConfig as WallConfig.StandardQuote).quote
                         } else null
@@ -109,30 +153,39 @@ class WebsiteAccessibilityService : AccessibilityService() {
         quote: String?,
         delaySeconds: Int
     ) {
-        // Clear the URL in browser to prevent auto-reloading
         val arguments = Bundle()
         arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "about:blank")
         urlNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
         urlNode.recycle()
 
-        // Launch direct block overlay
+        launchBlockWall(target = blockedDomain, isWebsite = true, quote = quote, delaySeconds = delaySeconds)
+    }
+
+    private fun launchBlockWall(
+        target: String,
+        isWebsite: Boolean,
+        quote: String?,
+        delaySeconds: Int
+    ) {
         val intent = Intent(this, BlockedActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_NO_ANIMATION
-            putExtra("TARGET", blockedDomain)
-            putExtra("IS_WEBSITE", true)
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("TARGET", target)
+            putExtra("IS_WEBSITE", isWebsite)
             putExtra("QUOTE", quote)
             putExtra("DELAY_SECONDS", delaySeconds)
         }
         startActivity(intent)
     }
 
-    override fun onInterrupt() {}
+    override fun onInterrupt() {
+        Log.w(TAG, "WebsiteAccessibilityService interrupted")
+    }
 
     override fun onDestroy() {
         super.onDestroy()
+        Log.w(TAG, "WebsiteAccessibilityService destroyed")
         serviceScope.cancel()
     }
 }
