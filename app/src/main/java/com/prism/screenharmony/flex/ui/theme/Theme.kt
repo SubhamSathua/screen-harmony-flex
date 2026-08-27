@@ -1,5 +1,6 @@
 package com.prism.screenharmony.flex.ui.theme
 
+import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
@@ -8,6 +9,8 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
 enum class AppThemeMode(val label: String) {
     SYSTEM("System Default"),
@@ -61,6 +64,21 @@ fun ScreenHarmonyFlexTheme(
         baseScheme.toAmoled()
     } else {
         baseScheme
+    }
+
+    // Synchronize system Status Bar and Navigation Bar icon contrast with active theme
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window
+            if (window != null) {
+                val insetsController = WindowCompat.getInsetsController(window, view)
+                // Light mode (!isDark = true)  -> Dark icons
+                // Dark mode  (!isDark = false) -> Light icons
+                insetsController.isAppearanceLightStatusBars = !isDark
+                insetsController.isAppearanceLightNavigationBars = !isDark
+            }
+        }
     }
 
     CompositionLocalProvider(LocalThemeState provides themeState) {
