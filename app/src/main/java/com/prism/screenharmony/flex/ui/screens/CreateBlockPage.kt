@@ -32,8 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.prism.screenharmony.flex.data.*
 import com.prism.screenharmony.flex.ui.components.*
-import com.prism.screenharmony.flex.ui.theme.JetBrainsMonoFontFamily
-import com.prism.screenharmony.flex.ui.theme.NunitoFontFamily
 import com.prism.screenharmony.flex.utils.formatDelay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,7 +56,6 @@ fun CreateBlockPage(
                 title = {
                     Text(
                         text = if (rule.name.isEmpty()) "Create Block" else rule.name,
-                        fontFamily = NunitoFontFamily,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -321,7 +318,6 @@ fun CreateBlockPage(
                                         text = "${rule.blockDurationSeconds}s",
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
-                                        fontFamily = JetBrainsMonoFontFamily,
                                         color = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                     )
@@ -364,7 +360,6 @@ fun CreateBlockPage(
                                                     text = "${seconds}s",
                                                     style = MaterialTheme.typography.labelMedium,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                    fontFamily = JetBrainsMonoFontFamily,
                                                     color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
@@ -538,8 +533,7 @@ fun WeeklyScheduleBottomSheet(timeSlots: List<TimeSlot>, onTimeSlotsChanged: (Li
                         headlineContent = { Text(DayBitmask.toNames(slot.dayBitmask).joinToString(", ")) },
                         supportingContent = {
                             Text(
-                                text = "${slot.startTime.format(formatter)} - ${slot.endTime.format(formatter)}",
-                                fontFamily = JetBrainsMonoFontFamily
+                                text = "${slot.startTime.format(formatter)} - ${slot.endTime.format(formatter)}"
                             )
                         },
                         trailingContent = { IconButton(onClick = { onTimeSlotsChanged(timeSlots - slot) }) { Icon(Icons.Rounded.Delete, contentDescription = "Delete") } }

@@ -232,9 +232,8 @@ fun ScreenHarmonyFlexApp() {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
                                                     text = "ScreenHarmony",
-                                                    fontFamily = NunitoFontFamily,
-                                                    style = MaterialTheme.typography.headlineSmall,
-                                                    fontWeight = FontWeight.ExtraBold,
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    fontWeight = FontWeight.Bold,
                                                     color = MaterialTheme.colorScheme.primary
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
@@ -246,7 +245,6 @@ fun ScreenHarmonyFlexApp() {
                                                         text = "FLEX",
                                                         style = MaterialTheme.typography.labelSmall,
                                                         fontWeight = FontWeight.Bold,
-                                                        fontFamily = JetBrainsMonoFontFamily,
                                                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                     )
@@ -460,7 +458,6 @@ fun ParentalTabScreen() {
                     Text(
                         text = familyCode,
                         style = MaterialTheme.typography.headlineLarge,
-                        fontFamily = JetBrainsMonoFontFamily,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 4.sp,
                         color = MaterialTheme.colorScheme.primary
@@ -582,7 +579,6 @@ fun SettingsTabScreen() {
                 title = {
                     Text(
                         text = "Settings",
-                        fontFamily = NunitoFontFamily,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -850,7 +846,6 @@ fun SettingsTabScreen() {
                         Text(
                             text = "v$versionName",
                             style = MaterialTheme.typography.bodySmall,
-                            fontFamily = JetBrainsMonoFontFamily,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }

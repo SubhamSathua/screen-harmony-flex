@@ -23,8 +23,6 @@ import androidx.compose.ui.window.Dialog
 import com.prism.screenharmony.flex.data.BlockRule
 import com.prism.screenharmony.flex.data.PauseType
 import com.prism.screenharmony.flex.ui.components.ConditionBadge
-import com.prism.screenharmony.flex.ui.theme.JetBrainsMonoFontFamily
-import com.prism.screenharmony.flex.ui.theme.NunitoFontFamily
 import kotlinx.coroutines.delay
 import java.time.DayOfWeek
 import java.time.LocalTime
@@ -539,7 +537,6 @@ fun DelayPauseWarningDialog(
                     ) {
                         Text(
                             text = if (isButtonEnabled) actionLabel else "Wait ${timeLeft}s",
-                            fontFamily = if (isButtonEnabled) null else JetBrainsMonoFontFamily,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -590,7 +587,6 @@ fun ActiveBlockActionDialog(
                         text = "Discipline is choosing between what you want now and what you want most.",
                         modifier = Modifier.padding(16.dp),
                         textAlign = TextAlign.Center,
-                        fontFamily = NunitoFontFamily,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -625,7 +621,6 @@ fun ActiveBlockActionDialog(
                     ) {
                         Text(
                             text = if (timeLeft > 0) "Wait ${timeLeft}s" else "Delete",
-                            fontFamily = if (timeLeft > 0) JetBrainsMonoFontFamily else null,
                             fontWeight = FontWeight.Bold
                         )
                     }

@@ -1,6 +1,8 @@
 package com.prism.screenharmony.flex.ui.theme
 
-import android.app.Activity
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
@@ -66,18 +68,32 @@ fun ScreenHarmonyFlexTheme(
         baseScheme
     }
 
-    // Synchronize system Status Bar and Navigation Bar icon contrast with active theme
+    // Dynamic Status Bar and Navigation Bar icon contrast
+    // Light Mode -> Dark Icons (!isDark = true)
+    // Dark Mode  -> Light Icons (!isDark = false)
     val view = LocalView.current
     if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as? Activity)?.window
-            if (window != null) {
-                val insetsController = WindowCompat.getInsetsController(window, view)
-                // Light mode (!isDark = true)  -> Dark icons
-                // Dark mode  (!isDark = false) -> Light icons
-                insetsController.isAppearanceLightStatusBars = !isDark
-                insetsController.isAppearanceLightNavigationBars = !isDark
+        DisposableEffect(isDark) {
+            val activity = view.context as? ComponentActivity
+            if (activity != null) {
+                activity.enableEdgeToEdge(
+                    statusBarStyle = if (isDark) {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                    },
+                    navigationBarStyle = if (isDark) {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                    }
+                )
+                WindowCompat.getInsetsController(activity.window, view).apply {
+                    isAppearanceLightStatusBars = !isDark
+                    isAppearanceLightNavigationBars = !isDark
+                }
             }
+            onDispose {}
         }
     }
 

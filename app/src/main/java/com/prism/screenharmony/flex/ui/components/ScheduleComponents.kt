@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.prism.screenharmony.flex.data.DayBitmask
 import com.prism.screenharmony.flex.data.TimeSlot
-import com.prism.screenharmony.flex.ui.theme.JetBrainsMonoFontFamily
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -70,8 +69,7 @@ fun ScheduleGraph(timeSlots: List<TimeSlot>) {
                     text = label,
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = JetBrainsMonoFontFamily
+                        fontWeight = FontWeight.Medium
                     ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
@@ -161,7 +159,6 @@ fun TimeSelectionCard(
                 text = time.format(formatter),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                fontFamily = JetBrainsMonoFontFamily,
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
@@ -212,7 +209,6 @@ fun WeeklyScheduleCard(
                     text = "${first.startTime.format(formatter)} - ${first.endTime.format(formatter)}" + if (timeSlots.size > 1) " (+${timeSlots.size - 1} more)" else "",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = JetBrainsMonoFontFamily,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 60.dp)
                 )
