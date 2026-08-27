@@ -13,6 +13,8 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.prism.screenharmony.flex.R
 import com.prism.screenharmony.flex.data.BlockRepository
+import com.prism.screenharmony.flex.data.PauseType
+import com.prism.screenharmony.flex.data.WallConfig
 import com.prism.screenharmony.flex.ui.blocker.BlockedActivity
 import kotlinx.coroutines.*
 
@@ -58,19 +60,28 @@ class AppBlockerService : Service() {
                     val matchingRule = BlockRepository.getActiveRuleForApp(currentForeground)
 
                     if (matchingRule != null) {
-                        // Launch if not already showing for this exact package
                         if (lastInterceptedPackage != currentForeground) {
                             lastInterceptedPackage = currentForeground
+                            val customQuote = if (matchingRule.wallConfig is WallConfig.StandardQuote) {
+                                (matchingRule.wallConfig as WallConfig.StandardQuote).quote
+                            } else null
+
+                            val delaySec = if (matchingRule.pauseConfig.type == PauseType.DELAY) {
+                                matchingRule.pauseConfig.extraValue ?: 5
+                            } else if (matchingRule.pauseConfig.type == PauseType.STRICT) {
+                                0
+                            } else {
+                                5
+                            }
+
                             launchBlockWall(
                                 target = currentForeground,
-                                ruleName = matchingRule.name,
                                 isWebsite = false,
-                                showQuote = matchingRule.showQuotes,
-                                delaySeconds = matchingRule.pauseDelaySeconds
+                                quote = customQuote,
+                                delaySeconds = delaySec
                             )
                         }
                     } else {
-                        // User exited to home or allowed app
                         lastInterceptedPackage = null
                     }
                 }
@@ -97,21 +108,18 @@ class AppBlockerService : Service() {
 
     private fun launchBlockWall(
         target: String,
-        ruleName: String,
         isWebsite: Boolean,
-        showQuote: Boolean,
+        quote: String?,
         delaySeconds: Int
     ) {
-        // Direct launch with zero flicker (No fake home action)
         val intent = Intent(this, BlockedActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
                     Intent.FLAG_ACTIVITY_SINGLE_TOP or
                     Intent.FLAG_ACTIVITY_NO_ANIMATION
             putExtra("TARGET", target)
-            putExtra("RULE_NAME", ruleName)
             putExtra("IS_WEBSITE", isWebsite)
-            putExtra("SHOW_QUOTE", showQuote)
+            putExtra("QUOTE", quote)
             putExtra("DELAY_SECONDS", delaySeconds)
         }
         startActivity(intent)
@@ -120,7 +128,7 @@ class AppBlockerService : Service() {
     private fun createNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("ScreenHarmony Active")
-            .setContentText("App blocker running smoothly (Usage Access)")
+            .setContentText("Monitoring & blocking apps (Usage Access)")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)

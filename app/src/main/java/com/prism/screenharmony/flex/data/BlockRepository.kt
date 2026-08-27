@@ -3,6 +3,7 @@ package com.prism.screenharmony.flex.data
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.time.DayOfWeek
 import java.time.LocalTime
 
 object BlockRepository {
@@ -19,8 +20,8 @@ object BlockRepository {
                     "com.roblox.client"
                 ),
                 selectedWebsites = setOf("instagram.com", "tiktok.com", "youtube.com"),
-                showQuotes = true,
-                pauseDelaySeconds = 0 // Strict
+                pauseConfig = PauseConfig(type = PauseType.DELAY, extraValue = 5),
+                wallConfig = WallConfig.StandardQuote()
             )
         )
     )
@@ -28,19 +29,19 @@ object BlockRepository {
 
     fun getActiveRuleForApp(packageName: String): BlockRule? {
         val now = LocalTime.now()
-        val day = java.time.DayOfWeek.from(java.time.LocalDate.now())
+        val day = DayOfWeek.from(java.time.LocalDate.now())
         return _rules.value.firstOrNull { rule ->
-            rule.selectedApps.contains(packageName) && rule.isCurrentlyActive(now, day)
+            rule.selectedApps.contains(packageName) && rule.isCurrentlyBlocked(now, day)
         }
     }
 
     fun getActiveRuleForWebsite(url: String): Pair<BlockRule, String>? {
         val now = LocalTime.now()
-        val day = java.time.DayOfWeek.from(java.time.LocalDate.now())
+        val day = DayOfWeek.from(java.time.LocalDate.now())
         val cleanUrl = url.lowercase().trim()
-        
+
         for (rule in _rules.value) {
-            if (rule.isCurrentlyActive(now, day)) {
+            if (rule.isCurrentlyBlocked(now, day)) {
                 for (domain in rule.selectedWebsites) {
                     val cleanDomain = domain.lowercase().trim()
                     if (cleanDomain.isNotEmpty() && cleanUrl.contains(cleanDomain)) {
@@ -52,12 +53,14 @@ object BlockRepository {
         return null
     }
 
-    fun addRule(rule: BlockRule) {
-        _rules.value = _rules.value + rule
-    }
-
-    fun updateRule(updatedRule: BlockRule) {
-        _rules.value = _rules.value.map { if (it.id == updatedRule.id) updatedRule else it }
+    fun addOrUpdateRule(rule: BlockRule) {
+        val current = _rules.value
+        val exists = current.any { it.id == rule.id }
+        _rules.value = if (exists) {
+            current.map { if (it.id == rule.id) rule else it }
+        } else {
+            current + rule
+        }
     }
 
     fun toggleRule(ruleId: String, isEnabled: Boolean) {
@@ -71,9 +74,21 @@ object BlockRepository {
     }
 
     fun pauseRule(ruleId: String, durationMinutes: Int) {
-        val until = System.currentTimeMillis() + (durationMinutes * 60 * 1000)
         _rules.value = _rules.value.map {
-            if (it.id == ruleId) it.copy(lastPausedUntil = until) else it
+            if (it.id == ruleId) {
+                it.copy(
+                    lastPausedAt = System.currentTimeMillis(),
+                    pauseDurationMinutes = durationMinutes
+                )
+            } else it
+        }
+    }
+
+    fun unpauseRule(ruleId: String) {
+        _rules.value = _rules.value.map {
+            if (it.id == ruleId) {
+                it.copy(lastPausedAt = null, pauseDurationMinutes = null)
+            } else it
         }
     }
 }

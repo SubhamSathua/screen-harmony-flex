@@ -6,6 +6,8 @@ import android.os.Bundle
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.prism.screenharmony.flex.data.BlockRepository
+import com.prism.screenharmony.flex.data.PauseType
+import com.prism.screenharmony.flex.data.WallConfig
 import com.prism.screenharmony.flex.ui.blocker.BlockedActivity
 import kotlinx.coroutines.*
 
@@ -45,7 +47,19 @@ class WebsiteAccessibilityService : AccessibilityService() {
                     val (rule, domain) = match
                     if (lastBlockedUrl != domain) {
                         lastBlockedUrl = domain
-                        redirectAndBlock(urlNode, domain, rule.name, rule.showQuotes, rule.pauseDelaySeconds)
+                        val customQuote = if (rule.wallConfig is WallConfig.StandardQuote) {
+                            (rule.wallConfig as WallConfig.StandardQuote).quote
+                        } else null
+
+                        val delaySec = if (rule.pauseConfig.type == PauseType.DELAY) {
+                            rule.pauseConfig.extraValue ?: 5
+                        } else if (rule.pauseConfig.type == PauseType.STRICT) {
+                            0
+                        } else {
+                            5
+                        }
+
+                        redirectAndBlock(urlNode, domain, customQuote, delaySec)
                     }
                 } else {
                     lastBlockedUrl = null
@@ -92,8 +106,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
     private fun redirectAndBlock(
         urlNode: AccessibilityNodeInfo,
         blockedDomain: String,
-        ruleName: String,
-        showQuote: Boolean,
+        quote: String?,
         delaySeconds: Int
     ) {
         // Clear the URL in browser to prevent auto-reloading
@@ -109,9 +122,8 @@ class WebsiteAccessibilityService : AccessibilityService() {
                     Intent.FLAG_ACTIVITY_SINGLE_TOP or
                     Intent.FLAG_ACTIVITY_NO_ANIMATION
             putExtra("TARGET", blockedDomain)
-            putExtra("RULE_NAME", ruleName)
             putExtra("IS_WEBSITE", true)
-            putExtra("SHOW_QUOTE", showQuote)
+            putExtra("QUOTE", quote)
             putExtra("DELAY_SECONDS", delaySeconds)
         }
         startActivity(intent)

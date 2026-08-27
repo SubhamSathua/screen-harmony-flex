@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +25,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
@@ -40,10 +40,9 @@ class BlockedActivity : ComponentActivity() {
         setTurnScreenOn(true)
 
         val target = intent.getStringExtra("TARGET") ?: "App"
-        val ruleName = intent.getStringExtra("RULE_NAME") ?: "App Block"
         val isWebsite = intent.getBooleanExtra("IS_WEBSITE", false)
-        val showQuote = intent.getBooleanExtra("SHOW_QUOTE", false)
-        val delaySeconds = intent.getIntExtra("DELAY_SECONDS", 0)
+        val customQuote = intent.getStringExtra("QUOTE")
+        val delaySeconds = intent.getIntExtra("DELAY_SECONDS", 5).coerceAtLeast(0)
 
         val (displayName, appIcon) = if (!isWebsite) {
             getAppDetails(target)
@@ -53,14 +52,13 @@ class BlockedActivity : ComponentActivity() {
 
         setContent {
             ScreenHarmonyFlexTheme {
-                BlockedWallScreen(
-                    targetName = displayName,
+                BlockWallScreen(
+                    appName = displayName,
                     appIcon = appIcon,
-                    ruleName = ruleName,
                     isWebsite = isWebsite,
-                    showQuote = showQuote,
+                    customQuote = customQuote,
                     delaySeconds = delaySeconds,
-                    onGoHome = { navigateHome() }
+                    onClose = { goHome() }
                 )
             }
         }
@@ -78,7 +76,7 @@ class BlockedActivity : ComponentActivity() {
         }
     }
 
-    private fun navigateHome() {
+    private fun goHome() {
         val homeIntent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -90,41 +88,42 @@ class BlockedActivity : ComponentActivity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         super.onBackPressed()
-        navigateHome()
+        goHome()
     }
 }
 
 @Composable
-fun BlockedWallScreen(
-    targetName: String,
+fun BlockWallScreen(
+    appName: String,
     appIcon: ImageBitmap?,
-    ruleName: String,
     isWebsite: Boolean,
-    showQuote: Boolean,
+    customQuote: String?,
     delaySeconds: Int,
-    onGoHome: () -> Unit
+    onClose: () -> Unit
 ) {
     val quotes = remember {
         listOf(
-            "Focus on what truly matters today.",
+            "Focus on what matters. This app doesn't.",
             "Your future self will thank you for closing this.",
-            "Stay disciplined. Great things take time.",
-            "Take a deep breath and reset your focus.",
-            "Small daily choices lead to massive results."
+            "Is this really how you want to spend your time?",
+            "One step closer to your goals if you stop now.",
+            "Breathe. Reset. Do something meaningful.",
+            "The secret of getting ahead is getting started.",
+            "Don't watch the clock; do what it does. Keep going.",
+            "Action is the foundational key to all success."
         )
     }
-    val quote = remember { quotes.random() }
+    val quote = remember { customQuote ?: quotes.random() }
 
+    val totalWaitTime = (delaySeconds * 1000L).coerceAtLeast(0L)
+    val progressAnimatable = remember { Animatable(if (totalWaitTime == 0L) 1f else 0f) }
     var timeLeft by remember { mutableIntStateOf(delaySeconds) }
-    val isButtonEnabled = timeLeft <= 0
-
-    val progressAnimatable = remember { Animatable(if (delaySeconds > 0) 0f else 1f) }
 
     LaunchedEffect(delaySeconds) {
-        if (delaySeconds > 0) {
+        if (totalWaitTime > 0L) {
             progressAnimatable.animateTo(
                 targetValue = 1f,
-                animationSpec = tween(durationMillis = delaySeconds * 1000, easing = LinearEasing)
+                animationSpec = tween(durationMillis = totalWaitTime.toInt(), easing = LinearEasing)
             )
         }
     }
@@ -138,6 +137,8 @@ fun BlockedWallScreen(
         }
     }
 
+    val isButtonEnabled = timeLeft <= 0
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -145,122 +146,101 @@ fun BlockedWallScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(28.dp),
+                .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Target Icon
-            if (appIcon != null) {
-                Image(
-                    bitmap = appIcon,
-                    contentDescription = targetName,
-                    modifier = Modifier
-                        .size(68.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                )
-            } else {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(68.dp)
-                ) {
-                    Icon(
-                        imageVector = if (isWebsite) Icons.Rounded.Language else Icons.Rounded.Lock,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(16.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 48.dp)
+            ) {
+                if (appIcon != null) {
+                    Image(
+                        bitmap = appIcon,
+                        contentDescription = appName,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
                     )
+                } else {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.Language,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
                 }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = appName,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Text(
-                text = targetName,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Connected Lock Card (with or without Quote)
             Card(
-                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(32.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                ),
-                modifier = Modifier.fillMaxWidth()
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                )
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
-                        modifier = Modifier.size(44.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Lock,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(10.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = if (isWebsite) "Website Blocked" else "App Blocked",
-                        style = MaterialTheme.typography.titleLarge,
+                        text = "Take a Breath",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 2.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                     Text(
-                        text = "Restricted under rule: $ruleName",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = quote,
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            lineHeight = 36.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-
-                    if (showQuote) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "\"$quote\"",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(modifier = Modifier.height(56.dp))
 
-            // Animated Interaction Button
             val interactionSource = remember { MutableInteractionSource() }
             val isPressed by interactionSource.collectIsPressedAsState()
             val scale by animateFloatAsState(
                 targetValue = if (isPressed) 0.94f else 1f,
                 animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
-                label = "BtnScale"
+                label = "ButtonScale"
             )
 
             Button(
-                onClick = onGoHome,
+                onClick = onClose,
                 enabled = isButtonEnabled,
                 interactionSource = interactionSource,
-                shape = CircleShape,
                 modifier = Modifier
-                    .fillMaxWidth(0.75f)
-                    .height(52.dp)
+                    .widthIn(min = 160.dp, max = 240.dp)
+                    .height(56.dp)
                     .graphicsLayer {
                         scaleX = scale
                         scaleY = scale
                     },
+                shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isButtonEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh
                 )
@@ -268,18 +248,18 @@ fun BlockedWallScreen(
                 Icon(Icons.Rounded.Home, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (isButtonEnabled) "Go to Home Screen" else "Wait ${timeLeft}s",
+                    text = if (isButtonEnabled) "Go Home" else "Wait ${timeLeft}s",
+                    style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold
                 )
             }
 
-            // Progress bar if delay countdown is active
             if (!isButtonEnabled) {
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(24.dp))
                 Box(
                     modifier = Modifier
                         .width(120.dp)
-                        .height(5.dp)
+                        .height(6.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 ) {
