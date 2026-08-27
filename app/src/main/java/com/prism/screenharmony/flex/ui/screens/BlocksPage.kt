@@ -24,7 +24,7 @@ import com.prism.screenharmony.flex.data.BlockRule
 import com.prism.screenharmony.flex.data.PauseType
 import com.prism.screenharmony.flex.ui.components.ConditionBadge
 import com.prism.screenharmony.flex.ui.theme.JetBrainsMonoFontFamily
-import com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily
+import com.prism.screenharmony.flex.ui.theme.NunitoFontFamily
 import kotlinx.coroutines.delay
 import java.time.DayOfWeek
 import java.time.LocalTime
@@ -590,9 +590,9 @@ fun ActiveBlockActionDialog(
                         text = "Discipline is choosing between what you want now and what you want most.",
                         modifier = Modifier.padding(16.dp),
                         textAlign = TextAlign.Center,
-                        fontFamily = PlayfairFontFamily,
+                        fontFamily = NunitoFontFamily,
                         style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Bold
                     )
                 }
 

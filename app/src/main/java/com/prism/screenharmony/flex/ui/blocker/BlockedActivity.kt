@@ -225,19 +225,19 @@ fun BlockWallScreen(
                     Text(
                         text = "Take a Breath",
                         style = MaterialTheme.typography.titleMedium,
-                        fontFamily = com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily,
+                        fontFamily = com.prism.screenharmony.flex.ui.theme.NunitoFontFamily,
                         color = MaterialTheme.colorScheme.primary,
                         letterSpacing = 2.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.ExtraBold
                     )
                     Spacer(modifier = Modifier.height(20.dp))
                     Text(
                         text = quote,
                         style = MaterialTheme.typography.headlineMedium.copy(
                             lineHeight = 36.sp,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Bold
                         ),
-                        fontFamily = com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily,
+                        fontFamily = com.prism.screenharmony.flex.ui.theme.NunitoFontFamily,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )

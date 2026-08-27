@@ -34,7 +34,6 @@ import com.prism.screenharmony.flex.data.*
 import com.prism.screenharmony.flex.ui.components.*
 import com.prism.screenharmony.flex.ui.theme.JetBrainsMonoFontFamily
 import com.prism.screenharmony.flex.ui.theme.NunitoFontFamily
-import com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily
 import com.prism.screenharmony.flex.utils.formatDelay
 
 @OptIn(ExperimentalMaterial3Api::class)
