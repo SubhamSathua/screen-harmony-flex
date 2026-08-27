@@ -1,31 +1,32 @@
 #!/usr/bin/env bash
 set -e
 
-GRADLE_FILE="app/build.gradle.kts"
+PROPS_FILE="version.properties"
 
-if [ ! -f "$GRADLE_FILE" ]; then
-    echo "Error: Could not find $GRADLE_FILE" >&2
+if [ ! -f "$PROPS_FILE" ]; then
+    echo "Error: Could not find $PROPS_FILE" >&2
     exit 1
 fi
 
-CURRENT_CODE=$(grep -E '^\s*versionCode\s*=' "$GRADLE_FILE" | sed -E 's/.*=\s*([0-9]+).*/\1/')
-CURRENT_NAME=$(grep -E '^\s*versionName\s*=' "$GRADLE_FILE" | sed -E 's/.*=\s*"([^"]+)".*/\1/')
+get_prop() {
+    grep "^$1=" "$PROPS_FILE" | cut -d'=' -f2 | tr -d ' \r\n'
+}
 
-if [ -z "$CURRENT_CODE" ] || [ -z "$CURRENT_NAME" ]; then
-    echo "Error: Failed to parse versionCode or versionName in $GRADLE_FILE" >&2
-    exit 1
-fi
+MAJOR=$(get_prop "VERSION_MAJOR")
+MINOR=$(get_prop "VERSION_MINOR")
+PATCH=$(get_prop "VERSION_PATCH")
+CODE=$(get_prop "VERSION_CODE")
 
-IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_NAME"
 MAJOR=${MAJOR:-0}
-MINOR=${MINOR:-0}
+MINOR=${MINOR:-1}
 PATCH=${PATCH:-0}
+CODE=${CODE:-1}
 
 CURRENT_FORMATTED="$MAJOR.$MINOR.$PATCH"
 
 echo "=========================================="
-echo " ScreenHarmony Flex - Version Bump Script"
-echo " Current Version: $CURRENT_FORMATTED (Code: $CURRENT_CODE)"
+echo " ScreenHarmony Flex - Version Bump"
+echo " Current Version: $CURRENT_FORMATTED (Code: $CODE)"
 echo "=========================================="
 
 CHOICE="$1"
@@ -63,14 +64,18 @@ case "$CHOICE" in
 esac
 
 NEW_VERSION_NAME="$NEW_MAJOR.$NEW_MINOR.$NEW_PATCH"
-NEW_VERSION_CODE=$((CURRENT_CODE + 1))
+NEW_VERSION_CODE=$((CODE + 1))
 
-# Replace in build.gradle.kts
-sed -i -E "s/^([[:space:]]*versionCode[[:space:]]*=[[:space:]]*)[0-9]+/\1$NEW_VERSION_CODE/" "$GRADLE_FILE"
-sed -i -E "s/^([[:space:]]*versionName[[:space:]]*=[[:space:]]*)\"[^\"]+\"/\1\"$NEW_VERSION_NAME\"/" "$GRADLE_FILE"
+# Write to version.properties (No Gradle Sync needed!)
+cat <<EOF > "$PROPS_FILE"
+VERSION_MAJOR=$NEW_MAJOR
+VERSION_MINOR=$NEW_MINOR
+VERSION_PATCH=$NEW_PATCH
+VERSION_CODE=$NEW_VERSION_CODE
+EOF
 
 echo ""
-echo "✅ Version successfully bumped!"
+echo "✅ Version successfully bumped without Gradle script changes!"
 echo "   Version Name: $CURRENT_FORMATTED -> $NEW_VERSION_NAME"
-echo "   Version Code: $CURRENT_CODE -> $NEW_VERSION_CODE"
-echo "   Updated: $GRADLE_FILE"
+echo "   Version Code: $CODE -> $NEW_VERSION_CODE"
+echo "   Target: version.properties (Zero Gradle Sync required)"

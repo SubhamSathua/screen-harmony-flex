@@ -1,7 +1,23 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+val versionPropsFile = rootProject.file("version.properties")
+val versionProps = Properties().apply {
+    if (versionPropsFile.exists()) {
+        FileInputStream(versionPropsFile).use { load(it) }
+    }
+}
+
+val appVersionMajor = versionProps.getProperty("VERSION_MAJOR", "0").toInt()
+val appVersionMinor = versionProps.getProperty("VERSION_MINOR", "1").toInt()
+val appVersionPatch = versionProps.getProperty("VERSION_PATCH", "0").toInt()
+val appVersionCode = versionProps.getProperty("VERSION_CODE", "1").toInt()
+val appVersionName = "$appVersionMajor.$appVersionMinor.$appVersionPatch"
 
 android {
     namespace = "com.prism.screenharmony.flex"
@@ -15,8 +31,8 @@ android {
         applicationId = "com.prism.screenharmony.flex"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

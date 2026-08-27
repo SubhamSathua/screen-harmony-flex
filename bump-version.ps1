@@ -6,38 +6,35 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-$gradleFile = Join-Path $PSScriptRoot "app/build.gradle.kts"
+$propsFile = Join-Path $PSScriptRoot "version.properties"
 
-if (-not (Test-Path $gradleFile)) {
-    Write-Error "Could not find app/build.gradle.kts at $gradleFile"
+if (-not (Test-Path $propsFile)) {
+    Write-Error "Could not find version.properties at $propsFile"
     exit 1
 }
 
-$content = Get-Content -Path $gradleFile -Raw
-
-# Match versionCode and versionName
-$codeMatch = [regex]::Match($content, '(?m)^\s*versionCode\s*=\s*(\d+)')
-$nameMatch = [regex]::Match($content, '(?m)^\s*versionName\s*=\s*"([^"]+)"')
-
-if (-not $codeMatch.Success -or -not $nameMatch.Success) {
-    Write-Error "Failed to parse versionCode or versionName in $gradleFile"
-    exit 1
+# Read existing properties
+$props = @{}
+Get-Content -Path $propsFile | ForEach-Object {
+    $line = $_.Trim()
+    if ($line -and -not $line.StartsWith("#")) {
+        $key, $value = $line.Split("=", 2)
+        if ($key -and $value) {
+            $props[$key.Trim()] = $value.Trim()
+        }
+    }
 }
 
-$currentCode = [int]$codeMatch.Groups[1].Value
-$currentName = $nameMatch.Groups[1].Value
-
-# Parse semver (xx.xx.xx)
-$parts = $currentName.Split('.')
-$major = if ($parts.Length -ge 1) { [int]$parts[0] } else { 0 }
-$minor = if ($parts.Length -ge 2) { [int]$parts[1] } else { 0 }
-$patch = if ($parts.Length -ge 3) { [int]$parts[2] } else { 0 }
+$major = if ($props.ContainsKey("VERSION_MAJOR")) { [int]$props["VERSION_MAJOR"] } else { 0 }
+$minor = if ($props.ContainsKey("VERSION_MINOR")) { [int]$props["VERSION_MINOR"] } else { 1 }
+$patch = if ($props.ContainsKey("VERSION_PATCH")) { [int]$props["VERSION_PATCH"] } else { 0 }
+$code  = if ($props.ContainsKey("VERSION_CODE"))  { [int]$props["VERSION_CODE"] }  else { 1 }
 
 $currentFormatted = "$major.$minor.$patch"
 
 Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host " ScreenHarmony Flex - Version Bump Script" -ForegroundColor Cyan
-Write-Host " Current Version: $currentFormatted (Code: $currentCode)" -ForegroundColor Yellow
+Write-Host " ScreenHarmony Flex - Version Bump" -ForegroundColor Cyan
+Write-Host " Current Version: $currentFormatted (Code: $code)" -ForegroundColor Yellow
 Write-Host "==========================================" -ForegroundColor Cyan
 
 if ([string]::IsNullOrWhiteSpace($BumpType)) {
@@ -75,16 +72,20 @@ switch -Regex ($choice.Trim().ToLower()) {
 }
 
 $newVersionName = "$newMajor.$newMinor.$newPatch"
-$newVersionCode = $currentCode + 1
+$newVersionCode = $code + 1
 
-# Replace in build.gradle.kts
-$updatedContent = [regex]::Replace($content, '(?m)^\s*versionCode\s*=\s*\d+', "        versionCode = $newVersionCode")
-$updatedContent = [regex]::Replace($updatedContent, '(?m)^\s*versionName\s*=\s*"[^"]+"', "        versionName = `"$newVersionName`"")
+# Write updated properties to version.properties (No Gradle Sync needed!)
+$newContent = @"
+VERSION_MAJOR=$newMajor
+VERSION_MINOR=$newMinor
+VERSION_PATCH=$newPatch
+VERSION_CODE=$newVersionCode
+"@
 
-Set-Content -Path $gradleFile -Value $updatedContent -NoNewline
+Set-Content -Path $propsFile -Value $newContent -NoNewline
 
 Write-Host ""
-Write-Host "✅ Version successfully bumped!" -ForegroundColor Green
+Write-Host "✅ Version successfully bumped without Gradle script changes!" -ForegroundColor Green
 Write-Host "   Version Name: $currentFormatted -> $newVersionName" -ForegroundColor Green
-Write-Host "   Version Code: $currentCode -> $newVersionCode" -ForegroundColor Green
-Write-Host "   Updated: $gradleFile" -ForegroundColor DarkGray
+Write-Host "   Version Code: $code -> $newVersionCode" -ForegroundColor Green
+Write-Host "   Target: version.properties (Zero Gradle Sync required)" -ForegroundColor DarkGray
