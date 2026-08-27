@@ -17,12 +17,13 @@ import com.prism.screenharmony.flex.data.WallConfig
 import com.prism.screenharmony.flex.ui.blocker.BlockedActivity
 import com.prism.screenharmony.flex.utils.PermissionHelper
 import kotlinx.coroutines.*
+import java.util.concurrent.atomic.AtomicBoolean
 
 class AppBlockerService : Service() {
 
-    private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private var isMonitoring = false
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var lastInterceptedPackage: String? = null
+    private var lastQueryTime = System.currentTimeMillis() - 5_000L
 
     companion object {
         private const val TAG = "ScreenHarmony_Blocker"
@@ -31,7 +32,12 @@ class AppBlockerService : Service() {
         const val NOTIFICATION_ID = 2001
         const val LOCK_NOTIFICATION_ID = 2002
 
+        val isRunning = AtomicBoolean(false)
+
         fun start(context: Context) {
+            if (isRunning.get()) {
+                return // Already running smoothly, avoid re-invoking startForegroundService
+            }
             val intent = Intent(context, AppBlockerService::class.java)
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -53,7 +59,7 @@ class AppBlockerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "AppBlockerService onStartCommand (flags=$flags, startId=$startId)")
+        Log.d(TAG, "AppBlockerService onStartCommand")
 
         val notification = createForegroundNotification()
         try {
@@ -66,15 +72,12 @@ class AppBlockerService : Service() {
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
-            Log.d(TAG, "startForeground initialized successfully")
+            isRunning.set(true)
         } catch (e: Exception) {
             Log.e(TAG, "startForeground error", e)
         }
 
-        if (!isMonitoring) {
-            isMonitoring = true
-            startAppMonitoringLoop()
-        }
+        startAppMonitoringLoop()
         return START_STICKY
     }
 
@@ -85,9 +88,9 @@ class AppBlockerService : Service() {
             return
         }
 
-        Log.i(TAG, "Starting Usage Access monitoring loop (200ms interval)")
-
         serviceScope.launch {
+            Log.i(TAG, "Starting optimized Usage Access monitoring loop (IO Dispatcher)")
+
             while (isActive) {
                 try {
                     val hasUsage = PermissionHelper.isUsageAccessGranted(this@AppBlockerService)
@@ -121,31 +124,30 @@ class AppBlockerService : Service() {
                                     )
                                 }
                             } else {
-                                if (lastInterceptedPackage != null) {
-                                    Log.d(TAG, "User exited blocked app to: $currentForeground")
-                                }
                                 lastInterceptedPackage = null
                             }
                         }
                     } else {
-                        Log.w(TAG, "Usage Access NOT granted! Waiting for user to grant permission...")
-                        delay(2000) // Back off when permission not granted
+                        delay(2000)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in monitoring loop", e)
                 }
 
-                delay(200) // Fast 200ms check
+                delay(300) // 300ms lightweight poll
             }
         }
     }
 
     /**
-     * Finds the active foreground app with 60s event window and usage stats fallback.
+     * Efficiently finds the active foreground app using a sliding window.
      */
     private fun getForegroundPackage(usm: UsageStatsManager): String? {
         val now = System.currentTimeMillis()
-        val events = usm.queryEvents(now - 60_000, now)
+        val queryStart = (now - 5_000L).coerceAtMost(lastQueryTime)
+        lastQueryTime = now
+
+        val events = usm.queryEvents(queryStart, now)
         val event = UsageEvents.Event()
 
         var latestTime = 0L
@@ -159,12 +161,9 @@ class AppBlockerService : Service() {
             }
         }
 
-        if (latestApp == null) {
-            val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 60_000, now)
-            val mostRecent = stats?.maxByOrNull { it.lastTimeUsed }
-            if (mostRecent != null && mostRecent.lastTimeUsed > now - 60_000) {
-                latestApp = mostRecent.packageName
-            }
+        if (latestApp == null && lastInterceptedPackage != null) {
+            // Keep active package state if still valid
+            latestApp = lastInterceptedPackage
         }
 
         return latestApp
@@ -172,7 +171,7 @@ class AppBlockerService : Service() {
 
     /**
      * Executes multi-layer block takeover:
-     * 1. Direct HOME kickout so the user cannot use the blocked app
+     * 1. Direct HOME kickout
      * 2. BlockedActivity launch on top
      * 3. High-Priority FullScreenIntent backup
      */
@@ -190,7 +189,6 @@ class AppBlockerService : Service() {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             startActivity(homeIntent)
-            Log.d(TAG, "Triggered HOME kickout")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to trigger HOME kickout", e)
         }
@@ -199,7 +197,8 @@ class AppBlockerService : Service() {
         val blockIntent = Intent(this, BlockedActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             putExtra("TARGET", targetPackage)
             putExtra("IS_WEBSITE", false)
             putExtra("QUOTE", quote)
@@ -236,11 +235,10 @@ class AppBlockerService : Service() {
             startActivity(blockIntent)
             Log.i(TAG, "BlockedActivity launched successfully")
         } catch (e: Exception) {
-            Log.e(TAG, "Direct startActivity failed, relying on FullScreenIntent/Home", e)
             try {
                 pendingIntent.send()
             } catch (e2: Exception) {
-                Log.e(TAG, "PendingIntent send also failed", e2)
+                Log.e(TAG, "PendingIntent send failed", e2)
             }
         }
     }
@@ -284,7 +282,7 @@ class AppBlockerService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.w(TAG, "AppBlockerService onDestroy")
+        isRunning.set(false)
         serviceScope.cancel()
-        isMonitoring = false
     }
 }

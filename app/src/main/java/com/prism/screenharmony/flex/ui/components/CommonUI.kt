@@ -1,6 +1,7 @@
 package com.prism.screenharmony.flex.ui.components
 
 import android.content.pm.PackageManager
+import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -26,17 +27,39 @@ import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+object AppIconCache {
+    private val cache = LruCache<String, ImageBitmap>(200)
+
+    fun get(packageName: String): ImageBitmap? = synchronized(cache) {
+        cache.get(packageName)
+    }
+
+    fun put(packageName: String, bitmap: ImageBitmap) = synchronized(cache) {
+        cache.put(packageName, bitmap)
+    }
+}
+
 @Composable
 fun AppIcon(packageName: String, pm: PackageManager, size: Int) {
-    var icon by remember(packageName) { mutableStateOf<ImageBitmap?>(null) }
+    var icon by remember(packageName) { mutableStateOf(AppIconCache.get(packageName)) }
 
-    LaunchedEffect(packageName) {
-        withContext(Dispatchers.IO) {
-            try {
-                val drawable = pm.getApplicationIcon(packageName)
-                icon = drawable.toBitmap().asImageBitmap()
-            } catch (e: Exception) {
-                // Fallback
+    if (icon == null) {
+        LaunchedEffect(packageName) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val cached = AppIconCache.get(packageName)
+                    if (cached != null) {
+                        icon = cached
+                    } else {
+                        val drawable = pm.getApplicationIcon(packageName)
+                        val targetPx = (size * 2).coerceIn(48, 144)
+                        val bmp = drawable.toBitmap(targetPx, targetPx).asImageBitmap()
+                        AppIconCache.put(packageName, bmp)
+                        icon = bmp
+                    }
+                } catch (e: Exception) {
+                    // Fallback
+                }
             }
         }
     }
