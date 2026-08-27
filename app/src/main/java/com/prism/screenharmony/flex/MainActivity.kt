@@ -27,11 +27,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.prism.screenharmony.flex.data.BlockRepository
 import com.prism.screenharmony.flex.data.BlockRule
 import com.prism.screenharmony.flex.service.AppBlockerService
@@ -39,6 +42,7 @@ import com.prism.screenharmony.flex.ui.screens.AppListScreen
 import com.prism.screenharmony.flex.ui.screens.BlocksPage
 import com.prism.screenharmony.flex.ui.screens.CreateBlockPage
 import com.prism.screenharmony.flex.ui.theme.*
+import com.prism.screenharmony.flex.utils.PermissionHelper
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -79,6 +83,25 @@ fun ScreenHarmonyFlexApp() {
     var currentScreenState by remember { mutableStateOf(ScreenState.MAIN_TABS) }
     var editingRule by remember { mutableStateOf(BlockRule()) }
     var isAppListGridView by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Live permission tracking
+    var isUsageGranted by remember { mutableStateOf(PermissionHelper.isUsageAccessGranted(context)) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isUsageGranted = PermissionHelper.isUsageAccessGranted(context)
+                AppBlockerService.start(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     val navContainerColor = MaterialTheme.colorScheme.surfaceContainer
     val navContentColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -207,23 +230,73 @@ fun ScreenHarmonyFlexApp() {
                                     )
                                 }
                             ) { innerPadding ->
-                                Box(modifier = Modifier.padding(innerPadding)) {
-                                    BlocksPage(
-                                        rules = rules,
-                                        onToggleRule = { rule, isEnabled -> BlockRepository.toggleRule(rule.id, isEnabled) },
-                                        onEditRule = { rule ->
-                                            editingRule = rule
-                                            currentScreenState = ScreenState.CREATE_OR_EDIT_BLOCK
-                                        },
-                                        onDeleteRule = { rule -> BlockRepository.deleteRule(rule.id) },
-                                        onPauseRule = { rule ->
-                                            if (rule.isPaused()) {
-                                                BlockRepository.unpauseRule(rule.id)
-                                            } else {
-                                                BlockRepository.pauseRule(rule.id, 5) // Pause for 5 minutes
+                                Column(
+                                    modifier = Modifier
+                                        .padding(innerPadding)
+                                        .fillMaxSize()
+                                ) {
+                                    // Prominent Permission Alert Banner if Usage Access not granted
+                                    if (!isUsageGranted) {
+                                        Card(
+                                            onClick = { PermissionHelper.openUsageAccessSettings(context) },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                            shape = RoundedCornerShape(18.dp),
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(16.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Warning,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(28.dp),
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                                Spacer(modifier = Modifier.width(14.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = "Usage Access Required",
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = "Tap to grant permission. Only Usage Access is needed to block apps.",
+                                                        style = MaterialTheme.typography.bodySmall
+                                                    )
+                                                }
+                                                Icon(
+                                                    imageVector = Icons.Rounded.ArrowForward,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
                                             }
                                         }
-                                    )
+                                    }
+
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        BlocksPage(
+                                            rules = rules,
+                                            onToggleRule = { rule, isEnabled -> BlockRepository.toggleRule(rule.id, isEnabled) },
+                                            onEditRule = { rule ->
+                                                editingRule = rule
+                                                currentScreenState = ScreenState.CREATE_OR_EDIT_BLOCK
+                                            },
+                                            onDeleteRule = { rule -> BlockRepository.deleteRule(rule.id) },
+                                            onPauseRule = { rule ->
+                                                if (rule.isPaused()) {
+                                                    BlockRepository.unpauseRule(rule.id)
+                                                } else {
+                                                    BlockRepository.pauseRule(rule.id, 5)
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -242,8 +315,8 @@ fun ScreenHarmonyFlexApp() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ParentalTabScreen() {
-    var familyCode by remember { mutableStateOf("SH-7842") }
-    var isConnected by remember { mutableStateOf(true) }
+    val familyCode by remember { mutableStateOf("SH-7842") }
+    val isConnected by remember { mutableStateOf(true) }
 
     Scaffold(
         topBar = {
@@ -368,6 +441,23 @@ fun SettingsTabScreen() {
     val themeState = LocalThemeState.current
     var isColorPaletteExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    var isUsageGranted by remember { mutableStateOf(PermissionHelper.isUsageAccessGranted(context)) }
+    var isAccessibilityGranted by remember { mutableStateOf(PermissionHelper.isAccessibilityGranted(context)) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isUsageGranted = PermissionHelper.isUsageAccessGranted(context)
+                isAccessibilityGranted = PermissionHelper.isAccessibilityGranted(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -501,45 +591,57 @@ fun SettingsTabScreen() {
                 }
             }
 
-            item { SectionHeader(title = "Permissions & System") }
+            item { SectionHeader(title = "Permissions & Engines") }
 
             item {
                 GroupedContainer {
                     GroupedItemRow(
                         icon = Icons.Rounded.CheckCircle,
                         title = "Usage Access (Apps)",
-                        subtitle = "Required for 1-tap app blocking"
+                        subtitle = if (isUsageGranted) "Active • Primary app blocker" else "Required • Tap to grant permission"
                     ) {
-                        FilledTonalButton(
-                            onClick = {
-                                context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                })
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text("Grant", fontSize = 12.sp)
+                        if (isUsageGranted) {
+                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                            }
+                        } else {
+                            Button(
+                                onClick = { PermissionHelper.openUsageAccessSettings(context) },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                            ) {
+                                Text("Grant", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
 
                     ItemDivider()
 
                     GroupedItemRow(
-                        icon = Icons.Rounded.Accessibility,
+                        icon = Icons.Rounded.Language,
                         title = "Accessibility (Websites)",
-                        subtitle = "Optional: only needed if blocking browser URLs"
+                        subtitle = if (isAccessibilityGranted) "Active • Inspecting browser URLs" else "Optional • Only needed for websites"
                     ) {
-                        FilledTonalButton(
-                            onClick = {
-                                context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                })
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text("Open", fontSize = 12.sp)
+                        if (isAccessibilityGranted) {
+                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                }
+                            }
+                        } else {
+                            FilledTonalButton(
+                                onClick = { PermissionHelper.openAccessibilitySettings(context) },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                            ) {
+                                Text("Enable", fontSize = 12.sp)
+                            }
                         }
                     }
                 }
