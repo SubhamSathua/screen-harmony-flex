@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Screen Harmony Flex</string>
+    <string name="accessibility_description">Used exclusively to detect and block specified website URLs in web browsers.</string>
 </resources>

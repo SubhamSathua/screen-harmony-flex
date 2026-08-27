@@ -1,6 +1,11 @@
 package com.prism.screenharmony.flex
 
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -26,17 +31,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.prism.screenharmony.flex.data.BlockRepository
+import com.prism.screenharmony.flex.data.BlockRule
+import com.prism.screenharmony.flex.service.AppBlockerService
 import com.prism.screenharmony.flex.ui.theme.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Start background usage blocker engine
+        AppBlockerService.start(this)
+
         setContent {
             val themeState = remember { ThemeState() }
             ScreenHarmonyFlexTheme(themeState = themeState) {
@@ -59,7 +72,6 @@ enum class AppDestinations(
 fun ScreenHarmonyFlexApp() {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.BLOCK) }
 
-    // Fully custom navigation suite colors to eliminate default purple and use custom theme colors everywhere
     val navContainerColor = MaterialTheme.colorScheme.surfaceContainer
     val navContentColor = MaterialTheme.colorScheme.onSurfaceVariant
     val navSelectedIndicator = MaterialTheme.colorScheme.primaryContainer
@@ -136,41 +148,21 @@ fun ScreenHarmonyFlexApp() {
 }
 
 // ==========================================
-// 1. BLOCK TAB SCREEN (Clean App Blocker UI)
+// 1. BLOCK TAB SCREEN (Created Blocks + Create Sheet)
 // ==========================================
-data class DummyAppItem(
-    val id: String,
-    val name: String,
-    val packageName: String,
-    val iconVector: ImageVector,
-    var isBlocked: Boolean
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BlockTabScreen() {
-    var searchQuery by remember { mutableStateOf("") }
-    var apps by remember {
-        mutableStateOf(
-            listOf(
-                DummyAppItem("1", "YouTube", "com.google.android.youtube", Icons.Rounded.PlayCircle, true),
-                DummyAppItem("2", "Instagram", "com.instagram.android", Icons.Rounded.CameraAlt, true),
-                DummyAppItem("3", "TikTok", "com.zhiliaoapp.musically", Icons.Rounded.MusicNote, true),
-                DummyAppItem("4", "Roblox", "com.roblox.client", Icons.Rounded.SportsEsports, false),
-                DummyAppItem("5", "Snapchat", "com.snapchat.android", Icons.Rounded.ChatBubble, false),
-                DummyAppItem("6", "Chrome", "com.android.chrome", Icons.Rounded.Public, false),
-                DummyAppItem("7", "Netflix", "com.netflix.mediaclient", Icons.Rounded.Movie, false),
-                DummyAppItem("8", "Spotify", "com.spotify.music", Icons.Rounded.Headphones, false)
-            )
-        )
-    }
+    val rules by BlockRepository.rules.collectAsState()
+    var showCreateSheet by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
-    val filteredApps = apps.filter {
-        it.name.contains(searchQuery, ignoreCase = true) ||
-        it.packageName.contains(searchQuery, ignoreCase = true)
+    val totalBlockedApps = remember(rules) {
+        rules.filter { it.isEnabled }.flatMap { it.selectedApps }.toSet().size
     }
-
-    val blockedCount = apps.count { it.isBlocked }
+    val totalBlockedWebsites = remember(rules) {
+        rules.filter { it.isEnabled }.flatMap { it.selectedWebsites }.toSet().size
+    }
 
     Scaffold(
         topBar = {
@@ -187,7 +179,7 @@ fun BlockTabScreen() {
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Usage Access active • Instant enforcement",
+                            text = "Usage Access active • Zero Accessibility needed for apps",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -196,7 +188,7 @@ fun BlockTabScreen() {
                 actions = {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = if (blockedCount > 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
+                        color = if (totalBlockedApps > 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
                         modifier = Modifier.padding(end = 16.dp)
                     ) {
                         Row(
@@ -204,22 +196,32 @@ fun BlockTabScreen() {
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         ) {
                             Icon(
-                                imageVector = if (blockedCount > 0) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                                imageVector = Icons.Rounded.Shield,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp),
-                                tint = if (blockedCount > 0) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
+                                tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "$blockedCount blocked",
+                                text = "$totalBlockedApps Apps • $totalBlockedWebsites Sites",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace,
-                                color = if (blockedCount > 0) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
                 }
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { showCreateSheet = true },
+                icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                text = { Text("Create a Block", fontWeight = FontWeight.Bold) },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = RoundedCornerShape(18.dp)
             )
         }
     ) { innerPadding ->
@@ -228,44 +230,10 @@ fun BlockTabScreen() {
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Search Input
             item {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search installed apps...") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Rounded.Search,
-                            contentDescription = "Search",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Rounded.Close, contentDescription = "Clear")
-                            }
-                        }
-                    },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    singleLine = true
-                )
-            }
-
-            // Quick Status Card
-            item {
+                // Info Banner
                 Card(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
@@ -283,23 +251,21 @@ fun BlockTabScreen() {
                             modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Shield,
+                                imageVector = Icons.Rounded.CheckCircle,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier
-                                    .padding(8.dp)
-                                    .size(24.dp)
+                                modifier = Modifier.padding(8.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Simple 1-Tap Blocker",
+                                text = "Dual-Engine Blocker",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Apps toggled ON will be blocked immediately on kid's phone.",
+                                text = "Apps block instantly with Usage Access. Websites block via Accessibility.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -310,37 +276,287 @@ fun BlockTabScreen() {
 
             item {
                 Text(
-                    text = "Installed Apps (${filteredApps.size})",
+                    text = "Active Blocks (${rules.size})",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                    modifier = Modifier.padding(top = 6.dp)
                 )
             }
 
-            // Grouped container for apps list
+            // Rules Grouped List
+            items(rules, key = { it.id }) { rule ->
+                BlockRuleCard(
+                    rule = rule,
+                    onToggle = { isChecked -> BlockRepository.toggleRule(rule.id, isChecked) },
+                    onDelete = { BlockRepository.deleteRule(rule.id) }
+                )
+            }
+
             item {
-                Card(
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+                Spacer(modifier = Modifier.height(80.dp))
+            }
+        }
+    }
+
+    if (showCreateSheet) {
+        CreateBlockBottomSheet(
+            onDismiss = { showCreateSheet = false },
+            onSave = { newRule ->
+                BlockRepository.addRule(newRule)
+                showCreateSheet = false
+            }
+        )
+    }
+}
+
+@Composable
+fun BlockRuleCard(
+    rule: BlockRule,
+    onToggle: (Boolean) -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (rule.isEnabled) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (rule.isEnabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+                    modifier = Modifier.size(44.dp)
                 ) {
-                    Column {
-                        filteredApps.forEachIndexed { index, app ->
-                            AppBlockRow(
-                                app = app,
-                                onToggle = { isChecked ->
-                                    apps = apps.map {
-                                        if (it.id == app.id) it.copy(isBlocked = isChecked) else it
-                                    }
-                                }
+                    Icon(
+                        imageVector = if (rule.isEnabled) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                        contentDescription = null,
+                        tint = if (rule.isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = rule.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${rule.selectedApps.size} apps • ${rule.selectedWebsites.size} websites",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = rule.isEnabled,
+                    onCheckedChange = onToggle
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Rule Chips / Details
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Pause mode badge
+                SuggestionChip(
+                    onClick = {},
+                    label = {
+                        Text(
+                            text = if (rule.pauseDelaySeconds > 0) "${rule.pauseDelaySeconds}s Delay" else "Strict (No Pause)",
+                            fontSize = 11.sp
+                        )
+                    },
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                // Quotes badge
+                SuggestionChip(
+                    onClick = {},
+                    label = {
+                        Text(
+                            text = if (rule.showQuotes) "Quotes ON" else "Direct Lock",
+                            fontSize = 11.sp
+                        )
+                    },
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteOutline,
+                        contentDescription = "Delete",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// CREATE A BLOCK BOTTOM SHEET
+// ==========================================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CreateBlockBottomSheet(
+    onDismiss: () -> Unit,
+    onSave: (BlockRule) -> Unit
+) {
+    val context = LocalContext.current
+    var ruleName by remember { mutableStateOf("") }
+    var showQuotes by remember { mutableStateOf(false) }
+    var pauseDelaySeconds by remember { mutableIntStateOf(0) } // 0 = Strict, >0 = delay
+
+    // Installed apps loader
+    val installedApps = remember {
+        val pm = context.packageManager
+        pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 || it.packageName.contains("chrome") }
+            .map { appInfo ->
+                Pair(pm.getApplicationLabel(appInfo).toString(), appInfo.packageName)
+            }
+            .sortedBy { it.first }
+    }
+
+    var selectedApps by remember {
+        mutableStateOf(
+            setOf("com.google.android.youtube", "com.instagram.android")
+        )
+    }
+
+    var websiteInput by remember { mutableStateOf("") }
+    var selectedWebsites by remember {
+        mutableStateOf(setOf("tiktok.com", "instagram.com"))
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Create a Block",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            // Block Name
+            OutlinedTextField(
+                value = ruleName,
+                onValueChange = { ruleName = it },
+                label = { Text("Block Name (e.g., Focus / Study Time)") },
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            // Apps & Websites Grouped Container
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Pick Apps to Block (${selectedApps.size} selected)",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Quick App Chips
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(
+                            "YouTube" to "com.google.android.youtube",
+                            "Instagram" to "com.instagram.android",
+                            "TikTok" to "com.zhiliaoapp.musically",
+                            "Roblox" to "com.roblox.client"
+                        ).forEach { (label, pkg) ->
+                            val isSelected = selectedApps.contains(pkg)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    selectedApps = if (isSelected) selectedApps - pkg else selectedApps + pkg
+                                },
+                                label = { Text(label, fontSize = 12.sp) },
+                                shape = RoundedCornerShape(8.dp)
                             )
-                            if (index < filteredApps.size - 1) {
-                                HorizontalDivider(
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                                    modifier = Modifier.padding(horizontal = 16.dp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Websites input
+                    Text(
+                        text = "Pick Websites to Block (Accessibility)",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = websiteInput,
+                            onValueChange = { websiteInput = it },
+                            placeholder = { Text("e.g. reddit.com", fontSize = 13.sp) },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        Button(
+                            onClick = {
+                                if (websiteInput.isNotBlank()) {
+                                    selectedWebsites = selectedWebsites + websiteInput.trim().lowercase()
+                                    websiteInput = ""
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Add")
+                        }
+                    }
+
+                    // Website tags
+                    if (selectedWebsites.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            selectedWebsites.forEach { site ->
+                                InputChip(
+                                    selected = true,
+                                    onClick = { selectedWebsites = selectedWebsites - site },
+                                    label = { Text(site, fontSize = 11.sp) },
+                                    trailingIcon = { Icon(Icons.Rounded.Close, contentDescription = null, modifier = Modifier.size(14.dp)) }
                                 )
                             }
                         }
@@ -348,66 +564,110 @@ fun BlockTabScreen() {
                 }
             }
 
-            item {
-                Spacer(modifier = Modifier.height(24.dp))
+            // Options: Delay & Quote Wall
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // Delay / Strict
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Pausing / Delay",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (pauseDelaySeconds > 0) "Wait ${pauseDelaySeconds}s before unlocking" else "Strict (No Pausing allowed)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ) {
+                            Row(modifier = Modifier.padding(3.dp)) {
+                                listOf(0 to "Strict", 5 to "5s", 10 to "10s").forEach { (sec, label) ->
+                                    val isSel = pauseDelaySeconds == sec
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSel) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                        modifier = Modifier.clickable { pauseDelaySeconds = sec }
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Quotes ON/OFF
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Motivational Quotes",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Show inspirational quotes on block screen",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = showQuotes,
+                            onCheckedChange = { showQuotes = it }
+                        )
+                    }
+                }
+            }
+
+            // Save Button
+            Button(
+                onClick = {
+                    val finalName = ruleName.ifBlank { "Custom Block" }
+                    onSave(
+                        BlockRule(
+                            name = finalName,
+                            isEnabled = true,
+                            selectedApps = selectedApps,
+                            selectedWebsites = selectedWebsites,
+                            showQuotes = showQuotes,
+                            pauseDelaySeconds = pauseDelaySeconds
+                        )
+                    )
+                },
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Text("Save Block Rule", fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
-@Composable
-fun AppBlockRow(
-    app: DummyAppItem,
-    onToggle: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = if (app.isBlocked) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(44.dp)
-        ) {
-            Icon(
-                imageVector = app.iconVector,
-                contentDescription = app.name,
-                tint = if (app.isBlocked) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier
-                    .padding(10.dp)
-                    .size(24.dp)
-            )
-        }
-        Spacer(modifier = Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = app.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = app.packageName,
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Switch(
-            checked = app.isBlocked,
-            onCheckedChange = onToggle,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = MaterialTheme.colorScheme.onError,
-                checkedTrackColor = MaterialTheme.colorScheme.error
-            )
-        )
-    }
-}
-
 // ==========================================
-// 2. PARENTAL TAB SCREEN (Kid / Cloud Sync UI)
+// 2. PARENTAL TAB SCREEN
 // ==========================================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -474,7 +734,6 @@ fun ParentalTabScreen() {
                 }
             }
 
-            // Connected Devices Grouped Container
             Text(
                 text = "Connected Devices",
                 style = MaterialTheme.typography.titleSmall,
@@ -533,41 +792,6 @@ fun ParentalTabScreen() {
                             Icon(Icons.Rounded.Sync, contentDescription = "Sync", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
-
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-
-                    // Quick Actions Inside Grouped Card
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Button(
-                            onClick = { /* Block All */ },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error
-                            ),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Rounded.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Lock All")
-                        }
-                        OutlinedButton(
-                            onClick = { /* Unblock All */ },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Rounded.LockOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Unlock All")
-                        }
-                    }
                 }
             }
         }
@@ -575,13 +799,14 @@ fun ParentalTabScreen() {
 }
 
 // ==========================================
-// 3. SETTINGS TAB SCREEN (Grouped Containers & Working Appearance)
+// 3. SETTINGS TAB SCREEN
 // ==========================================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsTabScreen() {
     val themeState = LocalThemeState.current
     var isColorPaletteExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -607,16 +832,14 @@ fun SettingsTabScreen() {
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // -------------------------------------------------------------
-            // SECTION 1: APPEARANCE (Theme Mode, Amoled, Expandable Colors)
-            // -------------------------------------------------------------
+            // SECTION 1: APPEARANCE
             item {
                 SectionHeader(title = "Appearance")
             }
 
             item {
                 GroupedContainer {
-                    // Card 1: Theme Mode (System / Light / Dark)
+                    // Card 1: Theme Mode
                     GroupedItemRow(
                         icon = Icons.Rounded.DarkMode,
                         title = "Theme Mode",
@@ -644,7 +867,7 @@ fun SettingsTabScreen() {
 
                     ItemDivider()
 
-                    // Card 3: Color Palette (Expandable with all M3 colors)
+                    // Card 3: Color Palette (Expandable)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -690,7 +913,6 @@ fun SettingsTabScreen() {
                             )
                         }
 
-                        // Expandable Color Swatches Grid
                         AnimatedVisibility(
                             visible = isColorPaletteExpanded,
                             enter = expandVertically() + fadeIn(),
@@ -757,9 +979,7 @@ fun SettingsTabScreen() {
                 }
             }
 
-            // -------------------------------------------------------------
-            // SECTION 2: PERMISSIONS & SERVICE (Connected Container)
-            // -------------------------------------------------------------
+            // SECTION 2: PERMISSIONS & SYSTEM
             item {
                 SectionHeader(title = "Permissions & System")
             }
@@ -768,37 +988,45 @@ fun SettingsTabScreen() {
                 GroupedContainer {
                     GroupedItemRow(
                         icon = Icons.Rounded.CheckCircle,
-                        title = "Usage Access",
-                        subtitle = "Required for 1-tap blocking without accessibility"
+                        title = "Usage Access (Apps)",
+                        subtitle = "Required for 1-tap app blocking"
                     ) {
                         FilledTonalButton(
-                            onClick = { /* Open Settings */ },
+                            onClick = {
+                                context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                })
+                            },
                             shape = RoundedCornerShape(10.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                         ) {
-                            Text("Open", fontSize = 12.sp)
+                            Text("Grant", fontSize = 12.sp)
                         }
                     }
 
                     ItemDivider()
 
                     GroupedItemRow(
-                        icon = Icons.Rounded.BatteryChargingFull,
-                        title = "Battery Optimization",
-                        subtitle = "Keep service uninterrupted in the background"
+                        icon = Icons.Rounded.Accessibility,
+                        title = "Accessibility (Websites)",
+                        subtitle = "Optional: only needed if blocking browser URLs"
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        FilledTonalButton(
+                            onClick = {
+                                context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                })
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("Open", fontSize = 12.sp)
+                        }
                     }
                 }
             }
 
-            // -------------------------------------------------------------
-            // SECTION 3: CLOUD & ABOUT (Connected Container)
-            // -------------------------------------------------------------
+            // SECTION 3: CLOUD & ABOUT
             item {
                 SectionHeader(title = "About & Sync")
             }
@@ -850,7 +1078,7 @@ fun SettingsTabScreen() {
 }
 
 // ==========================================
-// REUSABLE GROUPED / CONNECTED CONTAINER UI
+// REUSABLE GROUPED UI
 // ==========================================
 @Composable
 fun SectionHeader(title: String) {
