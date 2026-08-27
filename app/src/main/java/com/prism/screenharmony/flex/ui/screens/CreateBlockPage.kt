@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.prism.screenharmony.flex.data.*
 import com.prism.screenharmony.flex.ui.components.*
 import com.prism.screenharmony.flex.ui.theme.JetBrainsMonoFontFamily
+import com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily
 import com.prism.screenharmony.flex.utils.formatDelay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,7 +55,14 @@ fun CreateBlockPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (rule.name.isEmpty()) "Create Block" else rule.name, fontWeight = FontWeight.Bold) },
+                title = {
+                    Text(
+                        text = if (rule.name.isEmpty()) "Create Block" else rule.name,
+                        fontFamily = PlayfairFontFamily,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

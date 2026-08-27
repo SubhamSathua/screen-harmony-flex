@@ -43,6 +43,9 @@ import com.prism.screenharmony.flex.ui.screens.BlocksPage
 import com.prism.screenharmony.flex.ui.screens.CreateBlockPage
 import com.prism.screenharmony.flex.ui.theme.*
 import com.prism.screenharmony.flex.utils.PermissionHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -90,18 +93,26 @@ fun ScreenHarmonyFlexApp() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Live permission tracking
-    var isUsageGranted by remember { mutableStateOf(PermissionHelper.isUsageAccessGranted(context)) }
-    var isOverlayGranted by remember { mutableStateOf(PermissionHelper.isOverlayGranted(context)) }
-    var isBatteryIgnored by remember { mutableStateOf(PermissionHelper.isBatteryOptimizationIgnored(context)) }
+    // Live permission tracking (asynchronously queried on Dispatchers.IO)
+    var isUsageGranted by remember { mutableStateOf(true) }
+    var isOverlayGranted by remember { mutableStateOf(true) }
+    var isBatteryIgnored by remember { mutableStateOf(true) }
+
+    val coroutineScope = rememberCoroutineScope()
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                isUsageGranted = PermissionHelper.isUsageAccessGranted(context)
-                isOverlayGranted = PermissionHelper.isOverlayGranted(context)
-                isBatteryIgnored = PermissionHelper.isBatteryOptimizationIgnored(context)
-                AppBlockerService.start(context)
+                coroutineScope.launch(Dispatchers.IO) {
+                    val usage = PermissionHelper.isUsageAccessGranted(context)
+                    val overlay = PermissionHelper.isOverlayGranted(context)
+                    val battery = PermissionHelper.isBatteryOptimizationIgnored(context)
+                    withContext(Dispatchers.Main) {
+                        isUsageGranted = usage
+                        isOverlayGranted = overlay
+                        isBatteryIgnored = battery
+                    }
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -528,22 +539,31 @@ fun ParentalTabScreen() {
 @Composable
 fun SettingsTabScreen() {
     val themeState = LocalThemeState.current
-    var isColorPaletteExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    var isColorPaletteExpanded by remember { mutableStateOf(false) }
+    var isUsageGranted by remember { mutableStateOf(true) }
+    var isOverlayGranted by remember { mutableStateOf(true) }
+    var isBatteryIgnored by remember { mutableStateOf(true) }
+    var isAccessibilityGranted by remember { mutableStateOf(false) }
 
-    var isUsageGranted by remember { mutableStateOf(PermissionHelper.isUsageAccessGranted(context)) }
-    var isOverlayGranted by remember { mutableStateOf(PermissionHelper.isOverlayGranted(context)) }
-    var isBatteryIgnored by remember { mutableStateOf(PermissionHelper.isBatteryOptimizationIgnored(context)) }
-    var isAccessibilityGranted by remember { mutableStateOf(PermissionHelper.isAccessibilityGranted(context)) }
+    val coroutineScope = rememberCoroutineScope()
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                isUsageGranted = PermissionHelper.isUsageAccessGranted(context)
-                isOverlayGranted = PermissionHelper.isOverlayGranted(context)
-                isBatteryIgnored = PermissionHelper.isBatteryOptimizationIgnored(context)
-                isAccessibilityGranted = PermissionHelper.isAccessibilityGranted(context)
+                coroutineScope.launch(Dispatchers.IO) {
+                    val usage = PermissionHelper.isUsageAccessGranted(context)
+                    val overlay = PermissionHelper.isOverlayGranted(context)
+                    val battery = PermissionHelper.isBatteryOptimizationIgnored(context)
+                    val accessibility = PermissionHelper.isAccessibilityGranted(context)
+                    withContext(Dispatchers.Main) {
+                        isUsageGranted = usage
+                        isOverlayGranted = overlay
+                        isBatteryIgnored = battery
+                        isAccessibilityGranted = accessibility
+                    }
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -562,8 +582,10 @@ fun SettingsTabScreen() {
                 title = {
                     Text(
                         text = "Settings",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontFamily = PlayfairFontFamily,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             )
