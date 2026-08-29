@@ -126,6 +126,10 @@ fun BlockWallScreen(
     delaySeconds: Int,
     onClose: () -> Unit
 ) {
+    androidx.activity.compose.BackHandler {
+        onClose()
+    }
+
     val quoteItem = remember {
         if (customQuote != null) com.prism.screenharmony.flex.data.QuoteItem(customQuote, "")
         else com.prism.screenharmony.flex.data.QuoteProvider.getRandomQuote()

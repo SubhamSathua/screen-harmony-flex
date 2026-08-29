@@ -25,25 +25,51 @@ object BlockRepository {
     private val _rules = MutableStateFlow<List<BlockRule>>(emptyList())
     val rules: StateFlow<List<BlockRule>> = _rules.asStateFlow()
 
+    private var dbHelper: com.prism.screenharmony.flex.data.db.AppDatabaseHelper? = null
+
     fun initialize(context: Context) {
-        if (prefs != null) return
+        if (prefs != null && dbHelper != null) return
         val appContext = context.applicationContext
         prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        dbHelper = com.prism.screenharmony.flex.data.db.AppDatabaseHelper.getInstance(appContext)
         loadFromDisk()
     }
 
     private fun loadFromDisk() {
+        // 1. Try loading from SQLite database
+        val sqliteJsons = dbHelper?.loadAllRulesJson() ?: emptyList()
+        if (sqliteJsons.isNotEmpty()) {
+            try {
+                val loadedRules = mutableListOf<BlockRule>()
+                for (json in sqliteJsons) {
+                    val parsedList = deserializeRules(json)
+                    if (parsedList.isNotEmpty()) {
+                        loadedRules.addAll(parsedList)
+                    }
+                }
+                if (loadedRules.isNotEmpty()) {
+                    _rules.value = loadedRules
+                    Log.i(TAG, "Loaded ${loadedRules.size} persistent rules from SQLite database.")
+                    return
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to parse SQLite rules", e)
+            }
+        }
+
+        // 2. Fallback to SharedPreferences if legacy data exists
         val jsonStr = prefs?.getString(KEY_RULES_JSON, null)
         if (!jsonStr.isNullOrBlank()) {
             try {
                 val loadedRules = deserializeRules(jsonStr)
                 if (loadedRules.isNotEmpty()) {
                     _rules.value = loadedRules
-                    Log.i(TAG, "Loaded ${loadedRules.size} persistent rules from disk.")
+                    Log.i(TAG, "Loaded ${loadedRules.size} persistent rules from SharedPreferences.")
+                    saveToDisk(loadedRules) // migrate to SQLite
                     return
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to parse saved rules JSON, falling back to default", e)
+                Log.e(TAG, "Failed to parse saved rules JSON", e)
             }
         }
 
@@ -56,9 +82,15 @@ object BlockRepository {
             try {
                 val jsonStr = serializeRules(rulesList)
                 prefs?.edit()?.putString(KEY_RULES_JSON, jsonStr)?.apply()
-                Log.d(TAG, "Successfully saved ${rulesList.size} rules to persistent disk.")
+
+                // Save to SQLite
+                val triples = rulesList.map { Triple(it.id, it.name, it.isEnabled) }
+                val singleJsons = rulesList.map { serializeRules(listOf(it)) }
+                dbHelper?.syncAllRules(triples, singleJsons)
+
+                Log.d(TAG, "Successfully synced ${rulesList.size} rules to SQLite database.")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to save rules to disk", e)
+                Log.e(TAG, "Failed to save rules to disk/SQLite", e)
             }
         }
     }
@@ -74,19 +106,50 @@ object BlockRepository {
     fun getActiveRuleForWebsite(url: String): Pair<BlockRule, String>? {
         val now = LocalTime.now()
         val day = DayOfWeek.from(java.time.LocalDate.now())
-        val cleanUrl = url.lowercase().trim()
+        val hostFromUrl = extractHost(url) ?: return null
 
         for (rule in _rules.value) {
             if (rule.isCurrentlyBlocked(now, day)) {
                 for (domain in rule.selectedWebsites) {
-                    val cleanDomain = domain.lowercase().trim()
-                    if (cleanDomain.isNotEmpty() && cleanUrl.contains(cleanDomain)) {
+                    val cleanDomain = extractHost(domain) ?: domain.lowercase().trim()
+                    if (cleanDomain.isNotEmpty() && isDomainMatching(hostFromUrl, cleanDomain)) {
                         return Pair(rule, cleanDomain)
                     }
                 }
             }
         }
         return null
+    }
+
+    private fun extractHost(raw: String): String? {
+        val clean = raw.lowercase().trim()
+            .removePrefix("http://")
+            .removePrefix("https://")
+            .removePrefix("www.")
+            .substringBefore("/")
+            .substringBefore("?")
+            .substringBefore(":")
+        return if (clean.isNotEmpty()) clean else null
+    }
+
+    private fun isDomainMatching(host: String, blockedDomain: String): Boolean {
+        return host == blockedDomain || host.endsWith(".$blockedDomain")
+    }
+
+    fun cleanExpiredPauses() {
+        val current = _rules.value
+        var changed = false
+        val updated = current.map { rule ->
+            if (rule.lastPausedAt != null && !rule.isPaused()) {
+                changed = true
+                rule.copy(lastPausedAt = null, pauseDurationMinutes = null)
+            } else rule
+        }
+        if (changed) {
+            _rules.value = updated
+            saveToDisk(updated)
+            Log.i(TAG, "cleanExpiredPauses: Expired paused blocks reactivated")
+        }
     }
 
     fun addOrUpdateRule(rule: BlockRule) {

@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -70,6 +71,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         refreshPermissions()
         checkAppLockState()
+
+        // Periodic ticker to reactivate expired pause states in UI
+        viewModelScope.launch {
+            while (isActive) {
+                kotlinx.coroutines.delay(5000)
+                BlockRepository.cleanExpiredPauses()
+            }
+        }
     }
 
     fun checkAppLockState() {

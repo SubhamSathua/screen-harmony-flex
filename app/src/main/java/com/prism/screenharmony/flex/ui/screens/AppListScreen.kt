@@ -193,14 +193,39 @@ fun AppListScreen(
                     }
                 }
 
+                // Category Presets Filter Chips
+                val categories = remember {
+                    listOf("All", "Social", "Media", "Games", "Shopping", "Browser")
+                }
+                var selectedCategory by remember { mutableStateOf("All") }
+
+                androidx.compose.foundation.lazy.LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(categories) { cat ->
+                        val isSelected = selectedCategory == cat
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedCategory = cat },
+                            label = { Text(cat, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            shape = RoundedCornerShape(12.dp),
+                            leadingIcon = if (isSelected) {
+                                { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null
+                        )
+                    }
+                }
+
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
                 } else {
-                    val filteredApps = apps.filter {
-                        it.name.contains(searchQuery, ignoreCase = true) ||
-                                it.packageName.contains(searchQuery, ignoreCase = true)
+                    val filteredApps = apps.filter { app ->
+                        val matchesSearch = itMatchesSearch(app, searchQuery)
+                        val matchesCategory = itMatchesCategory(app, selectedCategory)
+                        matchesSearch && matchesCategory
                     }
 
                     if (isGridView) {
@@ -343,5 +368,46 @@ fun AppGridItem(
                 )
             }
         }
+    }
+}
+
+private fun itMatchesSearch(app: AppInfo, query: String): Boolean {
+    if (query.isBlank()) return true
+    return app.name.contains(query, ignoreCase = true) ||
+            app.packageName.contains(query, ignoreCase = true)
+}
+
+private fun itMatchesCategory(app: AppInfo, category: String): Boolean {
+    val pkg = app.packageName.lowercase()
+    val name = app.name.lowercase()
+    return when (category) {
+        "All" -> true
+        "Social" -> {
+            pkg.contains("instagram") || pkg.contains("tiktok") || pkg.contains("facebook") ||
+            pkg.contains("katana") || pkg.contains("twitter") || pkg.contains("snapchat") ||
+            pkg.contains("reddit") || pkg.contains("telegram") || pkg.contains("whatsapp") ||
+            pkg.contains("pinterest") || pkg.contains("threads") || name.contains("social")
+        }
+        "Media" -> {
+            pkg.contains("youtube") || pkg.contains("netflix") || pkg.contains("spotify") ||
+            pkg.contains("primevideo") || pkg.contains("twitch") || pkg.contains("disney") ||
+            pkg.contains("hulu") || pkg.contains("hotstar") || name.contains("video") || name.contains("music")
+        }
+        "Games" -> {
+            pkg.contains("game") || pkg.contains("roblox") || pkg.contains("supercell") ||
+            pkg.contains("pubg") || pkg.contains("candycrush") || pkg.contains("mojang") ||
+            pkg.contains("ea.gp") || pkg.contains("epicgames") || pkg.contains("riotgames")
+        }
+        "Shopping" -> {
+            pkg.contains("amazon") || pkg.contains("ebay") || pkg.contains("flipkart") ||
+            pkg.contains("shein") || pkg.contains("temu") || pkg.contains("aliexpress") ||
+            pkg.contains("walmart") || pkg.contains("target") || name.contains("shop")
+        }
+        "Browser" -> {
+            pkg.contains("chrome") || pkg.contains("firefox") || pkg.contains("opera") ||
+            pkg.contains("browser") || pkg.contains("brave") || pkg.contains("edge") ||
+            pkg.contains("sbrowser")
+        }
+        else -> true
     }
 }

@@ -137,6 +137,8 @@ class AppBlockerService : Service() {
     /**
      * Efficiently finds the active foreground app using a sliding window.
      */
+    private var lastTakeoverNotificationTime = 0L
+
     private fun getForegroundPackage(usm: UsageStatsManager): String? {
         val now = System.currentTimeMillis()
         val queryStart = (now - 5_000L).coerceAtMost(lastQueryTime)
@@ -154,11 +156,6 @@ class AppBlockerService : Service() {
                 latestTime = event.timeStamp
                 latestApp = event.packageName
             }
-        }
-
-        if (latestApp == null && lastInterceptedPackage != null) {
-            // Keep active package state if still valid
-            latestApp = lastInterceptedPackage
         }
 
         return latestApp
@@ -193,22 +190,26 @@ class AppBlockerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // 1. Post Full-Screen Intent Notification
-        try {
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val lockNotification = NotificationCompat.Builder(this, LOCK_CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle("App Blocked")
-                .setContentText("Focus mode active")
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_ALARM)
-                .setFullScreenIntent(pendingIntent, true)
-                .setAutoCancel(true)
-                .build()
+        // 1. Post Full-Screen Intent Notification with a 2-second rate limiter to avoid sound spam
+        val now = System.currentTimeMillis()
+        if (now - lastTakeoverNotificationTime > 2000L) {
+            lastTakeoverNotificationTime = now
+            try {
+                val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                val lockNotification = NotificationCompat.Builder(this, LOCK_CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_launcher_foreground)
+                    .setContentTitle("App Blocked")
+                    .setContentText("Focus mode active")
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
+                    .setCategory(NotificationCompat.CATEGORY_ALARM)
+                    .setFullScreenIntent(pendingIntent, true)
+                    .setAutoCancel(true)
+                    .build()
 
-            notificationManager.notify(LOCK_NOTIFICATION_ID, lockNotification)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to post lock notification", e)
+                notificationManager.notify(LOCK_NOTIFICATION_ID, lockNotification)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to post lock notification", e)
+            }
         }
 
         // 2. Start activity directly

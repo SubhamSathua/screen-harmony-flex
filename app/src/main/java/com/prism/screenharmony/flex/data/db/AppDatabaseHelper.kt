@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
+import com.prism.screenharmony.flex.data.BlockRule
 import com.prism.screenharmony.flex.ui.theme.AppColorPalette
 import com.prism.screenharmony.flex.ui.theme.AppThemeMode
 import com.prism.screenharmony.flex.ui.theme.ThemeState
@@ -14,7 +15,7 @@ class AppDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
     companion object {
         private const val TAG = "ScreenHarmony_SQLite"
         private const val DATABASE_NAME = "screenharmony_flex.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
 
         // Settings Table
         private const val TABLE_SETTINGS = "app_settings"
@@ -25,6 +26,13 @@ class AppDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_IS_AMOLED = "is_amoled"
         const val KEY_COLOR_PALETTE = "color_palette"
+
+        // Block Rules Table
+        private const val TABLE_RULES = "block_rules"
+        private const val COL_RULE_ID = "rule_id"
+        private const val COL_RULE_NAME = "name"
+        private const val COL_IS_ENABLED = "is_enabled"
+        private const val COL_RULE_JSON = "rule_json"
 
         @Volatile
         private var instance: AppDatabaseHelper? = null
@@ -47,6 +55,17 @@ class AppDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
             """.trimIndent()
         )
 
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_RULES (
+                $COL_RULE_ID TEXT PRIMARY KEY,
+                $COL_RULE_NAME TEXT,
+                $COL_IS_ENABLED INTEGER NOT NULL,
+                $COL_RULE_JSON TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+
         // Seed default settings
         insertOrUpdateSetting(db, KEY_THEME_MODE, AppThemeMode.SYSTEM.name)
         insertOrUpdateSetting(db, KEY_IS_AMOLED, "false")
@@ -55,6 +74,18 @@ class AppDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         Log.i(TAG, "Upgrading SQLite database from $oldVersion to $newVersion")
+        if (oldVersion < 2) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS $TABLE_RULES (
+                    $COL_RULE_ID TEXT PRIMARY KEY,
+                    $COL_RULE_NAME TEXT,
+                    $COL_IS_ENABLED INTEGER NOT NULL,
+                    $COL_RULE_JSON TEXT NOT NULL
+                )
+                """.trimIndent()
+            )
+        }
     }
 
     private fun insertOrUpdateSetting(db: SQLiteDatabase, key: String, value: String) {
@@ -139,5 +170,82 @@ class AppDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
 
     fun persistColorPalette(palette: AppColorPalette) {
         saveSetting(KEY_COLOR_PALETTE, palette.name)
+    }
+
+    // =========================================================
+    // Block Rules Persistence in SQLite
+    // =========================================================
+
+    fun saveRulesJson(ruleId: String, name: String, isEnabled: Boolean, ruleJson: String) {
+        try {
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put(COL_RULE_ID, ruleId)
+                put(COL_RULE_NAME, name)
+                put(COL_IS_ENABLED, if (isEnabled) 1 else 0)
+                put(COL_RULE_JSON, ruleJson)
+            }
+            db.insertWithOnConflict(TABLE_RULES, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving rule $ruleId to SQLite", e)
+        }
+    }
+
+    fun deleteRule(ruleId: String) {
+        try {
+            val db = writableDatabase
+            db.delete(TABLE_RULES, "$COL_RULE_ID = ?", arrayOf(ruleId))
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting rule $ruleId from SQLite", e)
+        }
+    }
+
+    fun loadAllRulesJson(): List<String> {
+        val result = mutableListOf<String>()
+        try {
+            val db = readableDatabase
+            val cursor = db.query(
+                TABLE_RULES,
+                arrayOf(COL_RULE_JSON),
+                null, null, null, null, null
+            )
+            cursor.use {
+                while (it.moveToNext()) {
+                    val json = it.getString(0)
+                    if (!json.isNullOrBlank()) {
+                        result.add(json)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading rules from SQLite", e)
+        }
+        return result
+    }
+
+    fun syncAllRules(rulesWithJson: List<Triple<String, String, Boolean>>, fullJsons: List<String>) {
+        try {
+            val db = writableDatabase
+            db.beginTransaction()
+            try {
+                db.delete(TABLE_RULES, null, null)
+                for (i in rulesWithJson.indices) {
+                    val (ruleId, name, isEnabled) = rulesWithJson[i]
+                    val json = fullJsons[i]
+                    val values = ContentValues().apply {
+                        put(COL_RULE_ID, ruleId)
+                        put(COL_RULE_NAME, name)
+                        put(COL_IS_ENABLED, if (isEnabled) 1 else 0)
+                        put(COL_RULE_JSON, json)
+                    }
+                    db.insert(TABLE_RULES, null, values)
+                }
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error batch syncing rules to SQLite", e)
+        }
     }
 }
