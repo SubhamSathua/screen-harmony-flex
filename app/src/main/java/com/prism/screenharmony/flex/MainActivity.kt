@@ -53,7 +53,16 @@ class MainActivity : FragmentActivity() {
         AppBlockerService.start(this)
 
         setContent {
-            val themeState = remember { ThemeState() }
+            val dbHelper = remember { com.prism.screenharmony.flex.data.db.AppDatabaseHelper.getInstance(this@MainActivity) }
+            val themeState = remember {
+                dbHelper.loadThemeState().apply {
+                    onStateChanged = { state ->
+                        dbHelper.persistThemeMode(state.themeMode)
+                        dbHelper.persistIsAmoled(state.isAmoled)
+                        dbHelper.persistColorPalette(state.palette)
+                    }
+                }
+            }
             ScreenHarmonyFlexTheme(themeState = themeState) {
                 ScreenHarmonyFlexApp(viewModel = viewModel)
             }

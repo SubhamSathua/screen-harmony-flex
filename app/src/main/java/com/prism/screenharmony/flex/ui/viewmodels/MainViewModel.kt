@@ -128,6 +128,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openEditRule(rule: BlockRule) {
+        if (rule.pauseConfig.type == com.prism.screenharmony.flex.data.PauseType.STRICT) return
         _editingRule.value = rule
         _currentScreenState.value = ScreenState.CREATE_OR_EDIT_BLOCK
     }

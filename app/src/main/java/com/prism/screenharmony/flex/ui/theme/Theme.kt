@@ -23,11 +23,32 @@ enum class AppThemeMode(val label: String) {
 class ThemeState(
     themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     isAmoled: Boolean = false,
-    palette: AppColorPalette = AppColorPalette.TEAL
+    palette: AppColorPalette = AppColorPalette.TEAL,
+    var onStateChanged: ((ThemeState) -> Unit)? = null
 ) {
-    var themeMode by mutableStateOf(themeMode)
-    var isAmoled by mutableStateOf(isAmoled)
-    var palette by mutableStateOf(palette)
+    private var _themeMode by mutableStateOf(themeMode)
+    var themeMode: AppThemeMode
+        get() = _themeMode
+        set(value) {
+            _themeMode = value
+            onStateChanged?.invoke(this)
+        }
+
+    private var _isAmoled by mutableStateOf(isAmoled)
+    var isAmoled: Boolean
+        get() = _isAmoled
+        set(value) {
+            _isAmoled = value
+            onStateChanged?.invoke(this)
+        }
+
+    private var _palette by mutableStateOf(palette)
+    var palette: AppColorPalette
+        get() = _palette
+        set(value) {
+            _palette = value
+            onStateChanged?.invoke(this)
+        }
 }
 
 val LocalThemeState = compositionLocalOf { ThemeState() }

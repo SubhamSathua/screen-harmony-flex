@@ -172,7 +172,7 @@ fun BlockCardX(
     val isCurrentlyActive = rule.isEnabled && rule.isCurrentlyBlocked(now, day)
 
     Card(
-        onClick = onClick,
+        onClick = if (isStrict) { {} } else onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
@@ -266,15 +266,22 @@ fun BlockCardX(
                     }
                     DropdownMenu(
                         expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
+                        onDismissRequest = { showMenu = false },
+                        shape = RoundedCornerShape(24.dp),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        tonalElevation = 6.dp,
+                        shadowElevation = 8.dp,
+                        modifier = Modifier.padding(4.dp)
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Edit") },
+                            text = { Text("Edit", fontWeight = FontWeight.Medium) },
                             onClick = { showMenu = false; onClick() },
-                            leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) }
+                            leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                            enabled = !isStrict,
+                            modifier = Modifier.clip(RoundedCornerShape(14.dp))
                         )
                         DropdownMenuItem(
-                            text = { Text(if (rule.isPaused()) "Unpause" else "Pause") },
+                            text = { Text(if (rule.isPaused()) "Unpause" else "Pause", fontWeight = FontWeight.Medium) },
                             onClick = {
                                 showMenu = false
                                 if (rule.isPaused()) {
@@ -286,10 +293,11 @@ fun BlockCardX(
                                 }
                             },
                             leadingIcon = { Icon(if (rule.isPaused()) Icons.Rounded.PlayArrow else Icons.Rounded.Pause, contentDescription = null) },
-                            enabled = !isStrict && rule.isEnabled
+                            enabled = !isStrict && rule.isEnabled,
+                            modifier = Modifier.clip(RoundedCornerShape(14.dp))
                         )
                         DropdownMenuItem(
-                            text = { Text("Delete") },
+                            text = { Text("Delete", fontWeight = FontWeight.Medium, color = if (!isStrict) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)) },
                             onClick = {
                                 showMenu = false
                                 if (isCurrentlyActive) {
@@ -298,8 +306,9 @@ fun BlockCardX(
                                     showSimpleDeleteConfirm = true
                                 }
                             },
-                            leadingIcon = { Icon(Icons.Rounded.Delete, contentDescription = null) },
-                            enabled = !isStrict
+                            leadingIcon = { Icon(Icons.Rounded.Delete, contentDescription = null, tint = if (!isStrict) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)) },
+                            enabled = !isStrict,
+                            modifier = Modifier.clip(RoundedCornerShape(14.dp))
                         )
                     }
                 }
@@ -319,7 +328,7 @@ fun BlockCardX(
                         Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Strict Mode: Cannot be paused, disabled, or deleted",
+                            text = "Strict Mode: Editing, pausing, and deleting are disabled",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             fontWeight = FontWeight.SemiBold
@@ -362,7 +371,13 @@ fun BlockCardX(
                     ) {
                         Icon(if (rule.isPaused()) Icons.Rounded.PlayArrow else Icons.Rounded.Pause, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (rule.isPaused()) "Unpause" else "Pause", fontSize = 13.sp)
+                        Text(
+                            text = if (rule.isPaused()) "Unpause" else "Pause",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                 }
@@ -384,10 +399,10 @@ fun BlockCardX(
 
     if (showDelayPauseDialog) {
         DelayPauseWarningDialog(
-            title = "Pause Block?",
+            title = "Pause Block",
             ruleName = rule.name,
             durationSeconds = delayDuration,
-            actionLabel = "Confirm Pause",
+            actionLabel = "Pause Block",
             onConfirm = { onPause(); showDelayPauseDialog = false },
             onDismiss = { showDelayPauseDialog = false }
         )
@@ -395,7 +410,7 @@ fun BlockCardX(
 
     if (showDelayToggleDialog) {
         DelayPauseWarningDialog(
-            title = "Disable Block?",
+            title = "Turn Off Block",
             ruleName = rule.name,
             durationSeconds = delayDuration,
             actionLabel = "Turn Off Block",
@@ -441,6 +456,18 @@ fun DelayPauseWarningDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val quotes = remember {
+        listOf(
+            "Almost everything will work again if you unplug it for a few minutes, including you.",
+            "Discipline is choosing between what you want now and what you want most.",
+            "Focus is a muscle. The more you practice, the stronger it gets.",
+            "You will never regret the time you spent focusing on your goals.",
+            "Your future self is watching you right now through your choices.",
+            "Small disciplines repeated with consistency every day lead to great achievements."
+        )
+    }
+    val quote = remember { quotes.random() }
+
     var timeLeft by remember { mutableIntStateOf(durationSeconds) }
     val progressAnimatable = remember { Animatable(0f) }
 
@@ -463,8 +490,9 @@ fun DelayPauseWarningDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            tonalElevation = 6.dp,
+            shadowElevation = 8.dp
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -478,7 +506,7 @@ fun DelayPauseWarningDialog(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Rounded.HourglassBottom,
+                            imageVector = Icons.Rounded.SelfImprovement,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(28.dp)
@@ -493,16 +521,45 @@ fun DelayPauseWarningDialog(
                 )
 
                 Text(
-                    text = "\"${ruleName.ifEmpty { "Unnamed Block" }}\" has a ${durationSeconds}s reflection delay. Take a deep breath before deciding.",
+                    text = "Take a moment to reflect before pausing \"${ruleName.ifEmpty { "Unnamed Block" }}\".",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                // Quote Card
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.FormatQuote,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = quote,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp)
+                        .height(6.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 ) {
