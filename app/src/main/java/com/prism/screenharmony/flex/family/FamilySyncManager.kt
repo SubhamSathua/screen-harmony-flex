@@ -53,7 +53,10 @@ object FamilySyncManager {
 
     fun initialize(context: Context) {
         try {
-            // 1. Enable Firebase Realtime Database Offline Persistence
+            // 1. Load saved local family profile immediately so UI state is instant on startup
+            loadLocalProfile(context)
+
+            // 2. Enable Firebase Realtime Database Offline Persistence
             val db = FirebaseDatabase.getInstance()
             try {
                 db.setPersistenceEnabled(true)
@@ -63,11 +66,8 @@ object FamilySyncManager {
             database = db
             auth = FirebaseAuth.getInstance()
 
-            // 2. Ensure anonymous authentication
+            // 3. Ensure anonymous authentication
             ensureAuth()
-
-            // 3. Load saved local family profile
-            loadLocalProfile(context)
 
             // 4. Start active sync depending on role
             startRoleSync(context)

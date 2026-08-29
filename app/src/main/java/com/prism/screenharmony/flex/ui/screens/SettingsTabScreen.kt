@@ -57,6 +57,10 @@ fun SettingsTabScreen(
 
     val familyProfile by FamilySyncManager.familyProfile.collectAsState()
 
+    LaunchedEffect(Unit) {
+        FamilySyncManager.initialize(context)
+    }
+
     // Pulse animation for permission highlighting
     val pulseBorderWidth = remember { Animatable(0f) }
     val pulseAlpha = remember { Animatable(0f) }

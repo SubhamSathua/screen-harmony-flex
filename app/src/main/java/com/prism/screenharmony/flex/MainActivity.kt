@@ -46,10 +46,12 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Initialize persistent disk repository & app lock & quotes
+        // Initialize persistent disk repository & app lock & quotes & family sync
         BlockRepository.initialize(this)
         AppLockManager.initialize(this)
         com.prism.screenharmony.flex.data.QuoteProvider.initialize(this)
+        com.prism.screenharmony.flex.family.FamilySyncManager.initialize(this)
+        com.prism.screenharmony.flex.family.ParentalAuthManager.initialize(this)
 
         // Start background usage blocker engine
         AppBlockerService.start(this)
