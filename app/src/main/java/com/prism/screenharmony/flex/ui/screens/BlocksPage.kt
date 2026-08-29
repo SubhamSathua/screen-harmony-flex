@@ -751,11 +751,54 @@ fun DelayToggleWarningDialog(
                 )
 
                 Text(
-                    text = "\"${ruleName.ifEmpty { "Unnamed Block" }}\" has a ${durationSeconds}s reflection delay before disabling.",
+                    text = "Take a moment to reflect before disabling \"${ruleName.ifEmpty { "Unnamed Block" }}\".",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                // Quote Card
+                val quotes = remember {
+                    listOf(
+                        "Almost everything will work again if you unplug it for a few minutes, including you.",
+                        "Discipline is choosing between what you want now and what you want most.",
+                        "Focus is a muscle. The more you practice, the stronger it gets.",
+                        "You will never regret the time you spent focusing on your goals.",
+                        "Your future self is watching you right now through your choices."
+                    )
+                }
+                val quote = remember { quotes.random() }
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.FormatQuote,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = quote,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontFamily = com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                lineHeight = 24.sp
+                            ),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
 
                 Box(
                     modifier = Modifier
@@ -823,8 +866,9 @@ fun ActiveBlockActionDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            tonalElevation = 6.dp,
+            shadowElevation = 8.dp
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -838,16 +882,35 @@ fun ActiveBlockActionDialog(
                 )
 
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "Discipline is choosing between what you want now and what you want most.",
+                    Column(
                         modifier = Modifier.padding(16.dp),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold
-                    )
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.FormatQuote,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Discipline is choosing between what you want now and what you want most.",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontFamily = com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                lineHeight = 24.sp
+                            ),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
 
                 Text(
