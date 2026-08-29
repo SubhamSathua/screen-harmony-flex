@@ -98,48 +98,42 @@ fun M3ShapeMorphingDot(
     val morphSunnyToPentagon = remember { Morph(sunnyShape, pentagonShape) }
     val morphPentagonToArrow = remember { Morph(pentagonShape, arrowShape) }
     val morphArrowToCircle   = remember { Morph(arrowShape, circleShape) }
-    val morphCircleToSunny   = remember { Morph(circleShape, sunnyShape) }
 
-    // 3. Continuous smooth morph sequence (Sunny -> Pentagon -> Arrow -> Circle)
-    val infiniteTransition = rememberInfiniteTransition(label = "ShapeMorphSequence")
-    val totalProgress = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 4f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "MorphProgress"
-    )
+    // 3. One-shot shape morph sequence (Sunny -> Pentagon -> Arrow -> Circle) total duration = 1 sec (1000ms)
+    val morphProgress = remember { Animatable(0f) }
+    val entranceScale = remember { Animatable(0f) }
 
-    var isEntered by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        isEntered = true
+        launch {
+            entranceScale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(dampingRatio = 0.55f, stiffness = 600f)
+            )
+        }
+        launch {
+            morphProgress.animateTo(
+                targetValue = 3f,
+                animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing)
+            )
+        }
     }
-
-    val entranceScale by animateFloatAsState(
-        targetValue = if (isEntered) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.55f, stiffness = 600f),
-        label = "DotEntranceScale"
-    )
 
     val color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
 
     Canvas(
         modifier = Modifier
             .size(size)
-            .scale(entranceScale)
+            .scale(entranceScale.value)
     ) {
-        // Offset starting phase based on dot index for visual rhythm
-        val progress = (totalProgress.value + (index * 1.0f)) % 4f
-        val segmentIndex = progress.toInt().coerceIn(0, 3)
-        val segmentFraction = progress - segmentIndex
+        val progress = morphProgress.value.coerceIn(0f, 3f)
+        val segmentIndex = progress.toInt().coerceIn(0, 2)
+        val segmentFraction = if (progress >= 3f) 1f else (progress - segmentIndex).coerceIn(0f, 1f)
 
-        val currentMorph = when (segmentIndex) {
-            0 -> morphSunnyToPentagon
-            1 -> morphPentagonToArrow
-            2 -> morphArrowToCircle
-            else -> morphCircleToSunny
+        val currentMorph = when {
+            progress >= 3f -> morphArrowToCircle
+            segmentIndex == 0 -> morphSunnyToPentagon
+            segmentIndex == 1 -> morphPentagonToArrow
+            else -> morphArrowToCircle
         }
 
         // Convert to Android graphics Path at evaluated progress fraction
