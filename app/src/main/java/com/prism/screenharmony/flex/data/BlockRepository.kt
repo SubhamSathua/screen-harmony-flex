@@ -47,26 +47,8 @@ object BlockRepository {
             }
         }
 
-        // Default initial rule if no saved data exists
-        val defaultRules = listOf(
-            BlockRule(
-                id = "default_social_block",
-                name = "Social & Gaming",
-                isEnabled = true,
-                selectedApps = setOf(
-                    "com.google.android.youtube",
-                    "com.instagram.android",
-                    "com.zhiliaoapp.musically",
-                    "com.roblox.client"
-                ),
-                selectedWebsites = setOf("instagram.com", "tiktok.com", "youtube.com"),
-                pauseConfig = PauseConfig(type = PauseType.DELAY, extraValue = 10),
-                blockDurationSeconds = 5,
-                wallConfig = WallConfig.StandardQuote()
-            )
-        )
-        _rules.value = defaultRules
-        saveToDisk(defaultRules)
+        // Fresh start -> No default template, show empty state
+        _rules.value = emptyList()
     }
 
     private fun saveToDisk(rulesList: List<BlockRule>) {

@@ -236,7 +236,7 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                                             onToggleRule = { rule, isEnabled -> viewModel.toggleRule(rule.id, isEnabled) },
                                             onEditRule = { rule -> viewModel.openEditRule(rule) },
                                             onDeleteRule = { rule -> viewModel.deleteRule(rule.id) },
-                                            onPauseRule = { rule -> viewModel.togglePause(rule) }
+                                            onPauseRule = { rule, minutes -> viewModel.togglePause(rule, minutes) }
                                         )
                                     }
                                 }

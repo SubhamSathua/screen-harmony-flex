@@ -4,9 +4,10 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -43,6 +44,17 @@ fun SettingsTabScreen(
     val context = LocalContext.current
     val activity = context as? FragmentActivity
 
+    // Precomputed values lifted outside scroll loop for 60/120 FPS smoothness
+    val isBioAvailable = remember { BiometricHelper.isBiometricAvailable(context) }
+    val versionName = remember {
+        try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            pInfo.versionName ?: "0.1.0"
+        } catch (e: Exception) {
+            "0.1.0"
+        }
+    }
+
     var isColorPaletteExpanded by remember { mutableStateOf(false) }
 
     // App Lock Live State
@@ -53,6 +65,8 @@ fun SettingsTabScreen(
     var showVerifyOffDialog by remember { mutableStateOf(false) }
     var showVerifyRecoveryDialog by remember { mutableStateOf(false) }
     var showTimeoutDialog by remember { mutableStateOf(false) }
+
+    val scrollState = rememberScrollState()
 
     Scaffold(
         modifier = modifier,
@@ -72,218 +86,218 @@ fun SettingsTabScreen(
             )
         }
     ) { innerPadding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // =========================================================
-            // 1. SECURITY & APP LOCK (3 OPTION CARDS)
+            // 1. SECURITY & APP LOCK (4 OPTION CARDS)
             // =========================================================
-            item { SectionHeader(title = "Security & App Lock") }
+            SectionHeader(title = "Security & App Lock")
 
-            item {
-                GroupedContainer {
-                    // Card 1: Enable App Lock Toggle
-                    GroupedItemRow(
-                        icon = if (isAppLockEnabled) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
-                        title = "Enable App Lock",
-                        subtitle = if (isAppLockEnabled) "Active • PIN required on launch" else "Off • Open app without PIN"
-                    ) {
-                        Switch(
-                            checked = isAppLockEnabled,
-                            onCheckedChange = { targetState ->
-                                if (targetState) {
-                                    onOpenAppLockSetup()
-                                } else {
-                                    showVerifyOffDialog = true
-                                }
+            GroupedContainer {
+                // Card 1: Enable App Lock Toggle
+                GroupedItemRow(
+                    icon = if (isAppLockEnabled) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                    title = "Enable App Lock",
+                    subtitle = if (isAppLockEnabled) "Active • PIN required on launch" else "Off • Open app without PIN"
+                ) {
+                    Switch(
+                        checked = isAppLockEnabled,
+                        onCheckedChange = { targetState ->
+                            if (targetState) {
+                                onOpenAppLockSetup()
+                            } else {
+                                showVerifyOffDialog = true
                             }
-                        )
-                    }
-
-                    ItemDivider()
-
-                    // Card 2: Timeout
-                    GroupedItemRow(
-                        icon = Icons.Rounded.Timer,
-                        title = "Lock Timeout",
-                        subtitle = if (isAppLockEnabled) "Locks after ${currentTimeout.label} in background" else "Disabled (App Lock is Off)",
-                        enabled = isAppLockEnabled,
-                        onClick = if (isAppLockEnabled) { { showTimeoutDialog = true } } else null
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isAppLockEnabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
-                        ) {
-                            Text(
-                                text = currentTimeout.label,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isAppLockEnabled) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            )
                         }
-                    }
+                    )
+                }
 
-                    ItemDivider()
+                ItemDivider()
 
-                    // Card 3: Biometrics Toggle
-                    val isBioAvailable = remember { BiometricHelper.isBiometricAvailable(context) }
-                    GroupedItemRow(
-                        icon = Icons.Rounded.Fingerprint,
-                        title = "Biometric Unlock",
-                        subtitle = when {
-                            !isAppLockEnabled -> "Disabled (App Lock is Off)"
-                            !isBioAvailable -> "Unavailable on this device"
-                            isBiometricsEnabled -> "Active • Unlock with Fingerprint or Face"
-                            else -> "Off • Tap to enable biometric unlock"
-                        },
-                        enabled = isAppLockEnabled && isBioAvailable
+                // Card 2: Timeout
+                GroupedItemRow(
+                    icon = Icons.Rounded.Timer,
+                    title = "Lock Timeout",
+                    subtitle = if (isAppLockEnabled) "Locks after ${currentTimeout.label} in background" else "Disabled (App Lock is Off)",
+                    enabled = isAppLockEnabled,
+                    onClick = if (isAppLockEnabled) { { showTimeoutDialog = true } } else null
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isAppLockEnabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
                     ) {
-                        Switch(
-                            checked = isBiometricsEnabled && isAppLockEnabled,
-                            enabled = isAppLockEnabled && isBioAvailable,
-                            onCheckedChange = { targetState ->
-                                if (activity != null) {
-                                    BiometricHelper.showBiometricPrompt(
-                                        activity = activity,
-                                        title = if (targetState) "Enable Biometrics" else "Disable Biometrics",
-                                        subtitle = "Verify your fingerprint or face",
-                                        onSuccess = {
-                                            AppLockManager.isBiometricsEnabled = targetState
-                                            isBiometricsEnabled = targetState
-                                        },
-                                        onError = { /* Keep state */ }
-                                    )
-                                }
+                        Text(
+                            text = currentTimeout.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isAppLockEnabled) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+
+                ItemDivider()
+
+                // Card 3: Biometrics Toggle
+                GroupedItemRow(
+                    icon = Icons.Rounded.Fingerprint,
+                    title = "Biometric Unlock",
+                    subtitle = when {
+                        !isAppLockEnabled -> "Disabled (App Lock is Off)"
+                        !isBioAvailable -> "Unavailable on this device"
+                        isBiometricsEnabled -> "Active • Unlock with Fingerprint or Face"
+                        else -> "Off • Tap to enable biometric unlock"
+                    },
+                    enabled = isAppLockEnabled && isBioAvailable
+                ) {
+                    Switch(
+                        checked = isBiometricsEnabled && isAppLockEnabled,
+                        enabled = isAppLockEnabled && isBioAvailable,
+                        onCheckedChange = { targetState ->
+                            if (activity != null) {
+                                BiometricHelper.showBiometricPrompt(
+                                    activity = activity,
+                                    title = if (targetState) "Enable Biometrics" else "Disable Biometrics",
+                                    subtitle = "Verify your fingerprint or face",
+                                    onSuccess = {
+                                        AppLockManager.isBiometricsEnabled = targetState
+                                        isBiometricsEnabled = targetState
+                                    },
+                                    onError = { /* Keep state */ }
+                                )
                             }
-                        )
-                    }
+                        }
+                    )
+                }
 
-                    ItemDivider()
+                ItemDivider()
 
-                    // Card 4: Forgot Password Recovery Methods
-                    GroupedItemRow(
-                        icon = Icons.Rounded.KeyOff,
-                        title = "Forgot Password Methods",
-                        subtitle = if (isAppLockEnabled) "Manage Seed Phrase, biometrics & security questions" else "Disabled (App Lock is Off)",
-                        enabled = isAppLockEnabled,
-                        onClick = if (isAppLockEnabled) { { showVerifyRecoveryDialog = true } } else null
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
-                            contentDescription = null,
-                            tint = if (isAppLockEnabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                        )
-                    }
+                // Card 4: Forgot Password Recovery Methods
+                GroupedItemRow(
+                    icon = Icons.Rounded.KeyOff,
+                    title = "Forgot Password Methods",
+                    subtitle = if (isAppLockEnabled) "Manage Seed Phrase, biometrics & security questions" else "Disabled (App Lock is Off)",
+                    enabled = isAppLockEnabled,
+                    onClick = if (isAppLockEnabled) { { showVerifyRecoveryDialog = true } } else null
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = if (isAppLockEnabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                    )
                 }
             }
 
             // =========================================================
             // 2. APPEARANCE
             // =========================================================
-            item { SectionHeader(title = "Appearance") }
+            SectionHeader(title = "Appearance")
 
-            item {
-                GroupedContainer {
-                    GroupedItemRow(
-                        icon = Icons.Rounded.DarkMode,
-                        title = "Theme Mode",
-                        subtitle = "Select system, light, or dark visual style"
+            GroupedContainer {
+                GroupedItemRow(
+                    icon = Icons.Rounded.DarkMode,
+                    title = "Theme Mode",
+                    subtitle = "Select system, light, or dark visual style"
+                ) {
+                    SingleChoiceSegmentedRow(
+                        selected = themeState.themeMode,
+                        onSelect = { themeState.themeMode = it }
+                    )
+                }
+
+                ItemDivider()
+
+                GroupedItemRow(
+                    icon = Icons.Rounded.Contrast,
+                    title = "AMOLED Black",
+                    subtitle = "Pure pitch black background for OLED screens"
+                ) {
+                    Switch(
+                        checked = themeState.isAmoled,
+                        onCheckedChange = { themeState.isAmoled = it }
+                    )
+                }
+
+                ItemDivider()
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+                        .clickable { isColorPaletteExpanded = !isColorPaletteExpanded }
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        SingleChoiceSegmentedRow(
-                            selected = themeState.themeMode,
-                            onSelect = { themeState.themeMode = it }
-                        )
-                    }
-
-                    ItemDivider()
-
-                    GroupedItemRow(
-                        icon = Icons.Rounded.Contrast,
-                        title = "AMOLED Black",
-                        subtitle = "Pure pitch black background for OLED screens"
-                    ) {
-                        Switch(
-                            checked = themeState.isAmoled,
-                            onCheckedChange = { themeState.isAmoled = it }
-                        )
-                    }
-
-                    ItemDivider()
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { isColorPaletteExpanded = !isColorPaletteExpanded }
-                            .padding(16.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
+                        Surface(
+                            shape = CircleShape,
+                            color = themeState.palette.primaryColor,
+                            modifier = Modifier.size(36.dp)
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = themeState.palette.primaryColor,
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Palette,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.padding(7.dp).size(20.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Color Palette", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                Text(themeState.palette.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                            }
                             Icon(
-                                imageVector = if (isColorPaletteExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                                imageVector = Icons.Rounded.Palette,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = Color.White,
+                                modifier = Modifier.padding(7.dp).size(20.dp)
                             )
                         }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Color Palette", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(themeState.palette.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+                        Icon(
+                            imageVector = if (isColorPaletteExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
-                        AnimatedVisibility(
-                            visible = isColorPaletteExpanded,
-                            enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut()
+                    AnimatedVisibility(
+                        visible = isColorPaletteExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                AppColorPalette.entries.forEach { palette ->
-                                    val isSelected = themeState.palette == palette
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        modifier = Modifier.fillMaxWidth().clickable { themeState.palette = palette }
+                            AppColorPalette.entries.forEach { palette ->
+                                val isSelected = themeState.palette == palette
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { themeState.palette = palette }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = palette.primaryColor,
-                                                modifier = Modifier.size(24.dp).border(if (isSelected) 2.dp else 0.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                                            ) {}
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Text(
-                                                text = palette.label,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                            if (isSelected) {
-                                                Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                            }
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = palette.primaryColor,
+                                            modifier = Modifier.size(24.dp).border(if (isSelected) 2.dp else 0.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                        ) {}
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(
+                                            text = palette.label,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (isSelected) {
+                                            Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                                         }
                                     }
                                 }
@@ -296,113 +310,111 @@ fun SettingsTabScreen(
             // =========================================================
             // 3. PERMISSIONS & BACKGROUND ENFORCEMENT
             // =========================================================
-            item { SectionHeader(title = "Permissions & Background Enforcement") }
+            SectionHeader(title = "Permissions & Background Enforcement")
 
-            item {
-                GroupedContainer {
-                    // 1. Usage Access
-                    GroupedItemRow(
-                        icon = Icons.Rounded.QueryStats,
-                        title = "Usage Access (Apps)",
-                        subtitle = if (permissionState.isUsageGranted) "Active • Detects foreground apps" else "Required • Tap to grant permission"
-                    ) {
-                        if (permissionState.isUsageGranted) {
-                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                }
-                            }
-                        } else {
-                            Button(
-                                onClick = { PermissionHelper.openUsageAccessSettings(context) },
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                            ) {
-                                Text("Grant", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            GroupedContainer {
+                // 1. Usage Access
+                GroupedItemRow(
+                    icon = Icons.Rounded.QueryStats,
+                    title = "Usage Access (Apps)",
+                    subtitle = if (permissionState.isUsageGranted) "Active • Detects foreground apps" else "Required • Tap to grant permission"
+                ) {
+                    if (permissionState.isUsageGranted) {
+                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                            Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                             }
                         }
-                    }
-
-                    ItemDivider()
-
-                    // 2. Display Over Other Apps (Overlay)
-                    GroupedItemRow(
-                        icon = Icons.Rounded.Layers,
-                        title = "Display Over Other Apps",
-                        subtitle = if (permissionState.isOverlayGranted) "Active • Pops up lock screen over apps" else "Crucial • Allows lock screen to open in background"
-                    ) {
-                        if (permissionState.isOverlayGranted) {
-                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                }
-                            }
-                        } else {
-                            Button(
-                                onClick = { PermissionHelper.openOverlaySettings(context) },
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                            ) {
-                                Text("Grant", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
+                    } else {
+                        Button(
+                            onClick = { PermissionHelper.openUsageAccessSettings(context) },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text("Grant", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                }
 
-                    ItemDivider()
+                ItemDivider()
 
-                    // 3. Battery Optimization
-                    GroupedItemRow(
-                        icon = Icons.Rounded.BatteryChargingFull,
-                        title = "Unrestricted Battery",
-                        subtitle = if (permissionState.isBatteryIgnored) "Active • Never killed by OS" else "Recommended • Keeps background service alive"
-                    ) {
-                        if (permissionState.isBatteryIgnored) {
-                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                }
-                            }
-                        } else {
-                            FilledTonalButton(
-                                onClick = { PermissionHelper.openBatteryOptimizationSettings(context) },
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                            ) {
-                                Text("Grant", fontSize = 12.sp)
+                // 2. Display Over Other Apps (Overlay)
+                GroupedItemRow(
+                    icon = Icons.Rounded.Layers,
+                    title = "Display Over Other Apps",
+                    subtitle = if (permissionState.isOverlayGranted) "Active • Pops up lock screen over apps" else "Crucial • Allows lock screen to open in background"
+                ) {
+                    if (permissionState.isOverlayGranted) {
+                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                            Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                             }
                         }
+                    } else {
+                        Button(
+                            onClick = { PermissionHelper.openOverlaySettings(context) },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text("Grant", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
+                }
 
-                    ItemDivider()
+                ItemDivider()
 
-                    // 4. Accessibility
-                    GroupedItemRow(
-                        icon = Icons.Rounded.Language,
-                        title = "Accessibility (Websites)",
-                        subtitle = if (permissionState.isAccessibilityGranted) "Active • Inspecting browser URLs" else "Optional • Only needed for websites"
-                    ) {
-                        if (permissionState.isAccessibilityGranted) {
-                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
-                                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                }
+                // 3. Battery Optimization
+                GroupedItemRow(
+                    icon = Icons.Rounded.BatteryChargingFull,
+                    title = "Unrestricted Battery",
+                    subtitle = if (permissionState.isBatteryIgnored) "Active • Never killed by OS" else "Recommended • Keeps background service alive"
+                ) {
+                    if (permissionState.isBatteryIgnored) {
+                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                            Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                             }
-                        } else {
-                            FilledTonalButton(
-                                onClick = { PermissionHelper.openAccessibilitySettings(context) },
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                            ) {
-                                Text("Enable", fontSize = 12.sp)
+                        }
+                    } else {
+                        FilledTonalButton(
+                            onClick = { PermissionHelper.openBatteryOptimizationSettings(context) },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text("Grant", fontSize = 12.sp)
+                        }
+                    }
+                }
+
+                ItemDivider()
+
+                // 4. Accessibility
+                GroupedItemRow(
+                    icon = Icons.Rounded.Language,
+                    title = "Accessibility (Websites)",
+                    subtitle = if (permissionState.isAccessibilityGranted) "Active • Inspecting browser URLs" else "Optional • Only needed for websites"
+                ) {
+                    if (permissionState.isAccessibilityGranted) {
+                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                            Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
                             }
+                        }
+                    } else {
+                        FilledTonalButton(
+                            onClick = { PermissionHelper.openAccessibilitySettings(context) },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text("Enable", fontSize = 12.sp)
                         }
                     }
                 }
@@ -411,50 +423,39 @@ fun SettingsTabScreen(
             // =========================================================
             // 4. ABOUT & SYNC
             // =========================================================
-            item { SectionHeader(title = "About & Sync") }
+            SectionHeader(title = "About & Sync")
 
-            item {
-                GroupedContainer {
-                    GroupedItemRow(
-                        icon = Icons.Rounded.CloudQueue,
-                        title = "Sync Protocol",
-                        subtitle = "Firebase Spark (100% Free Cloud Tier)"
-                    ) {
-                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.padding(4.dp)) {
-                            Text("FREE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                        }
+            GroupedContainer {
+                GroupedItemRow(
+                    icon = Icons.Rounded.CloudQueue,
+                    title = "Sync Protocol",
+                    subtitle = "Firebase Spark (100% Free Cloud Tier)"
+                ) {
+                    Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.padding(4.dp)) {
+                        Text("FREE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                     }
+                }
 
-                    ItemDivider()
+                ItemDivider()
 
-                    val versionName = remember {
-                        try {
-                            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-                            pInfo.versionName ?: "0.1.0"
-                        } catch (e: Exception) {
-                            "0.1.0"
-                        }
-                    }
-
-                    GroupedItemRow(
-                        icon = Icons.Rounded.Info,
-                        title = "App Version",
-                        subtitle = "ScreenHarmony Flex v$versionName"
-                    ) {
-                        Text(
-                            text = "v$versionName",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                GroupedItemRow(
+                    icon = Icons.Rounded.Info,
+                    title = "App Version",
+                    subtitle = "ScreenHarmony Flex v$versionName"
+                ) {
+                    Text(
+                        text = "v$versionName",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(24.dp)) }
+            Spacer(modifier = Modifier.height(100.dp))
         }
     }
 
-    // Verify PIN to Turn OFF App Lock Dialog
+    // Verify PIN to Turn Off App Lock
     if (showVerifyOffDialog) {
         AppLockVerifyDialog(
             title = "Disable App Lock",
@@ -556,7 +557,7 @@ fun GroupedItemRow(
     subtitle: String,
     enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
-    trailingContent: @Composable () -> Unit
+    trailing: @Composable () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -567,23 +568,27 @@ fun GroupedItemRow(
     ) {
         Surface(
             shape = CircleShape,
-            color = if (enabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+            color = if (enabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.size(40.dp)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                modifier = Modifier.padding(8.dp).size(24.dp)
-            )
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
+
         Spacer(modifier = Modifier.width(14.dp))
+
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
             )
             Text(
                 text = subtitle,
@@ -591,17 +596,10 @@ fun GroupedItemRow(
                 color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
             )
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        trailingContent()
-    }
-}
 
-@Composable
-fun ItemDivider() {
-    HorizontalDivider(
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-        modifier = Modifier.padding(horizontal = 16.dp)
-    )
+        Spacer(modifier = Modifier.width(8.dp))
+        trailing()
+    }
 }
 
 @Composable
@@ -613,27 +611,40 @@ fun SingleChoiceSegmentedRow(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
-        Row(modifier = Modifier.padding(3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+            modifier = Modifier.padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             AppThemeMode.entries.forEach { mode ->
-                val isSelected = selected == mode
+                val isSelected = mode == selected
                 Surface(
-                    shape = RoundedCornerShape(9.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                    modifier = Modifier.clip(RoundedCornerShape(9.dp)).clickable { onSelect(mode) }
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onSelect(mode) }
                 ) {
-                    Text(
-                        text = when (mode) {
-                            AppThemeMode.SYSTEM -> "Auto"
-                            AppThemeMode.LIGHT -> "Light"
-                            AppThemeMode.DARK -> "Dark"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                    )
+                    Box(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = mode.label.substringBefore(" "),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+fun ItemDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+    )
 }

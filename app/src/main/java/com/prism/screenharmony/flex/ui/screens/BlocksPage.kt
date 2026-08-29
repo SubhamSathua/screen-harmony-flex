@@ -1,7 +1,9 @@
 package com.prism.screenharmony.flex.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +28,7 @@ import com.prism.screenharmony.flex.ui.components.ConditionBadge
 import kotlinx.coroutines.delay
 import java.time.DayOfWeek
 import java.time.LocalTime
+import kotlin.math.roundToInt
 
 @Composable
 fun BlocksPage(
@@ -33,7 +36,7 @@ fun BlocksPage(
     onToggleRule: (BlockRule, Boolean) -> Unit,
     onEditRule: (BlockRule) -> Unit,
     onDeleteRule: (BlockRule) -> Unit,
-    onPauseRule: (BlockRule) -> Unit
+    onPauseRule: (BlockRule, Int) -> Unit
 ) {
     if (rules.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -96,7 +99,7 @@ fun BlocksPage(
                         onToggle = { onToggleRule(rule, it) },
                         onClick = { onEditRule(rule) },
                         onDelete = { onDeleteRule(rule) },
-                        onPause = { onPauseRule(rule) }
+                        onPause = { duration -> onPauseRule(rule, duration) }
                     )
                 }
             }
@@ -117,7 +120,7 @@ fun BlocksPage(
                         onToggle = { onToggleRule(rule, it) },
                         onClick = { onEditRule(rule) },
                         onDelete = { onDeleteRule(rule) },
-                        onPause = { onPauseRule(rule) }
+                        onPause = { duration -> onPauseRule(rule, duration) }
                     )
                 }
             }
@@ -138,7 +141,7 @@ fun BlocksPage(
                         onToggle = { onToggleRule(rule, it) },
                         onClick = { onEditRule(rule) },
                         onDelete = { onDeleteRule(rule) },
-                        onPause = { onPauseRule(rule) }
+                        onPause = { duration -> onPauseRule(rule, duration) }
                     )
                 }
             }
@@ -154,7 +157,7 @@ fun BlockCardX(
     onToggle: (Boolean) -> Unit,
     onClick: () -> Unit,
     onDelete: () -> Unit,
-    onPause: () -> Unit
+    onPause: (Int) -> Unit
 ) {
     var showActiveDeleteConfirm by remember { mutableStateOf(false) }
     var showSimpleDeleteConfirm by remember { mutableStateOf(false) }
@@ -285,11 +288,11 @@ fun BlockCardX(
                             onClick = {
                                 showMenu = false
                                 if (rule.isPaused()) {
-                                    onPause()
+                                    onPause(0)
                                 } else if (isDelay) {
                                     showDelayPauseDialog = true
                                 } else {
-                                    onPause()
+                                    showDelayPauseDialog = true
                                 }
                             },
                             leadingIcon = { Icon(if (rule.isPaused()) Icons.Rounded.PlayArrow else Icons.Rounded.Pause, contentDescription = null) },
@@ -359,11 +362,9 @@ fun BlockCardX(
                     FilledTonalButton(
                         onClick = {
                             if (rule.isPaused()) {
-                                onPause()
-                            } else if (isDelay) {
-                                showDelayPauseDialog = true
+                                onPause(0)
                             } else {
-                                onPause()
+                                showDelayPauseDialog = true
                             }
                         },
                         shape = RoundedCornerShape(12.dp),
@@ -401,15 +402,17 @@ fun BlockCardX(
         DelayPauseWarningDialog(
             title = "Pause Block",
             ruleName = rule.name,
-            durationSeconds = delayDuration,
-            actionLabel = "Pause Block",
-            onConfirm = { onPause(); showDelayPauseDialog = false },
+            durationSeconds = if (isDelay) delayDuration else 3,
+            onConfirm = { selectedDuration ->
+                onPause(selectedDuration)
+                showDelayPauseDialog = false
+            },
             onDismiss = { showDelayPauseDialog = false }
         )
     }
 
     if (showDelayToggleDialog) {
-        DelayPauseWarningDialog(
+        DelayToggleWarningDialog(
             title = "Turn Off Block",
             ruleName = rule.name,
             durationSeconds = delayDuration,
@@ -452,8 +455,7 @@ fun DelayPauseWarningDialog(
     title: String,
     ruleName: String,
     durationSeconds: Int,
-    actionLabel: String,
-    onConfirm: () -> Unit,
+    onConfirm: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
     val quotes = remember {
@@ -468,6 +470,230 @@ fun DelayPauseWarningDialog(
     }
     val quote = remember { quotes.random() }
 
+    var timeLeft by remember { mutableIntStateOf(durationSeconds) }
+    val progressAnimatable = remember { Animatable(0f) }
+    var isTimerFinished by remember { mutableStateOf(false) }
+
+    // Range slider pause duration (1min to 60min ONLY)
+    var selectedPauseMinutes by remember { mutableIntStateOf(5) }
+    val quickPresets = remember { listOf(1, 5, 10, 15, 30, 45, 60) }
+
+    LaunchedEffect(durationSeconds) {
+        progressAnimatable.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = durationSeconds * 1000, easing = LinearEasing)
+        )
+    }
+
+    LaunchedEffect(durationSeconds) {
+        while (timeLeft > 0) {
+            delay(1000)
+            timeLeft--
+        }
+        isTimerFinished = true
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            tonalElevation = 6.dp,
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (!isTimerFinished) Icons.Rounded.SelfImprovement else Icons.Rounded.HourglassTop,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = if (!isTimerFinished) title else "Select Pause Duration",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                if (!isTimerFinished) {
+                    Text(
+                        text = "Take a moment to reflect before pausing \"${ruleName.ifEmpty { "Unnamed Block" }}\".",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Quote Card
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.FormatQuote,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = quote,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(progressAnimatable.value)
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                    }
+                } else {
+                    // STAGE 2: DURATION SLIDER (1min to 60min ONLY)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = when (selectedPauseMinutes) {
+                                    60 -> "1 Hour"
+                                    1 -> "1 Minute"
+                                    else -> "$selectedPauseMinutes Minutes"
+                                },
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        Slider(
+                            value = selectedPauseMinutes.toFloat(),
+                            onValueChange = { selectedPauseMinutes = it.roundToInt().coerceIn(1, 60) },
+                            valueRange = 1f..60f,
+                            steps = 58,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("1 min", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Max: 1 hour", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+
+                        // Quick Presets Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            quickPresets.forEach { preset ->
+                                val isSelected = selectedPauseMinutes == preset
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { selectedPauseMinutes = preset }
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.padding(vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = if (preset == 60) "1h" else "${preset}m",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        shape = CircleShape,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = {
+                            if (isTimerFinished) {
+                                onConfirm(selectedPauseMinutes)
+                            }
+                        },
+                        enabled = isTimerFinished,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = if (isTimerFinished) "Pause for ${if (selectedPauseMinutes == 60) "1h" else "${selectedPauseMinutes}m"}" else "Wait ${timeLeft}s",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DelayToggleWarningDialog(
+    title: String,
+    ruleName: String,
+    durationSeconds: Int,
+    actionLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
     var timeLeft by remember { mutableIntStateOf(durationSeconds) }
     val progressAnimatable = remember { Animatable(0f) }
 
@@ -506,7 +732,7 @@ fun DelayPauseWarningDialog(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Rounded.SelfImprovement,
+                            imageVector = Icons.Rounded.HourglassBottom,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(28.dp)
@@ -521,40 +747,11 @@ fun DelayPauseWarningDialog(
                 )
 
                 Text(
-                    text = "Take a moment to reflect before pausing \"${ruleName.ifEmpty { "Unnamed Block" }}\".",
+                    text = "\"${ruleName.ifEmpty { "Unnamed Block" }}\" has a ${durationSeconds}s reflection delay before disabling.",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-                // Quote Card
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.FormatQuote,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = quote,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
 
                 Box(
                     modifier = Modifier

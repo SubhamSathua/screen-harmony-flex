@@ -165,11 +165,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         BlockRepository.deleteRule(ruleId)
     }
 
-    fun togglePause(rule: BlockRule) {
+    fun togglePause(rule: BlockRule, durationMinutes: Int = 5) {
         if (rule.isPaused()) {
             BlockRepository.unpauseRule(rule.id)
         } else {
-            BlockRepository.pauseRule(rule.id, 5)
+            BlockRepository.pauseRule(rule.id, durationMinutes)
         }
     }
 
