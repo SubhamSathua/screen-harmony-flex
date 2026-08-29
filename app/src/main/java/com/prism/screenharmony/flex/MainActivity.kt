@@ -190,7 +190,7 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                                                         fontSize = 20.sp,
                                                         lineHeight = 22.sp
                                                     ),
-                                                    fontFamily = com.prism.screenharmony.flex.ui.theme.SyneFontFamily,
+                                                    fontFamily = com.prism.screenharmony.flex.ui.theme.UrbanistFontFamily,
                                                     fontWeight = FontWeight.ExtraBold,
                                                     color = MaterialTheme.colorScheme.primary
                                                 )
@@ -201,7 +201,7 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                                                             fontSize = 20.sp,
                                                             lineHeight = 22.sp
                                                         ),
-                                                        fontFamily = com.prism.screenharmony.flex.ui.theme.SyneFontFamily,
+                                                        fontFamily = com.prism.screenharmony.flex.ui.theme.UrbanistFontFamily,
                                                         fontWeight = FontWeight.ExtraBold,
                                                         color = MaterialTheme.colorScheme.primary
                                                     )
