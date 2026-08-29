@@ -68,15 +68,20 @@ object FamilySyncManager {
         }
     }
 
-    private fun ensureAuth() {
-        val currentAuth = auth ?: return
-        if (currentAuth.currentUser == null) {
-            currentAuth.signInAnonymously()
+    private fun ensureAuth(onReady: () -> Unit = {}) {
+        val a = auth ?: FirebaseAuth.getInstance().also { auth = it }
+        val user = a.currentUser
+        if (user != null) {
+            onReady()
+        } else {
+            a.signInAnonymously()
                 .addOnSuccessListener {
                     Log.i(TAG, "Firebase Anonymous Auth succeeded. UID=${it.user?.uid}")
+                    onReady()
                 }
-                .addOnFailureListener {
-                    Log.e(TAG, "Firebase Anonymous Auth failed", it)
+                .addOnFailureListener { error ->
+                    Log.e(TAG, "Firebase Anonymous Auth failed", error)
+                    onReady()
                 }
         }
     }
@@ -145,47 +150,48 @@ object FamilySyncManager {
     // =========================================================================
 
     fun setupAsParent(context: Context, familyName: String = "My Family", onComplete: (Boolean) -> Unit) {
-        ensureAuth()
-        val familyId = "fam_" + UUID.randomUUID().toString().replace("-", "").take(10)
-        val randomDigits = (1000..9999).random()
-        val pairingCode = "SH-$randomDigits"
-        val pairingSecret = UUID.randomUUID().toString()
+        ensureAuth {
+            val familyId = "fam_" + UUID.randomUUID().toString().replace("-", "").take(10)
+            val randomDigits = (1000..9999).random()
+            val pairingCode = "SH-$randomDigits"
+            val pairingSecret = UUID.randomUUID().toString()
 
-        val profile = FamilyProfile(
-            familyId = familyId,
-            role = FamilyRole.PARENT,
-            pairingCode = pairingCode,
-            pairingSecret = pairingSecret,
-            familyName = familyName,
-            linkedAt = System.currentTimeMillis()
-        )
+            val profile = FamilyProfile(
+                familyId = familyId,
+                role = FamilyRole.PARENT,
+                pairingCode = pairingCode,
+                pairingSecret = pairingSecret,
+                familyName = familyName,
+                linkedAt = System.currentTimeMillis()
+            )
 
-        saveLocalProfile(context, profile)
+            saveLocalProfile(context, profile)
 
-        // Write family metadata to Firebase
-        val db = database ?: return
-        val familyRef = db.getReference("families/$familyId/info")
-        val data = mapOf(
-            "pairingCode" to pairingCode,
-            "pairingSecret" to pairingSecret,
-            "familyName" to familyName,
-            "createdAt" to ServerValue.TIMESTAMP
-        )
+            // Write family metadata to Firebase
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+            val familyRef = db.getReference("families/$familyId/info")
+            val data = mapOf(
+                "pairingCode" to pairingCode,
+                "pairingSecret" to pairingSecret,
+                "familyName" to familyName,
+                "createdAt" to ServerValue.TIMESTAMP
+            )
 
-        familyRef.setValue(data)
-            .addOnSuccessListener {
-                // Also create index mapping for 6-digit code lookup
-                db.getReference("code_index/$pairingCode").setValue(mapOf(
-                    "familyId" to familyId,
-                    "pairingSecret" to pairingSecret
-                ))
-                startRoleSync(context)
-                onComplete(true)
-            }
-            .addOnFailureListener {
-                Log.e(TAG, "Failed to register family in cloud", it)
-                onComplete(false)
-            }
+            familyRef.setValue(data)
+                .addOnSuccessListener {
+                    // Also create index mapping for 6-digit code lookup
+                    db.getReference("code_index/$pairingCode").setValue(mapOf(
+                        "familyId" to familyId,
+                        "pairingSecret" to pairingSecret
+                    ))
+                    startRoleSync(context)
+                    onComplete(true)
+                }
+                .addOnFailureListener {
+                    Log.e(TAG, "Failed to register family in cloud", it)
+                    onComplete(false)
+                }
+        }
     }
 
     // =========================================================================
@@ -193,44 +199,45 @@ object FamilySyncManager {
     // =========================================================================
 
     fun joinFamilyViaQr(context: Context, qrPayload: String, onComplete: (Boolean, String?) -> Unit) {
-        try {
-            val json = JSONObject(qrPayload)
-            val familyId = json.getString("familyId")
-            val pairingCode = json.optString("code", "")
-            val pairingSecret = json.optString("secret", "")
-            val familyName = json.optString("name", "Parent's Family")
+        ensureAuth {
+            try {
+                val json = JSONObject(qrPayload)
+                val familyId = json.getString("familyId")
+                val pairingCode = json.optString("code", "")
+                val pairingSecret = json.optString("secret", "")
+                val familyName = json.optString("name", "Parent's Family")
 
-            completeChildJoin(context, familyId, pairingCode, pairingSecret, familyName, onComplete)
-        } catch (e: Exception) {
-            onComplete(false, "Invalid QR Code format")
+                completeChildJoin(context, familyId, pairingCode, pairingSecret, familyName, onComplete)
+            } catch (e: Exception) {
+                onComplete(false, "Invalid QR Code format: ${e.message}")
+            }
         }
     }
 
     fun joinFamilyViaCode(context: Context, code: String, onComplete: (Boolean, String?) -> Unit) {
-        val cleanCode = code.trim().uppercase()
-        val formattedCode = if (!cleanCode.startsWith("SH-")) "SH-$cleanCode" else cleanCode
+        ensureAuth {
+            val cleanCode = code.trim().uppercase()
+            val formattedCode = if (!cleanCode.startsWith("SH-")) "SH-$cleanCode" else cleanCode
 
-        val db = database ?: run {
-            onComplete(false, "Cloud connection not ready")
-            return
-        }
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
 
-        db.getReference("code_index/$formattedCode").addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val familyId = snapshot.child("familyId").getValue(String::class.java)
-                val pairingSecret = snapshot.child("pairingSecret").getValue(String::class.java)
+            db.getReference("code_index/$formattedCode").addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val familyId = snapshot.child("familyId").getValue(String::class.java)
+                    val pairingSecret = snapshot.child("pairingSecret").getValue(String::class.java)
 
-                if (familyId != null && pairingSecret != null) {
-                    completeChildJoin(context, familyId, formattedCode, pairingSecret, "Parent's Family", onComplete)
-                } else {
-                    onComplete(false, "Pairing code not found or expired")
+                    if (familyId != null && pairingSecret != null) {
+                        completeChildJoin(context, familyId, formattedCode, pairingSecret, "Parent's Family", onComplete)
+                    } else {
+                        onComplete(false, "Pairing code not found or expired")
+                    }
                 }
-            }
 
-            override fun onCancelled(error: DatabaseError) {
-                onComplete(false, error.message)
-            }
-        })
+                override fun onCancelled(error: DatabaseError) {
+                    onComplete(false, error.message)
+                }
+            })
+        }
     }
 
     private fun completeChildJoin(
@@ -253,7 +260,7 @@ object FamilySyncManager {
         saveLocalProfile(context, profile)
 
         val deviceId = getDeviceId(context)
-        val db = database ?: return
+        val db = database ?: FirebaseDatabase.getInstance().also { database = it }
 
         // Register child device metadata
         val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
@@ -276,6 +283,7 @@ object FamilySyncManager {
                 onComplete(true, null)
             }
             .addOnFailureListener {
+                Log.e(TAG, "Failed to register child device", it)
                 onComplete(false, it.message)
             }
     }
@@ -285,9 +293,10 @@ object FamilySyncManager {
     // =========================================================================
 
     fun startRoleSync(context: Context) {
-        val profile = _familyProfile.value
-        if (profile.familyId.isBlank()) return
-        val db = database ?: return
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
 
         when (profile.role) {
             FamilyRole.PARENT -> {
@@ -413,32 +422,35 @@ object FamilySyncManager {
                 // No active sync
             }
         }
+        }
     }
 
     private fun pushChildTelemetry(context: Context) {
-        val profile = _familyProfile.value
-        if (profile.role != FamilyRole.CHILD || profile.familyId.isBlank()) return
-        val db = database ?: return
-        val deviceId = getDeviceId(context)
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.CHILD || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+            val deviceId = getDeviceId(context)
 
-        val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
-        val batteryLevel = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100
-        val isCharging = bm?.isCharging ?: false
+            val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+            val batteryLevel = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100
+            val isCharging = bm?.isCharging ?: false
 
-        val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-        val isScreenOn = pm?.isInteractive ?: true
+            val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            val isScreenOn = pm?.isInteractive ?: true
 
-        val updates = mapOf(
-            "batteryLevel" to batteryLevel,
-            "isCharging" to isCharging,
-            "lastSeen" to ServerValue.TIMESTAMP
-        )
-        db.getReference("families/${profile.familyId}/devices/$deviceId/info").updateChildren(updates)
+            val updates = mapOf(
+                "batteryLevel" to batteryLevel,
+                "isCharging" to isCharging,
+                "lastSeen" to ServerValue.TIMESTAMP
+            )
+            db.getReference("families/${profile.familyId}/devices/$deviceId/info").updateChildren(updates)
 
-        val statusUpdates = mapOf(
-            "isScreenOn" to isScreenOn
-        )
-        db.getReference("families/${profile.familyId}/devices/$deviceId/status").updateChildren(statusUpdates)
+            val statusUpdates = mapOf(
+                "isScreenOn" to isScreenOn
+            )
+            db.getReference("families/${profile.familyId}/devices/$deviceId/status").updateChildren(statusUpdates)
+        }
     }
 
     // =========================================================================
@@ -446,36 +458,42 @@ object FamilySyncManager {
     // =========================================================================
 
     fun toggleRemoteLock(childDeviceId: String, lock: Boolean) {
-        val profile = _familyProfile.value
-        if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return
-        val db = database ?: return
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
 
-        db.getReference("families/${profile.familyId}/devices/$childDeviceId/commands/lockNow").setValue(lock)
+            db.getReference("families/${profile.familyId}/devices/$childDeviceId/commands/lockNow").setValue(lock)
+        }
     }
 
     fun pushRuleToChild(childDeviceId: String, rule: BlockRule) {
-        val profile = _familyProfile.value
-        if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return
-        val db = database ?: return
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
 
-        val ruleMap = mapOf(
-            "id" to rule.id,
-            "name" to rule.name,
-            "isEnabled" to rule.isEnabled,
-            "blockDurationSeconds" to rule.blockDurationSeconds,
-            "selectedApps" to rule.selectedApps.toList(),
-            "selectedWebsites" to rule.selectedWebsites.toList()
-        )
+            val ruleMap = mapOf(
+                "id" to rule.id,
+                "name" to rule.name,
+                "isEnabled" to rule.isEnabled,
+                "blockDurationSeconds" to rule.blockDurationSeconds,
+                "selectedApps" to rule.selectedApps.toList(),
+                "selectedWebsites" to rule.selectedWebsites.toList()
+            )
 
-        db.getReference("families/${profile.familyId}/devices/$childDeviceId/rules/${rule.id}").setValue(ruleMap)
+            db.getReference("families/${profile.familyId}/devices/$childDeviceId/rules/${rule.id}").setValue(ruleMap)
+        }
     }
 
     fun deleteRuleOnChild(childDeviceId: String, ruleId: String) {
-        val profile = _familyProfile.value
-        if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return
-        val db = database ?: return
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
 
-        db.getReference("families/${profile.familyId}/devices/$childDeviceId/rules/$ruleId").removeValue()
+            db.getReference("families/${profile.familyId}/devices/$childDeviceId/rules/$ruleId").removeValue()
+        }
     }
 
     fun unlinkFamily(context: Context) {

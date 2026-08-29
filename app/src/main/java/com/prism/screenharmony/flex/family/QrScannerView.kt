@@ -94,6 +94,24 @@ fun QrScannerView(
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
     val barcodeScanner = remember { BarcodeScanning.getClient() }
     var isScanned by remember { mutableStateOf(false) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        onDispose {
+            try {
+                val cameraProvider = ProcessCameraProvider.getInstance(context).get()
+                cameraProvider.unbindAll()
+            } catch (e: Exception) {
+                // Ignore
+            }
+            try {
+                cameraExecutor.shutdown()
+                barcodeScanner.close()
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -102,54 +120,56 @@ fun QrScannerView(
     ) {
         AndroidView(
             factory = { ctx ->
-                val previewView = PreviewView(ctx)
+                val previewView = PreviewView(ctx).apply {
+                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                }
                 val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
 
                 cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
-                    val preview = Preview.Builder().build().also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
-                    }
+                    try {
+                        val cameraProvider = cameraProviderFuture.get()
+                        val preview = Preview.Builder().build().also {
+                            it.setSurfaceProvider(previewView.surfaceProvider)
+                        }
 
-                    val imageAnalysis = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .build()
+                        val imageAnalysis = ImageAnalysis.Builder()
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .build()
 
-                    imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                        @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
-                        val mediaImage = imageProxy.image
-                        if (mediaImage != null && !isScanned) {
-                            val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                            barcodeScanner.process(image)
-                                .addOnSuccessListener { barcodes ->
-                                    for (barcode in barcodes) {
-                                        val rawValue = barcode.rawValue
-                                        if (rawValue != null && rawValue.startsWith("SHPAIR:") && !isScanned) {
-                                            isScanned = true
-                                            onQrCodeScanned(rawValue.removePrefix("SHPAIR:"))
-                                            break
+                        imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                            @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
+                            val mediaImage = imageProxy.image
+                            if (mediaImage != null && !isScanned) {
+                                val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                                barcodeScanner.process(image)
+                                    .addOnSuccessListener { barcodes ->
+                                        for (barcode in barcodes) {
+                                            val rawValue = barcode.rawValue
+                                            if (rawValue != null && rawValue.startsWith("SHPAIR:") && !isScanned) {
+                                                isScanned = true
+                                                try {
+                                                    cameraProvider.unbindAll()
+                                                } catch (e: Exception) {}
+                                                onQrCodeScanned(rawValue.removePrefix("SHPAIR:"))
+                                                break
+                                            }
                                         }
                                     }
-                                }
-                                .addOnCompleteListener {
-                                    imageProxy.close()
-                                }
-                        } else {
-                            imageProxy.close()
+                                    .addOnCompleteListener {
+                                        imageProxy.close()
+                                    }
+                            } else {
+                                imageProxy.close()
+                            }
                         }
-                    }
 
-                    try {
-                        val lifecycleOwner = ctx as? androidx.lifecycle.LifecycleOwner
-                        if (lifecycleOwner != null) {
-                            cameraProvider.unbindAll()
-                            cameraProvider.bindToLifecycle(
-                                lifecycleOwner,
-                                CameraSelector.DEFAULT_BACK_CAMERA,
-                                preview,
-                                imageAnalysis
-                            )
-                        }
+                        cameraProvider.unbindAll()
+                        cameraProvider.bindToLifecycle(
+                            lifecycleOwner,
+                            CameraSelector.DEFAULT_BACK_CAMERA,
+                            preview,
+                            imageAnalysis
+                        )
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
