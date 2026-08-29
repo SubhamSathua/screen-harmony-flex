@@ -20,21 +20,37 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
+import com.prism.screenharmony.flex.data.AppLockManager
+import com.prism.screenharmony.flex.data.LockTimeout
+import com.prism.screenharmony.flex.ui.screens.lock.AppLockVerifyDialog
 import com.prism.screenharmony.flex.ui.theme.AppColorPalette
 import com.prism.screenharmony.flex.ui.theme.AppThemeMode
 import com.prism.screenharmony.flex.ui.theme.LocalThemeState
 import com.prism.screenharmony.flex.ui.viewmodels.PermissionState
+import com.prism.screenharmony.flex.utils.BiometricHelper
 import com.prism.screenharmony.flex.utils.PermissionHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsTabScreen(
     permissionState: PermissionState,
+    onOpenAppLockSetup: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val themeState = LocalThemeState.current
     val context = LocalContext.current
+    val activity = context as? FragmentActivity
+
     var isColorPaletteExpanded by remember { mutableStateOf(false) }
+
+    // App Lock Live State
+    var isAppLockEnabled by remember { mutableStateOf(AppLockManager.isAppLockEnabled) }
+    var isBiometricsEnabled by remember { mutableStateOf(AppLockManager.isBiometricsEnabled) }
+    var currentTimeout by remember { mutableStateOf(AppLockManager.lockTimeout) }
+
+    var showVerifyOffDialog by remember { mutableStateOf(false) }
+    var showTimeoutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -61,6 +77,95 @@ fun SettingsTabScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // =========================================================
+            // 1. SECURITY & APP LOCK (3 OPTION CARDS)
+            // =========================================================
+            item { SectionHeader(title = "Security & App Lock") }
+
+            item {
+                GroupedContainer {
+                    // Card 1: Enable App Lock Toggle
+                    GroupedItemRow(
+                        icon = if (isAppLockEnabled) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                        title = "Enable App Lock",
+                        subtitle = if (isAppLockEnabled) "Active • PIN required on launch" else "Off • Open app without PIN"
+                    ) {
+                        Switch(
+                            checked = isAppLockEnabled,
+                            onCheckedChange = { targetState ->
+                                if (targetState) {
+                                    onOpenAppLockSetup()
+                                } else {
+                                    showVerifyOffDialog = true
+                                }
+                            }
+                        )
+                    }
+
+                    ItemDivider()
+
+                    // Card 2: Timeout
+                    GroupedItemRow(
+                        icon = Icons.Rounded.Timer,
+                        title = "Lock Timeout",
+                        subtitle = if (isAppLockEnabled) "Locks after ${currentTimeout.label} in background" else "Disabled (App Lock is Off)",
+                        enabled = isAppLockEnabled,
+                        onClick = if (isAppLockEnabled) { { showTimeoutDialog = true } } else null
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isAppLockEnabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+                        ) {
+                            Text(
+                                text = currentTimeout.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isAppLockEnabled) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+
+                    ItemDivider()
+
+                    // Card 3: Biometrics Toggle
+                    val isBioAvailable = remember { BiometricHelper.isBiometricAvailable(context) }
+                    GroupedItemRow(
+                        icon = Icons.Rounded.Fingerprint,
+                        title = "Biometric Unlock",
+                        subtitle = when {
+                            !isAppLockEnabled -> "Disabled (App Lock is Off)"
+                            !isBioAvailable -> "Unavailable on this device"
+                            isBiometricsEnabled -> "Active • Unlock with Fingerprint or Face"
+                            else -> "Off • Tap to enable biometric unlock"
+                        },
+                        enabled = isAppLockEnabled && isBioAvailable
+                    ) {
+                        Switch(
+                            checked = isBiometricsEnabled && isAppLockEnabled,
+                            enabled = isAppLockEnabled && isBioAvailable,
+                            onCheckedChange = { targetState ->
+                                if (activity != null) {
+                                    BiometricHelper.showBiometricPrompt(
+                                        activity = activity,
+                                        title = if (targetState) "Enable Biometrics" else "Disable Biometrics",
+                                        subtitle = "Verify your fingerprint or face",
+                                        onSuccess = {
+                                            AppLockManager.isBiometricsEnabled = targetState
+                                            isBiometricsEnabled = targetState
+                                        },
+                                        onError = { /* Keep state */ }
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
+            // =========================================================
+            // 2. APPEARANCE
+            // =========================================================
             item { SectionHeader(title = "Appearance") }
 
             item {
@@ -169,6 +274,9 @@ fun SettingsTabScreen(
                 }
             }
 
+            // =========================================================
+            // 3. PERMISSIONS & BACKGROUND ENFORCEMENT
+            // =========================================================
             item { SectionHeader(title = "Permissions & Background Enforcement") }
 
             item {
@@ -281,6 +389,9 @@ fun SettingsTabScreen(
                 }
             }
 
+            // =========================================================
+            // 4. ABOUT & SYNC
+            // =========================================================
             item { SectionHeader(title = "About & Sync") }
 
             item {
@@ -323,6 +434,65 @@ fun SettingsTabScreen(
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
+
+    // Verify PIN to Turn OFF App Lock Dialog
+    if (showVerifyOffDialog) {
+        AppLockVerifyDialog(
+            title = "Disable App Lock",
+            subtitle = "Enter your current PIN to turn off App Lock",
+            onVerified = {
+                AppLockManager.disableAppLock()
+                isAppLockEnabled = false
+                isBiometricsEnabled = false
+                showVerifyOffDialog = false
+            },
+            onDismiss = { showVerifyOffDialog = false }
+        )
+    }
+
+    // Select Timeout Dialog
+    if (showTimeoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showTimeoutDialog = false },
+            icon = { Icon(Icons.Rounded.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Select Lock Timeout") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    LockTimeout.entries.forEach { timeout ->
+                        val isSelected = currentTimeout == timeout
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    AppLockManager.lockTimeout = timeout
+                                    currentTimeout = timeout
+                                    showTimeoutDialog = false
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = timeout.label,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (isSelected) {
+                                    Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
 }
 
 @Composable
@@ -352,32 +522,42 @@ fun GroupedItemRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
     trailingContent: @Composable () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null && enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
+            color = if (enabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
             modifier = Modifier.size(40.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier.padding(8.dp).size(24.dp)
             )
         }
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+            )
         }
         Spacer(modifier = Modifier.width(8.dp))
         trailingContent()

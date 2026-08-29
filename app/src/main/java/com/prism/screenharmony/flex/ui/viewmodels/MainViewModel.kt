@@ -8,6 +8,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.prism.screenharmony.flex.data.AppLockManager
 import com.prism.screenharmony.flex.data.BlockRepository
 import com.prism.screenharmony.flex.data.BlockRule
 import com.prism.screenharmony.flex.utils.PermissionHelper
@@ -30,7 +31,8 @@ enum class AppDestinations(
 enum class ScreenState {
     MAIN_TABS,
     CREATE_OR_EDIT_BLOCK,
-    SELECT_APPS
+    SELECT_APPS,
+    APP_LOCK_SETUP
 }
 
 data class PermissionState(
@@ -61,8 +63,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _permissionState = MutableStateFlow(PermissionState())
     val permissionState: StateFlow<PermissionState> = _permissionState.asStateFlow()
 
+    private val _isAppLocked = MutableStateFlow(AppLockManager.isAppLocked())
+    val isAppLocked: StateFlow<Boolean> = _isAppLocked.asStateFlow()
+
     init {
         refreshPermissions()
+        checkAppLockState()
+    }
+
+    fun checkAppLockState() {
+        _isAppLocked.value = AppLockManager.isAppLocked()
+    }
+
+    fun onAppForegrounded() {
+        AppLockManager.onAppForegrounded()
+        checkAppLockState()
+        refreshPermissions()
+    }
+
+    fun onAppUnlocked() {
+        AppLockManager.unlockSession()
+        _isAppLocked.value = false
+    }
+
+    fun openAppLockSetup() {
+        _currentScreenState.value = ScreenState.APP_LOCK_SETUP
+    }
+
+    fun onAppLockSetupComplete() {
+        _currentScreenState.value = ScreenState.MAIN_TABS
+        _isAppLocked.value = false
     }
 
     fun refreshPermissions() {
@@ -139,6 +169,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun handleBack(): Boolean {
         return when (_currentScreenState.value) {
+            ScreenState.APP_LOCK_SETUP -> {
+                _currentScreenState.value = ScreenState.MAIN_TABS
+                true
+            }
             ScreenState.SELECT_APPS -> {
                 _currentScreenState.value = ScreenState.CREATE_OR_EDIT_BLOCK
                 true

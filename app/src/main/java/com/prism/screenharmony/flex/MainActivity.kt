@@ -1,7 +1,6 @@
 package com.prism.screenharmony.flex
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -19,8 +18,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.prism.screenharmony.flex.data.AppLockManager
 import com.prism.screenharmony.flex.data.BlockRepository
 import com.prism.screenharmony.flex.service.AppBlockerService
 import com.prism.screenharmony.flex.ui.components.PermissionWarningBanner
@@ -29,22 +30,24 @@ import com.prism.screenharmony.flex.ui.screens.BlocksPage
 import com.prism.screenharmony.flex.ui.screens.CreateBlockPage
 import com.prism.screenharmony.flex.ui.screens.ParentalTabScreen
 import com.prism.screenharmony.flex.ui.screens.SettingsTabScreen
-import com.prism.screenharmony.flex.ui.theme.LocalThemeState
+import com.prism.screenharmony.flex.ui.screens.lock.AppLockGateScreen
+import com.prism.screenharmony.flex.ui.screens.lock.AppLockSetupScreen
 import com.prism.screenharmony.flex.ui.theme.ScreenHarmonyFlexTheme
 import com.prism.screenharmony.flex.ui.theme.ThemeState
 import com.prism.screenharmony.flex.ui.viewmodels.AppDestinations
 import com.prism.screenharmony.flex.ui.viewmodels.MainViewModel
 import com.prism.screenharmony.flex.ui.viewmodels.ScreenState
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     private val viewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Initialize persistent disk repository
+        // Initialize persistent disk repository & app lock
         BlockRepository.initialize(this)
+        AppLockManager.initialize(this)
 
         // Start background usage blocker engine
         AppBlockerService.start(this)
@@ -56,11 +59,17 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStop() {
+        super.onStop()
+        AppLockManager.onAppBackgrounded()
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
+    val isAppLocked by viewModel.isAppLocked.collectAsState()
     val currentDestination by viewModel.currentDestination.collectAsState()
     val currentScreenState by viewModel.currentScreenState.collectAsState()
     val editingRule by viewModel.editingRule.collectAsState()
@@ -68,26 +77,40 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
     val permissionState by viewModel.permissionState.collectAsState()
     val rules by viewModel.rules.collectAsState()
 
-    // Lifecycle observer to refresh permissions when user returns to app
+    // Lifecycle observer to handle app foregrounding & permissions refresh
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshPermissions()
+                viewModel.onAppForegrounded()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // If App Lock is triggered, show the lock gate screen overlay
+    if (isAppLocked) {
+        AppLockGateScreen(
+            onUnlocked = { viewModel.onAppUnlocked() }
+        )
+        return
+    }
+
     // Unified Back Navigation
     BackHandler(enabled = true) {
         if (!viewModel.handleBack()) {
-            (lifecycleOwner as? ComponentActivity)?.finish()
+            (lifecycleOwner as? FragmentActivity)?.finish()
         }
     }
 
     when (currentScreenState) {
+        ScreenState.APP_LOCK_SETUP -> {
+            AppLockSetupScreen(
+                onComplete = { viewModel.onAppLockSetupComplete() },
+                onCancel = { viewModel.handleBack() }
+            )
+        }
         ScreenState.SELECT_APPS -> {
             AppListScreen(
                 selectedApps = editingRule.selectedApps,
@@ -206,7 +229,10 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                             }
                         }
                         AppDestinations.PARENTAL -> ParentalTabScreen()
-                        AppDestinations.SETTINGS -> SettingsTabScreen(permissionState = permissionState)
+                        AppDestinations.SETTINGS -> SettingsTabScreen(
+                            permissionState = permissionState,
+                            onOpenAppLockSetup = { viewModel.openAppLockSetup() }
+                        )
                     }
                 }
             }
