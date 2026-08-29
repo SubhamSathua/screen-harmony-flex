@@ -459,6 +459,41 @@ fun WebsiteBottomSheet(selectedWebsites: Set<String>, onWebsitesChanged: (Set<St
                     Text("DONE", fontWeight = FontWeight.Bold)
                 }
             }
+            val popularWebsites = remember {
+                listOf(
+                    "instagram.com", "tiktok.com", "youtube.com", "twitter.com",
+                    "x.com", "reddit.com", "facebook.com", "netflix.com",
+                    "twitch.tv", "amazon.com", "shein.com", "temu.com"
+                )
+            }
+
+            Text("Quick Add Popular", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            androidx.compose.foundation.lazy.LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(popularWebsites) { site ->
+                    val isSelected = selectedWebsites.contains(site)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            if (isSelected) {
+                                onWebsitesChanged(selectedWebsites - site)
+                            } else {
+                                onWebsitesChanged(selectedWebsites + site)
+                            }
+                        },
+                        label = { Text(site) },
+                        shape = RoundedCornerShape(12.dp),
+                        leadingIcon = if (isSelected) {
+                            { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        } else {
+                            { Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        }
+                    )
+                }
+            }
+
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = newUrl,
@@ -466,14 +501,19 @@ fun WebsiteBottomSheet(selectedWebsites: Set<String>, onWebsitesChanged: (Set<St
                     modifier = Modifier
                         .weight(1f)
                         .onFocusChanged { isTextFieldFocused = it.isFocused },
-                    placeholder = { Text("e.g. instagram.com") },
+                    placeholder = { Text("e.g. news.ycombinator.com") },
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true
                 )
                 IconButton(
                     onClick = {
-                        if (newUrl.isNotBlank()) {
-                            onWebsitesChanged(selectedWebsites + newUrl.trim().lowercase())
+                        val cleaned = newUrl.trim().lowercase()
+                            .removePrefix("http://")
+                            .removePrefix("https://")
+                            .removePrefix("www.")
+                            .substringBefore("/")
+                        if (cleaned.isNotBlank()) {
+                            onWebsitesChanged(selectedWebsites + cleaned)
                             newUrl = ""
                             focusManager.clearFocus()
                             keyboardController?.hide()
@@ -484,10 +524,13 @@ fun WebsiteBottomSheet(selectedWebsites: Set<String>, onWebsitesChanged: (Set<St
                     Icon(Icons.Rounded.Add, contentDescription = "Add")
                 }
             }
-            LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+            LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
                 items(selectedWebsites.toList()) { url ->
                     ListItem(
-                        headlineContent = { Text(url) },
+                        headlineContent = { Text(url, fontWeight = FontWeight.SemiBold) },
+                        leadingContent = {
+                            Icon(Icons.Rounded.Language, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        },
                         trailingContent = {
                             IconButton(onClick = { onWebsitesChanged(selectedWebsites - url) }) {
                                 Icon(Icons.Rounded.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)

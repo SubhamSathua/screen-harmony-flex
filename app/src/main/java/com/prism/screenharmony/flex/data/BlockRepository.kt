@@ -103,6 +103,14 @@ object BlockRepository {
         }
     }
 
+    fun hasActiveStrictBlock(): Boolean {
+        val now = LocalTime.now()
+        val day = DayOfWeek.from(java.time.LocalDate.now())
+        return _rules.value.any { rule ->
+            rule.blockType == BlockType.STRICT && rule.isCurrentlyBlocked(now, day)
+        }
+    }
+
     fun getActiveRuleForWebsite(url: String): Pair<BlockRule, String>? {
         val now = LocalTime.now()
         val day = DayOfWeek.from(java.time.LocalDate.now())

@@ -69,6 +69,51 @@ class WebsiteAccessibilityService : AccessibilityService() {
         if (browserUrlBarIds.containsKey(packageName)) {
             checkAndBlockWebsite(packageName)
         }
+
+        // 3. Strict Mode Anti-Bypass Guard
+        if (BlockRepository.hasActiveStrictBlock()) {
+            if (packageName == "com.android.settings" ||
+                packageName == "com.google.android.packageinstaller" ||
+                packageName == "com.android.packageinstaller"
+            ) {
+                val rootNode = rootInActiveWindow
+                if (rootNode != null && isTargetingScreenHarmony(rootNode)) {
+                    Log.w(TAG, "🚨 STRICT MODE GUARD: Intercepted attempt to modify ScreenHarmony in Settings!")
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        android.widget.Toast.makeText(
+                            this,
+                            "Strict Mode Active: App modifications and uninstallation are locked during focus session.",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    rootNode.recycle()
+                    return
+                }
+                rootNode?.recycle()
+            }
+        }
+    }
+
+    private fun isTargetingScreenHarmony(node: AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+        val text = node.text?.toString()?.lowercase() ?: ""
+        val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+        if (text.contains("screenharmony") || desc.contains("screenharmony") ||
+            text.contains("screen harmony") || desc.contains("screen harmony") ||
+            text.contains("com.prism.screenharmony")
+        ) {
+            return true
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i)
+            if (isTargetingScreenHarmony(child)) {
+                child?.recycle()
+                return true
+            }
+            child?.recycle()
+        }
+        return false
     }
 
     private fun checkAndBlockWebsite(packageName: String) {
