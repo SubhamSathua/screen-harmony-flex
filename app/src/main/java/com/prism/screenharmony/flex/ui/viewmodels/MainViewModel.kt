@@ -45,6 +45,8 @@ data class PermissionState(
     val isAccessibilityGranted: Boolean = false
 ) {
     val hasCrucialPermissions: Boolean get() = isUsageGranted && isOverlayGranted && isBatteryIgnored
+    val areBase4PermissionsGranted: Boolean get() = isUsageGranted && isOverlayGranted && isBatteryIgnored && isExactAlarmGranted
+    val areAll5PermissionsGranted: Boolean get() = areBase4PermissionsGranted && isAccessibilityGranted
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -56,6 +58,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _currentScreenState = MutableStateFlow(ScreenState.MAIN_TABS)
     val currentScreenState: StateFlow<ScreenState> = _currentScreenState.asStateFlow()
+
+    private val _highlightPermissions = MutableStateFlow(false)
+    val highlightPermissions: StateFlow<Boolean> = _highlightPermissions.asStateFlow()
+
+    fun navigateToPermissionsSettings() {
+        _currentDestination.value = AppDestinations.SETTINGS
+        _currentScreenState.value = ScreenState.MAIN_TABS
+        _highlightPermissions.value = true
+    }
+
+    fun clearPermissionsHighlight() {
+        _highlightPermissions.value = false
+    }
 
     private val _editingRule = MutableStateFlow(BlockRule())
     val editingRule: StateFlow<BlockRule> = _editingRule.asStateFlow()

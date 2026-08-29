@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,11 +36,15 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import com.prism.screenharmony.flex.data.BlockRule
 import com.prism.screenharmony.flex.family.*
+import com.prism.screenharmony.flex.ui.viewmodels.PermissionState
 import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ParentalTabScreen() {
+fun ParentalTabScreen(
+    permissionState: PermissionState = PermissionState(),
+    onNavigateToPermissions: () -> Unit = {}
+) {
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -107,7 +112,7 @@ fun ParentalTabScreen() {
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
+                    containerColor = if (familyProfile.role == FamilyRole.CHILD) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.onBackground
                 ),
                 title = {
@@ -118,6 +123,26 @@ fun ParentalTabScreen() {
                     )
                 },
                 actions = {
+                    // Permission Health Icon (Red if <4 baseline, Dark-Yellow/Amber if missing accessibility)
+                    if (!permissionState.areBase4PermissionsGranted) {
+                        IconButton(onClick = onNavigateToPermissions) {
+                            Icon(
+                                imageVector = Icons.Rounded.Error,
+                                contentDescription = "Missing Crucial Permissions",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    } else if (!permissionState.isAccessibilityGranted) {
+                        IconButton(onClick = onNavigateToPermissions) {
+                            Icon(
+                                imageVector = Icons.Rounded.Warning,
+                                contentDescription = "Accessibility Service Inactive",
+                                tint = Color(0xFFF57F17) // Dark Yellow / Amber
+                            )
+                        }
+                    }
+
+                    // Header Refresh Button
                     IconButton(
                         onClick = {
                             FamilySyncManager.forceRefresh(context) { success, msg ->
@@ -163,8 +188,7 @@ fun ParentalTabScreen() {
                 ParentDashboardView(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
-                        .padding(horizontal = 20.dp),
+                        .padding(innerPadding),
                     familyProfile = familyProfile,
                     devices = connectedDevices,
                     onShowQr = { showQrDialog = true },
@@ -649,6 +673,7 @@ private fun UnpairedRoleSelectionView(
 // PARENT DASHBOARD VIEW
 // =============================================================================
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ParentDashboardView(
     modifier: Modifier = Modifier,
@@ -659,77 +684,92 @@ private fun ParentDashboardView(
     onOpenUnlinkReview: (RemoteChildDevice) -> Unit,
     onOpenRemoveDialog: (RemoteChildDevice) -> Unit
 ) {
-    LazyColumn(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(vertical = 12.dp)
-    ) {
-        // Pairing Info Header Card
-        item {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Family Pairing Code", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
-                        Text(familyProfile.pairingCode, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, letterSpacing = 2.sp)
-                        Text("${devices.size} Child Device(s) Linked", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
+    val context = LocalContext.current
+    var isPullRefreshing by remember { mutableStateOf(false) }
 
-                    Button(
-                        onClick = onShowQr,
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                    ) {
-                        Icon(Icons.Rounded.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Show QR")
-                    }
-                }
+    PullToRefreshBox(
+        isRefreshing = isPullRefreshing,
+        onRefresh = {
+            isPullRefreshing = true
+            FamilySyncManager.forceRefresh(context) { success, msg ->
+                isPullRefreshing = false
+                Toast.makeText(context, if (success) "Data refreshed successfully" else "Refresh failed: $msg", Toast.LENGTH_SHORT).show()
             }
-        }
-
-        item {
-            Text(
-                text = "Connected Child Devices",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-
-        if (devices.isEmpty()) {
+        },
+        modifier = modifier
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(vertical = 12.dp)
+        ) {
+            // Pairing Info Header Card
             item {
                 Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(
-                        modifier = Modifier.padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    Row(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Rounded.DevicesOther, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(48.dp))
-                        Text("No Child Devices Connected", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text("Tap 'Show QR' and scan it using the ScreenHarmony app on your child's phone.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Family Pairing Code", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                            Text(familyProfile.pairingCode, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, letterSpacing = 2.sp)
+                            Text("${devices.size} Child Device(s) Linked", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+
+                        Button(
+                            onClick = onShowQr,
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Rounded.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Show QR")
+                        }
                     }
                 }
             }
-        } else {
-            items(devices, key = { it.deviceId }) { device ->
-                ChildDeviceCard(
-                    device = device,
-                    onConfigure = { onConfigureDevice(device) },
-                    onOpenUnlinkReview = { onOpenUnlinkReview(device) },
-                    onOpenRemoveDialog = { onOpenRemoveDialog(device) }
+
+            item {
+                Text(
+                    text = "Connected Child Devices",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
+            }
+
+            if (devices.isEmpty()) {
+                item {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(Icons.Rounded.DevicesOther, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(48.dp))
+                            Text("No Child Devices Connected", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text("Tap 'Show QR' and scan it using the ScreenHarmony app on your child's phone.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            } else {
+                items(devices, key = { it.deviceId }) { device ->
+                    ChildDeviceCard(
+                        device = device,
+                        onConfigure = { onConfigureDevice(device) },
+                        onOpenUnlinkReview = { onOpenUnlinkReview(device) },
+                        onOpenRemoveDialog = { onOpenRemoveDialog(device) }
+                    )
+                }
             }
         }
     }
@@ -779,7 +819,7 @@ private fun ChildDeviceCard(
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     // Status Badge
                     Surface(
                         shape = RoundedCornerShape(8.dp),
@@ -805,10 +845,16 @@ private fun ChildDeviceCard(
                         }
                     }
 
-                    // MoreVert Dropdown
+                    // Rounded M3 Expressive MoreVert Container
                     Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Rounded.MoreVert, contentDescription = "Device Options")
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.65f),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            IconButton(onClick = { showMenu = true }, modifier = Modifier.fillMaxSize()) {
+                                Icon(Icons.Rounded.MoreVert, contentDescription = "Device Options", modifier = Modifier.size(20.dp))
+                            }
                         }
                         DropdownMenu(
                             expanded = showMenu,
@@ -933,7 +979,7 @@ private fun ChildDeviceCard(
 }
 
 // =============================================================================
-// CHILD PROTECTED VIEW (3 TABS: BLOCKS, ANALYSIS, CONTROLS)
+// CHILD PROTECTED VIEW (SEAMLESS HEADER + 3 TABS: BLOCKS, ANALYSIS, CONTROLS)
 // =============================================================================
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -951,6 +997,7 @@ private fun ChildProtectedView(
     var selectedChildTab by remember { mutableIntStateOf(0) }
     val childTabs = listOf("Blocks", "Analysis", "Controls")
     var isUnlinkRequested by remember { mutableStateOf(false) }
+    var isPullRefreshing by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -987,7 +1034,7 @@ private fun ChildProtectedView(
             }
         }
 
-        // Child Secondary Tabs (Clean unselected styling)
+        // Child Seamless Navigation Tabs (Combined with TopAppBar style)
         PrimaryTabRow(
             selectedTabIndex = selectedChildTab,
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -1022,44 +1069,53 @@ private fun ChildProtectedView(
             }
         }
 
-        AnimatedContent(
-            targetState = selectedChildTab,
-            label = "ChildTabAnimation",
-            modifier = Modifier.weight(1f)
-        ) { targetTab ->
-            when (targetTab) {
-                0 -> ChildBlocksTabContent(
-                    familyProfile = familyProfile,
-                    rules = pushedRules
-                )
-                1 -> ChildAnalysisTabContent(
-                    context = context,
-                    familyProfile = familyProfile
-                )
-                2 -> ChildControlsTabContent(
-                    familyProfile = familyProfile,
-                    isUnlinkRequested = isUnlinkRequested,
-                    onRequestUnlink = {
-                        onRequestUnlink()
-                        isUnlinkRequested = true
-                    },
-                    onCancelUnlink = {
-                        onCancelUnlink()
-                        isUnlinkRequested = false
-                    }
-                )
+        PullToRefreshBox(
+            isRefreshing = isPullRefreshing,
+            onRefresh = {
+                isPullRefreshing = true
+                FamilySyncManager.forceRefresh(context) { success, msg ->
+                    isPullRefreshing = false
+                    Toast.makeText(context, if (success) "Data refreshed successfully" else "Refresh failed: $msg", Toast.LENGTH_SHORT).show()
+                }
+            },
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        ) {
+            AnimatedContent(
+                targetState = selectedChildTab,
+                label = "ChildTabAnimation"
+            ) { targetTab ->
+                when (targetTab) {
+                    0 -> ChildBlocksTabContent(
+                        rules = pushedRules
+                    )
+                    1 -> ChildAnalysisTabContent(
+                        context = context,
+                        familyProfile = familyProfile
+                    )
+                    2 -> ChildControlsTabContent(
+                        familyProfile = familyProfile,
+                        isUnlinkRequested = isUnlinkRequested,
+                        onRequestUnlink = {
+                            onRequestUnlink()
+                            isUnlinkRequested = true
+                        },
+                        onCancelUnlink = {
+                            onCancelUnlink()
+                            isUnlinkRequested = false
+                        }
+                    )
+                }
             }
         }
     }
 }
 
 // =============================================================================
-// CHILD READ-ONLY BLOCKS TAB
+// CHILD READ-ONLY BLOCKS TAB (WITHOUT "DEVICE PROTECTED" CARD)
 // =============================================================================
 
 @Composable
 private fun ChildBlocksTabContent(
-    familyProfile: FamilyProfile,
     rules: List<BlockRule>
 ) {
     LazyColumn(
@@ -1069,23 +1125,9 @@ private fun ChildBlocksTabContent(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Device Protected", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    Text("Managed by: ${familyProfile.familyName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f))
-                    Text("Rules are configured by your parent and enforced automatically.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f))
-                }
-            }
-        }
-
-        item {
             Text(
-                text = "Active Rules (${rules.size})",
-                style = MaterialTheme.typography.titleSmall,
+                text = "Active Rules Enforced by Parent (${rules.size})",
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )

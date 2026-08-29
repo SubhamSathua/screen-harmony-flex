@@ -32,10 +32,14 @@ import com.prism.screenharmony.flex.ui.viewmodels.PermissionState
 import com.prism.screenharmony.flex.utils.BiometricHelper
 import com.prism.screenharmony.flex.utils.PermissionHelper
 
+import androidx.compose.animation.core.*
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsTabScreen(
     permissionState: PermissionState,
+    highlightPermissions: Boolean = false,
+    onHighlightFinished: () -> Unit = {},
     onOpenAppLockSetup: () -> Unit = {},
     onOpenRecoverySettings: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -43,6 +47,25 @@ fun SettingsTabScreen(
     val themeState = LocalThemeState.current
     val context = LocalContext.current
     val activity = context as? FragmentActivity
+
+    // Pulse animation for permission highlighting
+    val pulseBorderWidth = remember { Animatable(0f) }
+    val pulseAlpha = remember { Animatable(0f) }
+
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(highlightPermissions) {
+        if (highlightPermissions) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+            repeat(3) {
+                pulseBorderWidth.animateTo(3f, tween(300, easing = FastOutSlowInEasing))
+                pulseAlpha.animateTo(1f, tween(300, easing = FastOutSlowInEasing))
+                pulseBorderWidth.animateTo(0f, tween(300, easing = FastOutSlowInEasing))
+                pulseAlpha.animateTo(0f, tween(300, easing = FastOutSlowInEasing))
+            }
+            onHighlightFinished()
+        }
+    }
 
     // Precomputed values lifted outside scroll loop for 60/120 FPS smoothness
     val isBioAvailable = remember { BiometricHelper.isBiometricAvailable(context) }
@@ -65,8 +88,6 @@ fun SettingsTabScreen(
     var showVerifyOffDialog by remember { mutableStateOf(false) }
     var showVerifyRecoveryDialog by remember { mutableStateOf(false) }
     var showTimeoutDialog by remember { mutableStateOf(false) }
-
-    val scrollState = rememberScrollState()
 
     Scaffold(
         modifier = modifier,
@@ -312,7 +333,15 @@ fun SettingsTabScreen(
             // =========================================================
             SectionHeader(title = "Permissions & Background Enforcement")
 
-            GroupedContainer {
+            GroupedContainer(
+                modifier = if (pulseAlpha.value > 0.01f) {
+                    Modifier.border(
+                        width = pulseBorderWidth.value.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = pulseAlpha.value),
+                        shape = RoundedCornerShape(24.dp)
+                    )
+                } else Modifier
+            ) {
                 // 1. Usage Access
                 GroupedItemRow(
                     icon = Icons.Rounded.QueryStats,
@@ -567,11 +596,14 @@ fun SectionHeader(title: String) {
 }
 
 @Composable
-fun GroupedContainer(content: @Composable ColumnScope.() -> Unit) {
+fun GroupedContainer(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth(), content = content)
     }

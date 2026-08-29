@@ -86,6 +86,7 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
     val editingRule by viewModel.editingRule.collectAsState()
     val isAppListGridView by viewModel.isAppListGridView.collectAsState()
     val permissionState by viewModel.permissionState.collectAsState()
+    val highlightPermissions by viewModel.highlightPermissions.collectAsState()
     val rules by viewModel.rules.collectAsState()
 
     // Lifecycle observer to handle app foregrounding & permissions refresh
@@ -245,9 +246,14 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                                 }
                             }
                         }
-                        AppDestinations.PARENTAL -> ParentalTabScreen()
+                        AppDestinations.PARENTAL -> ParentalTabScreen(
+                            permissionState = permissionState,
+                            onNavigateToPermissions = { viewModel.navigateToPermissionsSettings() }
+                        )
                         AppDestinations.SETTINGS -> SettingsTabScreen(
                             permissionState = permissionState,
+                            highlightPermissions = highlightPermissions,
+                            onHighlightFinished = { viewModel.clearPermissionsHighlight() },
                             onOpenAppLockSetup = { viewModel.openAppLockSetup() },
                             onOpenRecoverySettings = { viewModel.openRecoverySettings() }
                         )

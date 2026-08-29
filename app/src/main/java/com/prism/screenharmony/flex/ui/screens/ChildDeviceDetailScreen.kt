@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +43,7 @@ fun ChildDeviceDetailScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var showRemoveDialog by remember { mutableStateOf(false) }
     var showCreateRuleDialog by remember { mutableStateOf(false) }
+    var isPullRefreshing by remember { mutableStateOf(false) }
 
     // Live Rules for this Child Device
     var childRules by remember { mutableStateOf<List<BlockRule>>(emptyList()) }
@@ -170,35 +172,47 @@ fun ChildDeviceDetailScreen(
                 }
             }
 
-            AnimatedContent(
-                targetState = selectedTabIndex,
-                label = "TabContentAnimation"
-            ) { targetTab ->
-                when (targetTab) {
-                    0 -> BlockTabContent(
-                        device = device,
-                        rules = childRules,
-                        onCreateRule = { showCreateRuleDialog = true },
-                        onToggleRule = { ruleId, isEnabled ->
-                            FamilySyncManager.toggleChildRule(device.deviceId, ruleId, isEnabled)
-                        },
-                        onDeleteRule = { ruleId ->
-                            FamilySyncManager.deleteRuleOnChild(device.deviceId, ruleId)
-                            Toast.makeText(context, "Rule deleted", Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                    1 -> AnalysisTabContent(
-                        device = device,
-                        appsUsage = childAppsUsage
-                    )
-                    2 -> ControlsTabContent(
-                        device = device,
-                        onToggleLock = { lock ->
-                            FamilySyncManager.toggleRemoteLock(device.deviceId, lock)
-                            Toast.makeText(context, if (lock) "Device locked" else "Device unlocked", Toast.LENGTH_SHORT).show()
-                        },
-                        onOpenRemoveDialog = { showRemoveDialog = true }
-                    )
+            PullToRefreshBox(
+                isRefreshing = isPullRefreshing,
+                onRefresh = {
+                    isPullRefreshing = true
+                    FamilySyncManager.forceRefresh(context) { success, msg ->
+                        isPullRefreshing = false
+                        Toast.makeText(context, if (success) "Data refreshed successfully" else "Refresh failed: $msg", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            ) {
+                AnimatedContent(
+                    targetState = selectedTabIndex,
+                    label = "TabContentAnimation"
+                ) { targetTab ->
+                    when (targetTab) {
+                        0 -> BlockTabContent(
+                            device = device,
+                            rules = childRules,
+                            onCreateRule = { showCreateRuleDialog = true },
+                            onToggleRule = { ruleId, isEnabled ->
+                                FamilySyncManager.toggleChildRule(device.deviceId, ruleId, isEnabled)
+                            },
+                            onDeleteRule = { ruleId ->
+                                FamilySyncManager.deleteRuleOnChild(device.deviceId, ruleId)
+                                Toast.makeText(context, "Rule deleted", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                        1 -> AnalysisTabContent(
+                            device = device,
+                            appsUsage = childAppsUsage
+                        )
+                        2 -> ControlsTabContent(
+                            device = device,
+                            onToggleLock = { lock ->
+                                FamilySyncManager.toggleRemoteLock(device.deviceId, lock)
+                                Toast.makeText(context, if (lock) "Device locked" else "Device unlocked", Toast.LENGTH_SHORT).show()
+                            },
+                            onOpenRemoveDialog = { showRemoveDialog = true }
+                        )
+                    }
                 }
             }
         }
@@ -463,7 +477,7 @@ private fun BlockTabContent(
 }
 
 // =============================================================================
-// TAB 2: ANALYSIS & TELEMETRY TAB
+// TAB 2: ANALYSIS & SCREEN TIME TAB
 // =============================================================================
 
 @Composable
@@ -575,8 +589,26 @@ private fun AnalysisTabContent(
                 }
             }
         }
+    }
+}
 
-        // Live Device Status Card
+// =============================================================================
+// TAB 3: CONTROLS TAB (DEVICE STATUS & SPECS AT TOP)
+// =============================================================================
+
+@Composable
+private fun ControlsTabContent(
+    device: RemoteChildDevice,
+    onToggleLock: (Boolean) -> Unit,
+    onOpenRemoveDialog: () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // 1. Live Device Status Card (Moved to top of Controls)
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
@@ -604,7 +636,7 @@ private fun AnalysisTabContent(
             }
         }
 
-        // Hardware & Specs Card
+        // 2. Hardware & Specs Card (Moved to top of Controls)
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
@@ -629,26 +661,8 @@ private fun AnalysisTabContent(
                 }
             }
         }
-    }
-}
 
-// =============================================================================
-// TAB 3: CONTROLS TAB
-// =============================================================================
-
-@Composable
-private fun ControlsTabContent(
-    device: RemoteChildDevice,
-    onToggleLock: (Boolean) -> Unit,
-    onOpenRemoveDialog: () -> Unit
-) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        // Unlink Request Review Banner (if requested)
+        // 3. Unlink Request Review Banner (if requested)
         if (device.unlinkRequested) {
             item {
                 Surface(
@@ -680,7 +694,7 @@ private fun ControlsTabContent(
             }
         }
 
-        // Remote Screen Lock Card
+        // 4. Remote Screen Lock Card
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
@@ -704,7 +718,7 @@ private fun ControlsTabContent(
             }
         }
 
-        // Remove Device Card
+        // 5. Remove Device Card (Danger Zone)
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
