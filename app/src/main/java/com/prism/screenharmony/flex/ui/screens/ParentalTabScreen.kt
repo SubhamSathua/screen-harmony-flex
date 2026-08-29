@@ -26,7 +26,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.prism.screenharmony.flex.data.BlockRule
 import com.prism.screenharmony.flex.family.*
 import org.json.JSONObject
 
@@ -48,6 +47,17 @@ fun ParentalTabScreen() {
     var selectedDeviceForConfigure by remember { mutableStateOf<RemoteChildDevice?>(null) }
     var showChildRequestUnlinkDialog by remember { mutableStateOf(false) }
     var showParentLeaveDialog by remember { mutableStateOf(false) }
+
+    // If a device is opened for configuration, render the 3-tab detail screen
+    selectedDeviceForConfigure?.let { selected ->
+        val liveDevice = connectedDevices.find { it.deviceId == selected.deviceId } ?: selected
+        ChildDeviceDetailScreen(
+            device = liveDevice,
+            onBack = { selectedDeviceForConfigure = null },
+            onDeviceRemoved = { selectedDeviceForConfigure = null }
+        )
+        return
+    }
 
     if (showScannerView) {
         QrScannerView(
@@ -145,35 +155,6 @@ fun ParentalTabScreen() {
                 )
             }
         }
-    }
-
-    // Configure Child Device Dialog
-    selectedDeviceForConfigure?.let { device ->
-        // Keep active instance in sync with state flow
-        val liveDevice = connectedDevices.find { it.deviceId == device.deviceId } ?: device
-
-        DeviceConfigureDialog(
-            device = liveDevice,
-            onDismiss = { selectedDeviceForConfigure = null },
-            onRename = { newName ->
-                FamilySyncManager.renameChildDevice(device.deviceId, newName)
-                Toast.makeText(context, "Device renamed!", Toast.LENGTH_SHORT).show()
-            },
-            onToggleLock = { lock ->
-                FamilySyncManager.toggleRemoteLock(device.deviceId, lock)
-                Toast.makeText(context, if (lock) "Lock command sent" else "Unlock command sent", Toast.LENGTH_SHORT).show()
-            },
-            onPushRule = { rule ->
-                FamilySyncManager.pushRuleToChild(device.deviceId, rule)
-                Toast.makeText(context, "Rule pushed to ${device.displayName}!", Toast.LENGTH_LONG).show()
-            },
-            onRemoveDevice = {
-                FamilySyncManager.removeAndUnlinkChildDevice(device.deviceId) {
-                    selectedDeviceForConfigure = null
-                    Toast.makeText(context, "Device unlinked and removed", Toast.LENGTH_LONG).show()
-                }
-            }
-        )
     }
 
     // QR Code Dialog
@@ -605,6 +586,11 @@ private fun ChildDeviceCard(
     device: RemoteChildDevice,
     onConfigure: () -> Unit
 ) {
+    val context = LocalContext.current
+    var showMenu by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var showRemoveDialog by remember { mutableStateOf(false) }
+
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
@@ -619,7 +605,7 @@ private fun ChildDeviceCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.primaryContainer,
@@ -638,28 +624,59 @@ private fun ChildDeviceCard(
                     }
                 }
 
-                // Status Badge
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (device.isOnline) Color(0xFF1B5E20).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Status Badge
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (device.isOnline) Color(0xFF1B5E20).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(if (device.isOnline) Color(0xFF4CAF50) else Color.Gray)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (device.isOnline) "Online" else "Offline",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = if (device.isOnline) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(if (device.isOnline) Color(0xFF4CAF50) else Color.Gray)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (device.isOnline) "Online" else "Offline",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (device.isOnline) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // MoreVert Dropdown
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Rounded.MoreVert, contentDescription = "Device Options")
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Rename Device") },
+                                leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                                onClick = {
+                                    showMenu = false
+                                    showRenameDialog = true
+                                }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Remove Device", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Rounded.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showMenu = false
+                                    showRemoveDialog = true
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -721,257 +738,86 @@ private fun ChildDeviceCard(
             }
         }
     }
-}
 
-// =============================================================================
-// DEVICE CONFIGURE & INFO DIALOG
-// =============================================================================
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DeviceConfigureDialog(
-    device: RemoteChildDevice,
-    onDismiss: () -> Unit,
-    onRename: (String) -> Unit,
-    onToggleLock: (Boolean) -> Unit,
-    onPushRule: (BlockRule) -> Unit,
-    onRemoveDevice: () -> Unit
-) {
-    var isEditingName by remember { mutableStateOf(false) }
-    var editedName by remember { mutableStateOf(device.displayName) }
-
-    var showPushRuleSection by remember { mutableStateOf(false) }
-    var ruleName by remember { mutableStateOf("") }
-    var rulePackages by remember { mutableStateOf("") }
-
-    var removeConfirmText by remember { mutableStateOf("") }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.9f)
-        ) {
-            LazyColumn(
-                modifier = Modifier.padding(22.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Header & Rename
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (isEditingName) {
-                            OutlinedTextField(
-                                value = editedName,
-                                onValueChange = { editedName = it },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(onClick = {
-                                isEditingName = false
-                                onRename(editedName)
-                            }) {
-                                Icon(Icons.Rounded.Check, contentDescription = "Save", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        } else {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(device.displayName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                                Text(
-                                    text = "Original Name: ${device.deviceName} (${device.model})",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            IconButton(onClick = { isEditingName = true }) {
-                                Icon(Icons.Rounded.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
-                }
-
-                // Unlink Request Info Card (if requested)
-                if (device.unlinkRequested) {
-                    item {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Rounded.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Unlink Requested by Child", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                                }
-                                if (device.unlinkReason.isNotBlank()) {
-                                    Text("Reason: \"${device.unlinkReason}\"", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
-                                }
-                                Text("The child has requested to disconnect this phone from family controls. You can review device stats or remove it below.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f))
-                            }
-                        }
-                    }
-                }
-
-                // Device Specs & Telemetry Card
-                item {
-                    Card(
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    // Rename Dialog
+    if (showRenameDialog) {
+        var newName by remember { mutableStateOf(device.displayName) }
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename Child Device") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Enter a custom name for this device (e.g. Alex's Phone).", style = MaterialTheme.typography.bodyMedium)
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("Device Information", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("OS Version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(device.androidVersion.ifBlank { "Android" }, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Battery Level", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("${device.batteryLevel}%", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Today's Screen Time", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("${device.screenTimeMinutes / 60}h ${device.screenTimeMinutes % 60}m", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Active Block Rules", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("${device.rulesCount} Rules", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
+                    )
                 }
-
-                // Remote Lock Toggle Section
-                item {
-                    Card(
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Remote Device Lock", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                Text("Instantly lock screen with pin / focus wall", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Switch(
-                                checked = device.isLocked,
-                                onCheckedChange = { onToggleLock(it) }
-                            )
-                        }
-                    }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        FamilySyncManager.renameChildDevice(device.deviceId, newName)
+                        showRenameDialog = false
+                        Toast.makeText(context, "Device renamed!", Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = newName.isNotBlank()
+                ) {
+                    Text("Save")
                 }
-
-                // Push Rule Section
-                item {
-                    Card(
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Push Block Rule", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                IconButton(onClick = { showPushRuleSection = !showPushRuleSection }) {
-                                    Icon(if (showPushRuleSection) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null)
-                                }
-                            }
-
-                            if (showPushRuleSection) {
-                                OutlinedTextField(
-                                    value = ruleName,
-                                    onValueChange = { ruleName = it },
-                                    label = { Text("Rule Name") },
-                                    placeholder = { Text("Study Time") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                OutlinedTextField(
-                                    value = rulePackages,
-                                    onValueChange = { rulePackages = it },
-                                    label = { Text("Blocked Packages (comma separated)") },
-                                    placeholder = { Text("com.instagram.android, com.google.android.youtube") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Button(
-                                    onClick = {
-                                        val packages = rulePackages.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
-                                        val newRule = BlockRule(
-                                            id = "remote_" + System.currentTimeMillis(),
-                                            name = if (ruleName.isBlank()) "Parental Block" else ruleName,
-                                            selectedApps = packages,
-                                            isEnabled = true
-                                        )
-                                        onPushRule(newRule)
-                                        ruleName = ""
-                                        rulePackages = ""
-                                        showPushRuleSection = false
-                                    },
-                                    enabled = rulePackages.isNotBlank(),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Push Rule to Device")
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Remove Device Section (Type "Remove" Confirmation)
-                item {
-                    Card(
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Remove & Unlink Device", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-                            Text("To disconnect and remove this device from family controls, type \"Remove\" below to confirm.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                            OutlinedTextField(
-                                value = removeConfirmText,
-                                onValueChange = { removeConfirmText = it },
-                                placeholder = { Text("Type \"Remove\" to confirm") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            val isRemoveEnabled = removeConfirmText.trim().equals("Remove", ignoreCase = false)
-
-                            Button(
-                                onClick = onRemoveDevice,
-                                enabled = isRemoveEnabled,
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Rounded.DeleteForever, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Unlink & Remove Device")
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                        Text("Close")
-                    }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text("Cancel")
                 }
             }
-        }
+        )
+    }
+
+    // Remove Device Dialog
+    if (showRemoveDialog) {
+        var removeInput by remember { mutableStateOf("") }
+        val isConfirmed = removeInput.trim().equals("Remove", ignoreCase = false)
+
+        AlertDialog(
+            onDismissRequest = { showRemoveDialog = false },
+            icon = { Icon(Icons.Rounded.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Remove Device from Family?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("This will permanently disconnect ${device.displayName} and stop all remote controls.", style = MaterialTheme.typography.bodyMedium)
+                    Text("To confirm, please type \"Remove\" below:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    OutlinedTextField(
+                        value = removeInput,
+                        onValueChange = { removeInput = it },
+                        placeholder = { Text("Type \"Remove\"") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        FamilySyncManager.removeAndUnlinkChildDevice(device.deviceId) {
+                            showRemoveDialog = false
+                            Toast.makeText(context, "Device unlinked and removed", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    enabled = isConfirmed,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Unlink & Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

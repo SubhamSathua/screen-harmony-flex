@@ -576,8 +576,70 @@ object FamilySyncManager {
             val profile = _familyProfile.value
             if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return@ensureAuth
             val db = database ?: FirebaseDatabase.getInstance().also { database = it }
-
             db.getReference("families/${profile.familyId}/devices/$childDeviceId/rules/$ruleId").removeValue()
+        }
+    }
+
+    fun listenChildRules(childDeviceId: String, onRules: (List<BlockRule>) -> Unit): ValueEventListener? {
+        val profile = _familyProfile.value
+        if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return null
+        val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<BlockRule>()
+                for (rSnap in snapshot.children) {
+                    try {
+                        val id = rSnap.child("id").getValue(String::class.java) ?: rSnap.key ?: continue
+                        val name = rSnap.child("name").getValue(String::class.java) ?: "Remote Rule"
+                        val isEnabled = rSnap.child("isEnabled").getValue(Boolean::class.java) ?: true
+                        val durationSec = (rSnap.child("blockDurationSeconds").getValue(Long::class.java) ?: 5L).toInt()
+
+                        val apps = mutableSetOf<String>()
+                        for (appSnap in rSnap.child("selectedApps").children) {
+                            appSnap.getValue(String::class.java)?.let { apps.add(it) }
+                        }
+
+                        val sites = mutableSetOf<String>()
+                        for (siteSnap in rSnap.child("selectedWebsites").children) {
+                            siteSnap.getValue(String::class.java)?.let { sites.add(it) }
+                        }
+
+                        list.add(
+                            BlockRule(
+                                id = id,
+                                name = name,
+                                isEnabled = isEnabled,
+                                selectedApps = apps,
+                                selectedWebsites = sites,
+                                blockDurationSeconds = durationSec
+                            )
+                        )
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                onRules(list)
+            }
+
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        db.getReference("families/${profile.familyId}/devices/$childDeviceId/rules").addValueEventListener(listener)
+        return listener
+    }
+
+    fun removeRulesListener(childDeviceId: String, listener: ValueEventListener) {
+        val profile = _familyProfile.value
+        if (profile.familyId.isBlank()) return
+        database?.getReference("families/${profile.familyId}/devices/$childDeviceId/rules")?.removeEventListener(listener)
+    }
+
+    fun toggleChildRule(childDeviceId: String, ruleId: String, isEnabled: Boolean) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+            db.getReference("families/${profile.familyId}/devices/$childDeviceId/rules/$ruleId/isEnabled").setValue(isEnabled)
         }
     }
 
