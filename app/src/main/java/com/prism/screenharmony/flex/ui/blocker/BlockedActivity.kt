@@ -235,7 +235,8 @@ fun BlockWallScreen(
                     Text(
                         text = quote,
                         style = MaterialTheme.typography.headlineMedium.copy(
-                            lineHeight = 36.sp,
+                            fontFamily = com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily,
+                            lineHeight = 38.sp,
                             fontWeight = FontWeight.Bold
                         ),
                         textAlign = TextAlign.Center,

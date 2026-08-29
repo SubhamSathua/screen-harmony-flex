@@ -183,7 +183,8 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                                                 Text(
                                                     text = "ScreenHarmony",
                                                     style = MaterialTheme.typography.titleLarge,
-                                                    fontWeight = FontWeight.Bold,
+                                                    fontFamily = com.prism.screenharmony.flex.ui.theme.SyneFontFamily,
+                                                    fontWeight = FontWeight.ExtraBold,
                                                     color = MaterialTheme.colorScheme.primary
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))

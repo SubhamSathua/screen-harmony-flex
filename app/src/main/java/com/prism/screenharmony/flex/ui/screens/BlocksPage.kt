@@ -555,8 +555,12 @@ fun DelayPauseWarningDialog(
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = quote,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 17.sp,
+                                    lineHeight = 24.sp
+                                ),
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -675,7 +679,7 @@ fun DelayPauseWarningDialog(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = if (isTimerFinished) "Pause for ${if (selectedPauseMinutes == 60) "1h" else "${selectedPauseMinutes}m"}" else "Wait ${timeLeft}s",
+                            text = if (isTimerFinished) "Pause" else "Wait ${timeLeft}s",
                             fontWeight = FontWeight.Bold
                         )
                     }
