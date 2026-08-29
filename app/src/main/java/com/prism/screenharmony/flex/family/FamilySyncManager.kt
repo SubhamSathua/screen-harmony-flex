@@ -397,22 +397,25 @@ object FamilySyncManager {
                         val remoteRules = mutableListOf<BlockRule>()
                         for (rSnap in snapshot.children) {
                             try {
-                                val id = rSnap.child("id").getValue(String::class.java) ?: rSnap.key ?: continue
-                                val name = rSnap.child("name").getValue(String::class.java) ?: "Remote Rule"
-                                val isEnabled = rSnap.child("isEnabled").getValue(Boolean::class.java) ?: true
-                                val durationSec = (rSnap.child("blockDurationSeconds").getValue(Long::class.java) ?: 5L).toInt()
+                                val rawJson = rSnap.child("ruleJson").getValue(String::class.java)
+                                val parsedRule = if (!rawJson.isNullOrBlank()) {
+                                    BlockRepository.deserializeSingleRule(rawJson)
+                                } else {
+                                    val id = rSnap.child("id").getValue(String::class.java) ?: rSnap.key ?: continue
+                                    val name = rSnap.child("name").getValue(String::class.java) ?: "Remote Rule"
+                                    val isEnabled = rSnap.child("isEnabled").getValue(Boolean::class.java) ?: true
+                                    val durationSec = (rSnap.child("blockDurationSeconds").getValue(Long::class.java) ?: 5L).toInt()
 
-                                val apps = mutableSetOf<String>()
-                                for (appSnap in rSnap.child("selectedApps").children) {
-                                    appSnap.getValue(String::class.java)?.let { apps.add(it) }
-                                }
+                                    val apps = mutableSetOf<String>()
+                                    for (appSnap in rSnap.child("selectedApps").children) {
+                                        appSnap.getValue(String::class.java)?.let { apps.add(it) }
+                                    }
 
-                                val sites = mutableSetOf<String>()
-                                for (siteSnap in rSnap.child("selectedWebsites").children) {
-                                    siteSnap.getValue(String::class.java)?.let { sites.add(it) }
-                                }
+                                    val sites = mutableSetOf<String>()
+                                    for (siteSnap in rSnap.child("selectedWebsites").children) {
+                                        siteSnap.getValue(String::class.java)?.let { sites.add(it) }
+                                    }
 
-                                remoteRules.add(
                                     BlockRule(
                                         id = id,
                                         name = name,
@@ -421,15 +424,29 @@ object FamilySyncManager {
                                         selectedWebsites = sites,
                                         blockDurationSeconds = durationSec
                                     )
-                                )
+                                }
+
+                                if (parsedRule != null) {
+                                    remoteRules.add(parsedRule)
+                                }
                             } catch (e: Exception) {
                                 Log.e(TAG, "Error parsing remote rule", e)
                             }
                         }
 
+                        val previousRemoteRules = _childPushedRules.value
                         _childPushedRules.value = remoteRules
 
-                        // Apply to local SQLite BlockRepository
+                        // Sync with local SQLite BlockRepository:
+                        // 1. Delete rules that were removed remotely
+                        val newRemoteIds = remoteRules.map { it.id }.toSet()
+                        for (prevRule in previousRemoteRules) {
+                            if (!newRemoteIds.contains(prevRule.id)) {
+                                BlockRepository.deleteRule(prevRule.id)
+                            }
+                        }
+
+                        // 2. Add or update active remote rules
                         for (rule in remoteRules) {
                             BlockRepository.addOrUpdateRule(rule)
                         }
@@ -731,17 +748,40 @@ object FamilySyncManager {
             if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return@ensureAuth
             val db = database ?: FirebaseDatabase.getInstance().also { database = it }
 
+            val ruleJson = BlockRepository.serializeRule(rule)
             val ruleMap = mapOf(
                 "id" to rule.id,
                 "name" to rule.name,
                 "isEnabled" to rule.isEnabled,
                 "blockDurationSeconds" to rule.blockDurationSeconds,
                 "selectedApps" to rule.selectedApps.toList(),
-                "selectedWebsites" to rule.selectedWebsites.toList()
+                "selectedWebsites" to rule.selectedWebsites.toList(),
+                "ruleJson" to ruleJson,
+                "updatedAt" to ServerValue.TIMESTAMP
             )
 
             db.getReference("families/${profile.familyId}/devices/$childDeviceId/rules/${rule.id}").setValue(ruleMap)
         }
+    }
+
+    fun toggleRuleOnChild(childDeviceId: String, rule: BlockRule, isEnabled: Boolean) {
+        val updated = rule.copy(isEnabled = isEnabled)
+        pushRuleToChild(childDeviceId, updated)
+    }
+
+    fun pauseRuleOnChild(childDeviceId: String, rule: BlockRule, durationMinutes: Int) {
+        val updated = if (durationMinutes > 0) {
+            rule.copy(
+                lastPausedAt = System.currentTimeMillis(),
+                pauseDurationMinutes = durationMinutes
+            )
+        } else {
+            rule.copy(
+                lastPausedAt = null,
+                pauseDurationMinutes = null
+            )
+        }
+        pushRuleToChild(childDeviceId, updated)
     }
 
     fun deleteRuleOnChild(childDeviceId: String, ruleId: String) {
@@ -763,22 +803,25 @@ object FamilySyncManager {
                 val list = mutableListOf<BlockRule>()
                 for (rSnap in snapshot.children) {
                     try {
-                        val id = rSnap.child("id").getValue(String::class.java) ?: rSnap.key ?: continue
-                        val name = rSnap.child("name").getValue(String::class.java) ?: "Remote Rule"
-                        val isEnabled = rSnap.child("isEnabled").getValue(Boolean::class.java) ?: true
-                        val durationSec = (rSnap.child("blockDurationSeconds").getValue(Long::class.java) ?: 5L).toInt()
+                        val rawJson = rSnap.child("ruleJson").getValue(String::class.java)
+                        val parsedRule = if (!rawJson.isNullOrBlank()) {
+                            BlockRepository.deserializeSingleRule(rawJson)
+                        } else {
+                            val id = rSnap.child("id").getValue(String::class.java) ?: rSnap.key ?: continue
+                            val name = rSnap.child("name").getValue(String::class.java) ?: "Remote Rule"
+                            val isEnabled = rSnap.child("isEnabled").getValue(Boolean::class.java) ?: true
+                            val durationSec = (rSnap.child("blockDurationSeconds").getValue(Long::class.java) ?: 5L).toInt()
 
-                        val apps = mutableSetOf<String>()
-                        for (appSnap in rSnap.child("selectedApps").children) {
-                            appSnap.getValue(String::class.java)?.let { apps.add(it) }
-                        }
+                            val apps = mutableSetOf<String>()
+                            for (appSnap in rSnap.child("selectedApps").children) {
+                                appSnap.getValue(String::class.java)?.let { apps.add(it) }
+                            }
 
-                        val sites = mutableSetOf<String>()
-                        for (siteSnap in rSnap.child("selectedWebsites").children) {
-                            siteSnap.getValue(String::class.java)?.let { sites.add(it) }
-                        }
+                            val sites = mutableSetOf<String>()
+                            for (siteSnap in rSnap.child("selectedWebsites").children) {
+                                siteSnap.getValue(String::class.java)?.let { sites.add(it) }
+                            }
 
-                        list.add(
                             BlockRule(
                                 id = id,
                                 name = name,
@@ -787,14 +830,17 @@ object FamilySyncManager {
                                 selectedWebsites = sites,
                                 blockDurationSeconds = durationSec
                             )
-                        )
+                        }
+
+                        if (parsedRule != null) {
+                            list.add(parsedRule)
+                        }
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        Log.e(TAG, "Error parsing child rule", e)
                     }
                 }
                 onRules(list)
             }
-
             override fun onCancelled(error: DatabaseError) {}
         }
         db.getReference("families/${profile.familyId}/devices/$childDeviceId/rules").addValueEventListener(listener)

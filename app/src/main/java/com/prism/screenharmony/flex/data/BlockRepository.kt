@@ -219,7 +219,23 @@ object BlockRepository {
     // JSON SERIALIZATION / DESERIALIZATION
     // ==========================================
 
-    private fun serializeRules(rulesList: List<BlockRule>): String {
+    fun serializeRule(rule: BlockRule): String {
+        return serializeRules(listOf(rule))
+    }
+
+    fun deserializeSingleRule(jsonStr: String): BlockRule? {
+        return try {
+            if (jsonStr.trim().startsWith("[")) {
+                deserializeRules(jsonStr).firstOrNull()
+            } else {
+                deserializeRules("[$jsonStr]").firstOrNull()
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun serializeRules(rulesList: List<BlockRule>): String {
         val rootArray = JSONArray()
         for (rule in rulesList) {
             val obj = JSONObject().apply {

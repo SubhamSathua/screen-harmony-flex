@@ -1,8 +1,13 @@
 package com.prism.screenharmony.flex.ui.screens
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -27,6 +33,9 @@ import com.prism.screenharmony.flex.data.BlockRule
 import com.prism.screenharmony.flex.family.ChildAppUsage
 import com.prism.screenharmony.flex.family.FamilySyncManager
 import com.prism.screenharmony.flex.family.RemoteChildDevice
+import java.time.DayOfWeek
+import java.time.LocalTime
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,10 +51,14 @@ fun ChildDeviceDetailScreen(
     var showMoreMenu by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showRemoveDialog by remember { mutableStateOf(false) }
-    var showCreateRuleDialog by remember { mutableStateOf(false) }
     var isPullRefreshing by remember { mutableStateOf(false) }
 
-    // Live Rules for this Child Device
+    // Remote Block Rule Creation & Editing Flow
+    var editingRule by remember { mutableStateOf<BlockRule?>(null) }
+    var isSelectingApps by remember { mutableStateOf(false) }
+    var isAppListGridView by remember { mutableStateOf(false) }
+
+    // Live Rules and Telemetry for this Child Device
     var childRules by remember { mutableStateOf<List<BlockRule>>(emptyList()) }
     var childAppsUsage by remember { mutableStateOf<List<ChildAppUsage>>(emptyList()) }
 
@@ -65,6 +78,40 @@ fun ChildDeviceDetailScreen(
             }
         }
     }
+
+    // Full-screen App Selection for Remote Block Rule
+    if (isSelectingApps && editingRule != null) {
+        AppListScreen(
+            selectedApps = editingRule!!.selectedApps,
+            isGridView = isAppListGridView,
+            onViewToggle = { isAppListGridView = it },
+            onDone = { selected ->
+                editingRule = editingRule!!.copy(selectedApps = selected)
+                isSelectingApps = false
+            },
+            onBack = { isSelectingApps = false }
+        )
+        return
+    }
+
+    // Full-screen Create/Edit Block Rule Flow (Same logic & UI as main Block Screen)
+    if (editingRule != null) {
+        CreateBlockPage(
+            rule = editingRule!!,
+            onRuleChanged = { editingRule = it },
+            onSelectApps = { isSelectingApps = true },
+            onSave = {
+                val ruleToSave = editingRule!!
+                FamilySyncManager.pushRuleToChild(device.deviceId, ruleToSave)
+                editingRule = null
+                Toast.makeText(context, "Rule saved & pushed to ${device.displayName}!", Toast.LENGTH_SHORT).show()
+            },
+            onBack = { editingRule = null }
+        )
+        return
+    }
+
+    BackHandler { onBack() }
 
     Scaffold(
         topBar = {
@@ -138,6 +185,35 @@ fun ChildDeviceDetailScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            if (selectedTabIndex == 0) {
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val scale by animateFloatAsState(
+                    targetValue = if (isPressed) 0.92f else 1f,
+                    animationSpec = tween(durationMillis = 100),
+                    label = "CreateBlockFabScale"
+                )
+
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        editingRule = BlockRule(
+                            id = "remote_" + UUID.randomUUID().toString().take(8),
+                            name = ""
+                        )
+                    },
+                    interactionSource = interactionSource,
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .scale(scale),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = RoundedCornerShape(20.dp),
+                    icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                    text = { Text("Create a Block", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                )
+            }
         }
     ) { innerPadding ->
         Column(
@@ -194,16 +270,21 @@ fun ChildDeviceDetailScreen(
                     label = "TabContentAnimation"
                 ) { targetTab ->
                     when (targetTab) {
-                        0 -> BlockTabContent(
+                        0 -> ChildBlocksTabContent(
                             device = device,
                             rules = childRules,
-                            onCreateRule = { showCreateRuleDialog = true },
-                            onToggleRule = { ruleId, isEnabled ->
-                                FamilySyncManager.toggleChildRule(device.deviceId, ruleId, isEnabled)
+                            onToggleRule = { rule, isEnabled ->
+                                FamilySyncManager.toggleRuleOnChild(device.deviceId, rule, isEnabled)
                             },
-                            onDeleteRule = { ruleId ->
-                                FamilySyncManager.deleteRuleOnChild(device.deviceId, ruleId)
-                                Toast.makeText(context, "Rule deleted", Toast.LENGTH_SHORT).show()
+                            onEditRule = { rule ->
+                                editingRule = rule
+                            },
+                            onDeleteRule = { rule ->
+                                FamilySyncManager.deleteRuleOnChild(device.deviceId, rule.id)
+                                Toast.makeText(context, "Rule removed", Toast.LENGTH_SHORT).show()
+                            },
+                            onPauseRule = { rule, duration ->
+                                FamilySyncManager.pauseRuleOnChild(device.deviceId, rule, duration)
                             }
                         )
                         1 -> AnalysisTabContent(
@@ -226,16 +307,21 @@ fun ChildDeviceDetailScreen(
 
     // Rename Dialog
     if (showRenameDialog) {
-        var newName by remember { mutableStateOf(device.displayName) }
+        var newNameInput by remember { mutableStateOf(device.displayName) }
+
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
             title = { Text("Rename Child Device") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Enter a custom name for this device (e.g. Alex's Phone).", style = MaterialTheme.typography.bodyMedium)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Give this device a custom nickname visible on your parent dashboard.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                     OutlinedTextField(
-                        value = newName,
-                        onValueChange = { newName = it },
+                        value = newNameInput,
+                        onValueChange = { newNameInput = it },
+                        label = { Text("Device Nickname") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -244,11 +330,12 @@ fun ChildDeviceDetailScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        FamilySyncManager.renameChildDevice(device.deviceId, newName)
-                        showRenameDialog = false
-                        Toast.makeText(context, "Device renamed!", Toast.LENGTH_SHORT).show()
+                        FamilySyncManager.renameChildDevice(device.deviceId, newNameInput) {
+                            showRenameDialog = false
+                            Toast.makeText(context, "Device renamed!", Toast.LENGTH_SHORT).show()
+                        }
                     },
-                    enabled = newName.isNotBlank()
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Save")
                 }
@@ -261,24 +348,36 @@ fun ChildDeviceDetailScreen(
         )
     }
 
-    // Remove Device Dialog (Type "Remove" to confirm)
+    // Remove Confirmation Dialog
     if (showRemoveDialog) {
-        var removeInput by remember { mutableStateOf("") }
-        val isConfirmed = removeInput.trim().equals("Remove", ignoreCase = false)
+        var confirmText by remember { mutableStateOf("") }
+        val isConfirmed = confirmText.trim().equals("Remove", ignoreCase = true)
 
         AlertDialog(
             onDismissRequest = { showRemoveDialog = false },
             icon = { Icon(Icons.Rounded.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Remove Device from Family?") },
+            title = { Text("Remove Device Connection?") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("This will permanently disconnect ${device.displayName} and stop all remote controls.", style = MaterialTheme.typography.bodyMedium)
-                    Text("To confirm, please type \"Remove\" below:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "This will completely unlink ${device.displayName} and clear all enforced rules. The child device will return to standalone mode.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Type \"Remove\" below to confirm:",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
                     OutlinedTextField(
-                        value = removeInput,
-                        onValueChange = { removeInput = it },
-                        placeholder = { Text("Type \"Remove\"") },
+                        value = confirmText,
+                        onValueChange = { confirmText = it },
+                        placeholder = { Text("Remove") },
                         singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.error,
+                            focusedLabelColor = MaterialTheme.colorScheme.error
+                        ),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -292,9 +391,10 @@ fun ChildDeviceDetailScreen(
                         }
                     },
                     enabled = isConfirmed,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Unlink & Remove")
+                    Text("Confirm Remove")
                 }
             },
             dismissButton = {
@@ -304,180 +404,130 @@ fun ChildDeviceDetailScreen(
             }
         )
     }
-
-    // Create Remote Rule Dialog
-    if (showCreateRuleDialog) {
-        var ruleName by remember { mutableStateOf("") }
-        var appsInput by remember { mutableStateOf("") }
-        var sitesInput by remember { mutableStateOf("") }
-        var durationSeconds by remember { mutableIntStateOf(5) }
-
-        AlertDialog(
-            onDismissRequest = { showCreateRuleDialog = false },
-            title = { Text("Create Remote Block Rule") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = ruleName,
-                        onValueChange = { ruleName = it },
-                        label = { Text("Rule Name") },
-                        placeholder = { Text("Focus / Homework Block") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = appsInput,
-                        onValueChange = { appsInput = it },
-                        label = { Text("Blocked App Packages (comma separated)") },
-                        placeholder = { Text("com.instagram.android, com.google.android.youtube") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = sitesInput,
-                        onValueChange = { sitesInput = it },
-                        label = { Text("Blocked Websites (comma separated)") },
-                        placeholder = { Text("youtube.com, instagram.com, tiktok.com") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val appSet = appsInput.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
-                        val siteSet = sitesInput.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
-
-                        val newRule = BlockRule(
-                            id = "remote_" + System.currentTimeMillis(),
-                            name = if (ruleName.isBlank()) "Parental Block" else ruleName,
-                            selectedApps = appSet,
-                            selectedWebsites = siteSet,
-                            blockDurationSeconds = durationSeconds,
-                            isEnabled = true
-                        )
-
-                        FamilySyncManager.pushRuleToChild(device.deviceId, newRule)
-                        showCreateRuleDialog = false
-                        Toast.makeText(context, "Rule pushed to ${device.displayName}!", Toast.LENGTH_SHORT).show()
-                    },
-                    enabled = appsInput.isNotBlank() || sitesInput.isNotBlank()
-                ) {
-                    Text("Push Rule")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreateRuleDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
 }
 
 // =============================================================================
-// TAB 1: BLOCK RULES TAB
+// TAB 1: BLOCK RULES TAB (EXACT SAME MATURE BLOCKS SYSTEM)
 // =============================================================================
 
 @Composable
-private fun BlockTabContent(
+private fun ChildBlocksTabContent(
     device: RemoteChildDevice,
     rules: List<BlockRule>,
-    onCreateRule: () -> Unit,
-    onToggleRule: (String, Boolean) -> Unit,
-    onDeleteRule: (String) -> Unit
+    onToggleRule: (BlockRule, Boolean) -> Unit,
+    onEditRule: (BlockRule) -> Unit,
+    onDeleteRule: (BlockRule) -> Unit,
+    onPauseRule: (BlockRule, Int) -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                modifier = Modifier.fillMaxWidth()
+    if (rules.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(24.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(90.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Active Remote Protection", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Text("${rules.count { it.isEnabled }} active rules currently enforced on ${device.displayName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
-                    }
-                    Button(
-                        onClick = onCreateRule,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Rule")
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.Shield,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(44.dp)
+                        )
                     }
                 }
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(text = "No Active Blocks", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Tap '+ Create a Block' below to set up apps, websites, or schedules for ${device.displayName}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
             }
         }
+    } else {
+        val now = LocalTime.now()
+        val day = DayOfWeek.from(java.time.LocalDate.now())
 
-        if (rules.isEmpty()) {
-            item {
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(Icons.Rounded.SecurityUpdateGood, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp))
-                        Text("No Remote Rules Added", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Create a rule above to block specific apps or websites on this device.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+        val activeRules = rules.filter { it.isCurrentlyBlocked(now, day) }
+        val pausedRules = rules.filter { it.isEnabled && !it.isCurrentlyBlocked(now, day) }
+        val disabledRules = rules.filter { !it.isEnabled }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            if (activeRules.isNotEmpty()) {
+                item {
+                    Text(
+                        "Active (${activeRules.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                    )
+                }
+                items(activeRules, key = { it.id }) { rule ->
+                    BlockCardX(
+                        rule = rule,
+                        onToggle = { onToggleRule(rule, it) },
+                        onClick = { onEditRule(rule) },
+                        onDelete = { onDeleteRule(rule) },
+                        onPause = { duration -> onPauseRule(rule, duration) }
+                    )
                 }
             }
-        } else {
-            items(rules, key = { it.id }) { rule ->
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(18.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(rule.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (rule.selectedApps.isNotEmpty()) {
-                                    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
-                                        Text("${rule.selectedApps.size} Apps", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                    }
-                                }
-                                if (rule.selectedWebsites.isNotEmpty()) {
-                                    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.tertiaryContainer) {
-                                        Text("${rule.selectedWebsites.size} Websites", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.onTertiaryContainer)
-                                    }
-                                }
-                            }
-                        }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Switch(
-                                checked = rule.isEnabled,
-                                onCheckedChange = { onToggleRule(rule.id, it) }
-                            )
-                            IconButton(onClick = { onDeleteRule(rule.id) }) {
-                                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
+            if (pausedRules.isNotEmpty()) {
+                item {
+                    Text(
+                        "Paused (${pausedRules.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)
+                    )
+                }
+                items(pausedRules, key = { it.id }) { rule ->
+                    BlockCardX(
+                        rule = rule,
+                        onToggle = { onToggleRule(rule, it) },
+                        onClick = { onEditRule(rule) },
+                        onDelete = { onDeleteRule(rule) },
+                        onPause = { duration -> onPauseRule(rule, duration) }
+                    )
                 }
             }
+
+            if (disabledRules.isNotEmpty()) {
+                item {
+                    Text(
+                        "Disabled (${disabledRules.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)
+                    )
+                }
+                items(disabledRules, key = { it.id }) { rule ->
+                    BlockCardX(
+                        rule = rule,
+                        onToggle = { onToggleRule(rule, it) },
+                        onClick = { onEditRule(rule) },
+                        onDelete = { onDeleteRule(rule) },
+                        onPause = { duration -> onPauseRule(rule, duration) }
+                    )
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(88.dp)) }
         }
     }
 }
@@ -501,72 +551,54 @@ private fun AnalysisTabContent(
         item {
             Card(
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Today's Screen Time", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(8.dp))
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("Today's Screen Time", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "${device.screenTimeMinutes / 60}h ${device.screenTimeMinutes % 60}m",
                         style = MaterialTheme.typography.displaySmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (device.isOnline) Color(0xFF1B5E20).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(if (device.isOnline) Color(0xFF4CAF50) else Color.Gray)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (device.isOnline) "Device Active Now" else "Offline",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (device.isOnline) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = if (device.isOnline) "Active today • Live sync active" else "Device offline",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                    )
                 }
             }
         }
 
-        // Top Apps Breakdown (Transferred from Child Device)
+        // Child's Most Used Apps Today
         item {
             Text(
-                text = "Child's App Usage Today",
-                style = MaterialTheme.typography.titleSmall,
+                "Most Used Apps Today",
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp)
             )
         }
 
         if (appsUsage.isEmpty()) {
             item {
                 Card(
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "App usage syncs automatically as the child uses their device.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(20.dp)
-                    )
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Rounded.QueryStats, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp))
+                        Text("No App Usage Recorded Yet", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text("Usage statistics will sync here as the child uses apps on their device.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         } else {
@@ -581,25 +613,46 @@ private fun AnalysisTabContent(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(app.appName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                            Text(app.packageName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Rounded.Apps, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(app.appName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Text(app.packageName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
-                        Text(
-                            text = "${app.durationMinutes}m",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Text(
+                                text = "${app.durationMinutes / 60}h ${app.durationMinutes % 60}m",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }
         }
+
+        item { Spacer(modifier = Modifier.height(32.dp)) }
     }
 }
 
 // =============================================================================
-// TAB 3: CONTROLS TAB (DEVICE STATUS & SPECS AT TOP)
+// TAB 3: CONTROLS TAB (STATUS, SPECS & REMOTE ACTIONS)
 // =============================================================================
 
 @Composable
@@ -614,93 +667,69 @@ private fun ControlsTabContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // 1. Live Device Status Card (Moved to top of Controls)
+        // 1. Live Device Status Card (Top of Controls)
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Live Device Status", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Live Device Status", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Battery Level", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${device.batteryLevel}% ${if (device.isCharging) "⚡ (Charging)" else ""}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Screen State", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(if (device.isScreenOn) "Screen ON" else "Screen Locked / Off", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    }
-                    if (device.currentApp != null) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Current Foreground App", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(device.currentApp, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-            }
-        }
-
-        // 2. Hardware & Specs Card (Moved to top of Controls)
-        item {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Device Specifications", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Hardware Model", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(device.model.ifBlank { "Android" }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Android Version", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(device.androidVersion.ifBlank { "Unknown" }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Device ID", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(device.deviceId, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
-        }
-
-        // 3. Unlink Request Review Banner (if requested)
-        if (device.unlinkRequested) {
-            item {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Battery Level", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Unlink Request From Child", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                            Text("${device.batteryLevel}%", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            if (device.isCharging) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("⚡", fontSize = 12.sp)
+                            }
                         }
-                        if (device.unlinkReason.isNotBlank()) {
-                            Text("Reason: \"${device.unlinkReason}\"", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
-                        }
-                        Text("The child has requested to disconnect this phone from family controls. You can remove this device below.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f))
-
-                        Button(
-                            onClick = onOpenRemoveDialog,
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Review & Remove Device")
-                        }
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Screen State", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(if (device.isScreenOn) "Screen On" else "Screen Off", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Active App", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(device.currentApp ?: "None / Home", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
-        // 4. Remote Screen Lock Card
+        // 2. Device Specifications Card (Top of Controls)
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Device Specifications", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Model", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(device.model.ifBlank { "Unknown" }, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("OS Version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(device.androidVersion.ifBlank { "Android" }, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Device ID", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(device.deviceId, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // 3. Remote Instant Lock Switch
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
@@ -708,45 +737,49 @@ private fun ControlsTabContent(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(18.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Remote Screen Lock", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Instantly locks the child's screen with the Focus / Parental Wall", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Lock Child Device", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Instantly locks the screen on child device", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(
                         checked = device.isLocked,
-                        onCheckedChange = { onToggleLock(it) }
+                        onCheckedChange = onToggleLock
                     )
                 }
             }
         }
 
-        // 5. Remove Device Card (Danger Zone)
+        // 4. Danger Zone: Unlink Device
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Danger Zone", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-                    Text("Unlink and permanently remove this device from Family Control.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
+                Row(
+                    modifier = Modifier.padding(18.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Unlink Device", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                        Text("Disconnect child device and release parental protection", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     OutlinedButton(
                         onClick = onOpenRemoveDialog,
-                        shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Rounded.DeleteForever, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Remove Device")
+                        Text("Remove")
                     }
                 }
             }
         }
+
+        item { Spacer(modifier = Modifier.height(32.dp)) }
     }
 }
