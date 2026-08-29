@@ -2,15 +2,16 @@ package com.prism.screenharmony.flex.ui.components
 
 import android.app.Activity
 import android.view.WindowManager
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.keyframes
-import androidx.compose.foundation.background
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material.icons.rounded.Check
@@ -45,6 +46,7 @@ fun PinDotsDisplay(
     pinLength: Int,
     maxDigits: Int = 12,
     isError: Boolean = false,
+    showCounter: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val shakeOffset = remember { Animatable(0f) }
@@ -72,28 +74,42 @@ fun PinDotsDisplay(
         }
     }
 
-    Row(
-        modifier = modifier
-            .offset(x = shakeOffset.value.dp)
-            .padding(vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.offset(x = shakeOffset.value.dp)
     ) {
-        val displayCount = maxOf(4, minOf(pinLength + (if (pinLength < maxDigits) 1 else 0), 8))
-        for (i in 0 until displayCount) {
-            val isFilled = i < pinLength
-            val dotColor = when {
-                isError -> MaterialTheme.colorScheme.error
-                isFilled -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        Box(
+            modifier = Modifier
+                .height(28.dp)
+                .padding(vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (pinLength > 0) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    for (i in 0 until pinLength) {
+                        val dotColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        Surface(
+                            shape = CircleShape,
+                            color = dotColor,
+                            modifier = Modifier
+                                .size(14.dp)
+                                .scale(1.05f)
+                        ) {}
+                    }
+                }
             }
-            Surface(
-                shape = CircleShape,
-                color = dotColor,
-                modifier = Modifier
-                    .size(if (isFilled) 16.dp else 12.dp)
-                    .scale(if (isFilled) 1.1f else 1.0f)
-            ) {}
+        }
+
+        if (showCounter) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "$pinLength / $maxDigits (min 4)",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (pinLength >= 4) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -117,8 +133,10 @@ fun CustomPinKeypad(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .navigationBarsPadding()
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         rows.forEach { row ->
@@ -168,7 +186,7 @@ private fun KeypadDigitButton(
         shape = CircleShape,
         color = if (isPressed) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier
-            .size(76.dp)
+            .size(74.dp)
             .clip(CircleShape)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
     ) {
@@ -196,7 +214,7 @@ private fun KeypadIconButton(
         shape = CircleShape,
         color = if (isPressed) MaterialTheme.colorScheme.surfaceContainerHighest else Color.Transparent,
         modifier = Modifier
-            .size(76.dp)
+            .size(74.dp)
             .clip(CircleShape)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
     ) {
@@ -219,9 +237,9 @@ private fun KeypadActionButton(
 ) {
     Surface(
         shape = CircleShape,
-        color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
+        color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.4f),
         modifier = Modifier
-            .size(76.dp)
+            .size(74.dp)
             .clip(CircleShape)
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
     ) {
@@ -229,7 +247,7 @@ private fun KeypadActionButton(
             Icon(
                 imageVector = icon,
                 contentDescription = "Confirm",
-                tint = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                tint = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
                 modifier = Modifier.size(28.dp)
             )
         }

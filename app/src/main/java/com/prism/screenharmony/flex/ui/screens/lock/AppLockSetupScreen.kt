@@ -155,16 +155,9 @@ fun AppLockSetupScreen(
 
                         PinDotsDisplay(
                             pinLength = firstPin.length,
-                            isError = isError
+                            isError = isError,
+                            showCounter = true
                         )
-
-                        if (firstPin.isNotEmpty()) {
-                            Text(
-                                text = "${firstPin.length} / 12 digits (min 4)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (firstPin.length >= 4) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
                     }
 
                     CustomPinKeypad(
@@ -275,6 +268,7 @@ fun AppLockSetupScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
+                            .navigationBarsPadding()
                             .padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally

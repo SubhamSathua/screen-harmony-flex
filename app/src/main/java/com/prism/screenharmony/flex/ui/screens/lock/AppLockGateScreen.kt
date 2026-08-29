@@ -1,5 +1,6 @@
 package com.prism.screenharmony.flex.ui.screens.lock
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,9 +47,7 @@ fun AppLockGateScreen(
                     AppLockManager.unlockSession()
                     onUnlocked()
                 },
-                onError = { err ->
-                    // user can fallback to PIN
-                }
+                onError = { /* fallback to PIN */ }
             )
         }
     }
@@ -58,19 +57,23 @@ fun AppLockGateScreen(
     }
 
     Surface(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
         color = MaterialTheme.colorScheme.background
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 20.dp),
+                .statusBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(top = 28.dp)
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 32.dp)
             ) {
                 Surface(
                     shape = CircleShape,
@@ -114,11 +117,13 @@ fun AppLockGateScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
+                // Only shows dots when digits are typed
                 PinDotsDisplay(
                     pinLength = inputPin.length,
-                    isError = isError
+                    isError = isError,
+                    showCounter = false
                 )
 
                 errorMessage?.let { msg ->
