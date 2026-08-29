@@ -69,9 +69,13 @@ class WebsiteAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 2. Check if browser URL needs to be blocked
-        if (browserUrlBarIds.containsKey(packageName) || browserPackages.contains(packageName)) {
-            checkAndBlockWebsite(packageName)
+        // 2. Check if browser URL needs to be blocked (skip keystroke text-change events)
+        if (event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED &&
+            event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED
+        ) {
+            if (browserUrlBarIds.containsKey(packageName) || browserPackages.contains(packageName)) {
+                checkAndBlockWebsite(packageName)
+            }
         }
 
         // 3. Strict Mode Anti-Bypass Guard
@@ -133,72 +137,57 @@ class WebsiteAccessibilityService : AccessibilityService() {
 
     private fun checkAndBlockWebsite(packageName: String) {
         val rootNode = rootInActiveWindow ?: return
-
-        // 1. Check URL Bar Node directly
-        var detectedMatch: Pair<com.prism.screenharmony.flex.data.BlockRule, String>? = null
         val urlNode = findUrlNode(rootNode, browserUrlBarIds[packageName])
 
         if (urlNode != null) {
-            val currentUrl = urlNode.text?.toString() ?: ""
-            if (currentUrl.isNotBlank()) {
-                detectedMatch = BlockRepository.getActiveRuleForWebsite(currentUrl)
+            // CRITICAL FIX: If the user is currently typing/focused in the address bar, DO NOT BLOCK!
+            // This prevents interfering with typing, autocomplete suggestions, and search queries.
+            if (urlNode.isFocused) {
+                urlNode.recycle()
+                rootNode.recycle()
+                return
             }
-        }
 
-        // 2. Fallback: Deep scan browser text & descriptions if URL bar didn't match
-        if (detectedMatch == null) {
-            detectedMatch = scanNodeForBlockedWebsite(rootNode)
-        }
+            val currentUrl = urlNode.text?.toString()?.trim() ?: ""
+            if (currentUrl.isNotBlank()) {
+                val match = BlockRepository.getActiveRuleForWebsite(currentUrl)
+                if (match != null) {
+                    val (rule, domain) = match
+                    if (lastBlockedUrl != domain) {
+                        lastBlockedUrl = domain
+                        Log.i(TAG, "🚨 ACCESSIBILITY: Blocked website '$domain' in '$packageName'")
 
-        if (detectedMatch != null) {
-            val (rule, domain) = detectedMatch
-            if (lastBlockedUrl != domain) {
-                lastBlockedUrl = domain
-                Log.i(TAG, "🚨 ACCESSIBILITY: Blocked website '$domain' in '$packageName'")
+                        val customQuote = if (rule.wallConfig is WallConfig.StandardQuote) {
+                            (rule.wallConfig as WallConfig.StandardQuote).quote
+                        } else null
 
-                val customQuote = if (rule.wallConfig is WallConfig.StandardQuote) {
-                    (rule.wallConfig as WallConfig.StandardQuote).quote
-                } else null
+                        val delaySec = rule.blockDurationSeconds
 
-                val delaySec = rule.blockDurationSeconds
+                        // 1. Point the active tab away to google.com so browser is not stuck in a block loop on next launch
+                        try {
+                            val arguments = Bundle().apply {
+                                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "https://www.google.com")
+                            }
+                            urlNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to redirect URL bar to google.com", e)
+                        }
 
-                // Launch Lock Wall directly over the blocked website
-                launchBlockWall(target = domain, isWebsite = true, quote = customQuote, delaySeconds = delaySec)
+                        // 2. Launch the Lock Wall over the browser
+                        launchBlockWall(target = domain, isWebsite = true, quote = customQuote, delaySeconds = delaySec)
 
-                serviceScope.launch {
-                    kotlinx.coroutines.delay(1500)
+                        serviceScope.launch {
+                            kotlinx.coroutines.delay(1500)
+                            lastBlockedUrl = null
+                        }
+                    }
+                } else {
                     lastBlockedUrl = null
                 }
             }
-        } else {
-            lastBlockedUrl = null
+            urlNode.recycle()
         }
-
-        urlNode?.recycle()
         rootNode.recycle()
-    }
-
-    private fun scanNodeForBlockedWebsite(node: AccessibilityNodeInfo?): Pair<com.prism.screenharmony.flex.data.BlockRule, String>? {
-        if (node == null) return null
-        val text = node.text?.toString() ?: ""
-        val desc = node.contentDescription?.toString() ?: ""
-
-        if (text.isNotBlank()) {
-            val match = BlockRepository.getActiveRuleForWebsite(text)
-            if (match != null) return match
-        }
-        if (desc.isNotBlank()) {
-            val match = BlockRepository.getActiveRuleForWebsite(desc)
-            if (match != null) return match
-        }
-
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            val found = scanNodeForBlockedWebsite(child)
-            child.recycle()
-            if (found != null) return found
-        }
-        return null
     }
 
     private fun findUrlNode(root: AccessibilityNodeInfo, targetId: String?): AccessibilityNodeInfo? {
@@ -210,15 +199,18 @@ class WebsiteAccessibilityService : AccessibilityService() {
     }
 
     private fun recursiveFindUrlNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val viewId = node.viewIdResourceName?.lowercase() ?: ""
         val description = node.contentDescription?.toString()?.lowercase() ?: ""
         val className = node.className?.toString() ?: ""
-        val text = node.text?.toString()?.lowercase() ?: ""
 
-        val isUrlBar = (className.contains("EditText") || className.contains("View")) && (
-            description.contains("address") ||
-            description.contains("url") ||
-            description.contains("search") ||
-            text.matches(Regex(".*\\.[a-z]{2,6}(/.*)?"))
+        val isUrlBar = (className.contains("EditText") || className.contains("AutoCompleteTextView")) && (
+            viewId.contains("url") ||
+            viewId.contains("location") ||
+            viewId.contains("omnibox") ||
+            viewId.contains("search_box") ||
+            description.contains("address and search bar") ||
+            description.contains("search or type url") ||
+            description.contains("address")
         )
 
         if (isUrlBar) return AccessibilityNodeInfo.obtain(node)
