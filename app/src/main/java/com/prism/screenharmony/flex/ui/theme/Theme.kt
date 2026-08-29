@@ -23,7 +23,7 @@ enum class AppThemeMode(val label: String) {
 class ThemeState(
     themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     isAmoled: Boolean = false,
-    palette: AppColorPalette = AppColorPalette.TEAL_SAGE
+    palette: AppColorPalette = AppColorPalette.TEAL
 ) {
     var themeMode by mutableStateOf(themeMode)
     var isAmoled by mutableStateOf(isAmoled)
@@ -53,13 +53,21 @@ fun ScreenHarmonyFlexTheme(
                 if (isDark) TealDarkColorScheme else TealLightColorScheme
             }
         }
-        AppColorPalette.TEAL_SAGE -> if (isDark) TealDarkColorScheme else TealLightColorScheme
-        AppColorPalette.OCEAN_BLUE -> if (isDark) BlueDarkColorScheme else BlueLightColorScheme
-        AppColorPalette.EMERALD_GREEN -> if (isDark) GreenDarkColorScheme else GreenLightColorScheme
-        AppColorPalette.SUNSET_CORAL -> if (isDark) CoralDarkColorScheme else CoralLightColorScheme
-        AppColorPalette.LAVENDER_PURPLE -> if (isDark) PurpleDarkColorScheme else PurpleLightColorScheme
-        AppColorPalette.ROSE_PINK -> if (isDark) PinkDarkColorScheme else PinkLightColorScheme
-        AppColorPalette.AMBER_GOLD -> if (isDark) AmberDarkColorScheme else AmberLightColorScheme
+        AppColorPalette.MONOCHROME -> if (isDark) MonochromeDarkColorScheme else MonochromeLightColorScheme
+        AppColorPalette.PINK -> if (isDark) PinkDarkColorScheme else PinkLightColorScheme
+        AppColorPalette.ROSE -> if (isDark) RoseDarkColorScheme else RoseLightColorScheme
+        AppColorPalette.RED -> if (isDark) RedDarkColorScheme else RedLightColorScheme
+        AppColorPalette.ORANGE -> if (isDark) OrangeDarkColorScheme else OrangeLightColorScheme
+        AppColorPalette.YELLOW -> if (isDark) YellowDarkColorScheme else YellowLightColorScheme
+        AppColorPalette.CHARTREUSE -> if (isDark) ChartreuseDarkColorScheme else ChartreuseLightColorScheme
+        AppColorPalette.GREEN -> if (isDark) GreenDarkColorScheme else GreenLightColorScheme
+        AppColorPalette.TEAL -> if (isDark) TealDarkColorScheme else TealLightColorScheme
+        AppColorPalette.CYAN -> if (isDark) CyanDarkColorScheme else CyanLightColorScheme
+        AppColorPalette.BLUE -> if (isDark) BlueDarkColorScheme else BlueLightColorScheme
+        AppColorPalette.INDIGO -> if (isDark) IndigoDarkColorScheme else IndigoLightColorScheme
+        AppColorPalette.PURPLE -> if (isDark) PurpleDarkColorScheme else PurpleLightColorScheme
+        AppColorPalette.VIOLET -> if (isDark) VioletDarkColorScheme else VioletLightColorScheme
+        AppColorPalette.MAGENTA -> if (isDark) MagentaDarkColorScheme else MagentaLightColorScheme
     }
 
     val finalColorScheme = if (isDark && themeState.isAmoled) {
