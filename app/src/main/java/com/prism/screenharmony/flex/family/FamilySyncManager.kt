@@ -34,12 +34,22 @@ object FamilySyncManager {
     private val _connectedDevices = MutableStateFlow<List<RemoteChildDevice>>(emptyList())
     val connectedDevices: StateFlow<List<RemoteChildDevice>> = _connectedDevices.asStateFlow()
 
+    private val _childPushedRules = MutableStateFlow<List<BlockRule>>(emptyList())
+    val childPushedRules: StateFlow<List<BlockRule>> = _childPushedRules.asStateFlow()
+
+    private val _oneTimeDenialAlert = MutableStateFlow(false)
+    val oneTimeDenialAlert: StateFlow<Boolean> = _oneTimeDenialAlert.asStateFlow()
+
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
     private var rulesListener: ValueEventListener? = null
     private var devicesListener: ValueEventListener? = null
-    private var commandsListener: ValueEventListener? = null
+    private var unlinkRequestListener: ValueEventListener? = null
+
+    fun dismissDenialAlert() {
+        _oneTimeDenialAlert.value = false
+    }
 
     fun initialize(context: Context) {
         try {
@@ -331,6 +341,19 @@ object FamilySyncManager {
                             val unlinkRequestedAt = unlinkSnap.child("requestedAt").getValue(Long::class.java) ?: 0L
                             val unlinkReason = unlinkSnap.child("reason").getValue(String::class.java) ?: ""
 
+                            if (unlinkRequested && unlinkRequestedAt > 0L) {
+                                val prefs = getPrefs(context)
+                                val lastNotified = prefs.getLong("last_notified_unlink_$deviceId", 0L)
+                                if (unlinkRequestedAt > lastNotified) {
+                                    prefs.edit().putLong("last_notified_unlink_$deviceId", unlinkRequestedAt).apply()
+                                    FamilyNotificationHelper.postUnlinkRequestNotification(
+                                        context,
+                                        customName.ifBlank { deviceName },
+                                        unlinkReason
+                                    )
+                                }
+                            }
+
                             devices.add(
                                 RemoteChildDevice(
                                     deviceId = deviceId,
@@ -404,6 +427,8 @@ object FamilySyncManager {
                             }
                         }
 
+                        _childPushedRules.value = remoteRules
+
                         // Apply to local SQLite BlockRepository
                         for (rule in remoteRules) {
                             BlockRepository.addOrUpdateRule(rule)
@@ -415,7 +440,27 @@ object FamilySyncManager {
                 rulesListener = ruleListListener
                 db.getReference("families/${profile.familyId}/devices/$deviceId/rules").addValueEventListener(ruleListListener)
 
-                // 2. Listen for Device Removal by Parent
+                // 2. Listen for Unlink Denial from Parent
+                unlinkRequestListener?.let { db.getReference("families/${profile.familyId}/devices/$deviceId/unlinkRequest").removeEventListener(it) }
+                val uListener = object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        val status = snapshot.child("status").getValue(String::class.java)
+                        val deniedAt = snapshot.child("deniedAt").getValue(Long::class.java) ?: 0L
+                        val prefs = getPrefs(context)
+                        val lastSeenDenial = prefs.getLong("last_seen_denial_timestamp", 0L)
+
+                        if (status == "DENIED" && deniedAt > lastSeenDenial) {
+                            prefs.edit().putLong("last_seen_denial_timestamp", deniedAt).apply()
+                            _oneTimeDenialAlert.value = true
+                            FamilyNotificationHelper.postUnlinkDeniedNotification(context)
+                        }
+                    }
+                    override fun onCancelled(error: DatabaseError) {}
+                }
+                unlinkRequestListener = uListener
+                db.getReference("families/${profile.familyId}/devices/$deviceId/unlinkRequest").addValueEventListener(uListener)
+
+                // 3. Listen for Device Removal by Parent
                 db.getReference("families/${profile.familyId}/devices/$deviceId").addValueEventListener(object : ValueEventListener {
                     override fun onDataChange(snapshot: DataSnapshot) {
                         if (!snapshot.exists() && _familyProfile.value.role == FamilyRole.CHILD) {
@@ -426,7 +471,7 @@ object FamilySyncManager {
                     override fun onCancelled(error: DatabaseError) {}
                 })
 
-                // 3. Child telemetry loop (Heartbeat, battery, active app)
+                // 4. Child telemetry loop (Heartbeat, battery, screen time, active app)
                 scope.launch {
                     while (isActive) {
                         try {
@@ -460,6 +505,8 @@ object FamilySyncManager {
             val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
             val isScreenOn = pm?.isInteractive ?: true
 
+            val todayMinutes = FamilyUsageHelper.getTodayUsageMinutes(context)
+
             val updates = mapOf(
                 "batteryLevel" to batteryLevel,
                 "isCharging" to isCharging,
@@ -471,6 +518,11 @@ object FamilySyncManager {
                 "isScreenOn" to isScreenOn
             )
             db.getReference("families/${profile.familyId}/devices/$deviceId/status").updateChildren(statusUpdates)
+
+            val screenTimeUpdates = mapOf(
+                "todayMinutes" to todayMinutes
+            )
+            db.getReference("families/${profile.familyId}/devices/$deviceId/screenTime").updateChildren(screenTimeUpdates)
         }
     }
 
@@ -488,11 +540,31 @@ object FamilySyncManager {
             val requestData = mapOf(
                 "requested" to true,
                 "requestedAt" to ServerValue.TIMESTAMP,
+                "status" to "PENDING",
                 "reason" to reason
             )
 
             db.getReference("families/${profile.familyId}/devices/$deviceId/unlinkRequest")
                 .setValue(requestData)
+                .addOnSuccessListener { onComplete(true) }
+                .addOnFailureListener { onComplete(false) }
+        }
+    }
+
+    fun ignoreUnlinkRequest(childDeviceId: String, onComplete: (Boolean) -> Unit = {}) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+
+            val denialData = mapOf(
+                "requested" to false,
+                "status" to "DENIED",
+                "deniedAt" to ServerValue.TIMESTAMP
+            )
+
+            db.getReference("families/${profile.familyId}/devices/$childDeviceId/unlinkRequest")
+                .setValue(denialData)
                 .addOnSuccessListener { onComplete(true) }
                 .addOnFailureListener { onComplete(false) }
         }

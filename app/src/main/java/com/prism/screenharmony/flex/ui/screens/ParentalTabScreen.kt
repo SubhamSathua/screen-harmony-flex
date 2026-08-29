@@ -1,9 +1,15 @@
 package com.prism.screenharmony.flex.ui.screens
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,6 +32,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.ContextCompat
+import com.prism.screenharmony.flex.data.BlockRule
 import com.prism.screenharmony.flex.family.*
 import org.json.JSONObject
 
@@ -36,15 +44,34 @@ fun ParentalTabScreen() {
 
     LaunchedEffect(Unit) {
         FamilySyncManager.initialize(context)
+        FamilyNotificationHelper.createNotificationChannel(context)
+    }
+
+    // Request Notification Permission for API 33+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { /* Handled */ }
+    )
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
     }
 
     val familyProfile by FamilySyncManager.familyProfile.collectAsState()
     val connectedDevices by FamilySyncManager.connectedDevices.collectAsState()
+    val childRules by FamilySyncManager.childPushedRules.collectAsState()
+    val oneTimeDenialAlert by FamilySyncManager.oneTimeDenialAlert.collectAsState()
 
     var showQrDialog by remember { mutableStateOf(false) }
     var showScannerView by remember { mutableStateOf(false) }
     var showManualCodeDialog by remember { mutableStateOf(false) }
     var selectedDeviceForConfigure by remember { mutableStateOf<RemoteChildDevice?>(null) }
+    var deviceForUnlinkReview by remember { mutableStateOf<RemoteChildDevice?>(null) }
+    var deviceForRemoveConfirm by remember { mutableStateOf<RemoteChildDevice?>(null) }
     var showChildRequestUnlinkDialog by remember { mutableStateOf(false) }
     var showParentLeaveDialog by remember { mutableStateOf(false) }
 
@@ -133,6 +160,12 @@ fun ParentalTabScreen() {
                     onShowQr = { showQrDialog = true },
                     onConfigureDevice = { device ->
                         selectedDeviceForConfigure = device
+                    },
+                    onOpenUnlinkReview = { device ->
+                        deviceForUnlinkReview = device
+                    },
+                    onOpenRemoveDialog = { device ->
+                        deviceForRemoveConfirm = device
                     }
                 )
             }
@@ -141,9 +174,11 @@ fun ParentalTabScreen() {
                 ChildProtectedView(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
-                        .padding(24.dp),
+                        .padding(innerPadding),
                     familyProfile = familyProfile,
+                    pushedRules = childRules,
+                    showDenialAlert = oneTimeDenialAlert,
+                    onDismissDenialAlert = { FamilySyncManager.dismissDenialAlert() },
                     onRequestUnlink = { showChildRequestUnlinkDialog = true },
                     onCancelUnlink = {
                         FamilySyncManager.cancelUnlinkRequestFromChild(context) { success ->
@@ -155,6 +190,111 @@ fun ParentalTabScreen() {
                 )
             }
         }
+    }
+
+    // Parent Unlink Review Popup Dialog
+    deviceForUnlinkReview?.let { device ->
+        AlertDialog(
+            onDismissRequest = { deviceForUnlinkReview = null },
+            icon = { Icon(Icons.Rounded.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Unlink Request From Child") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = device.displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${device.model} • ${device.androidVersion} • Battery ${device.batteryLevel}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    HorizontalDivider()
+                    Text(
+                        text = "Reason:",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = if (device.unlinkReason.isNotBlank()) "\"${device.unlinkReason}\"" else "No specific reason provided.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        FamilySyncManager.ignoreUnlinkRequest(device.deviceId) {
+                            deviceForUnlinkReview = null
+                            Toast.makeText(context, "Request ignored & denied for child", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Ignore Request")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        val target = device
+                        deviceForUnlinkReview = null
+                        deviceForRemoveConfirm = target
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Remove Device")
+                }
+            }
+        )
+    }
+
+    // Remove Confirmation Dialog (Type "Remove")
+    deviceForRemoveConfirm?.let { device ->
+        var removeInput by remember { mutableStateOf("") }
+        val isConfirmed = removeInput.trim().equals("Remove", ignoreCase = false)
+
+        AlertDialog(
+            onDismissRequest = { deviceForRemoveConfirm = null },
+            icon = { Icon(Icons.Rounded.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Remove Device from Family?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("This will permanently disconnect ${device.displayName} and stop all remote controls.", style = MaterialTheme.typography.bodyMedium)
+                    Text("To confirm, please type \"Remove\" below:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    OutlinedTextField(
+                        value = removeInput,
+                        onValueChange = { removeInput = it },
+                        placeholder = { Text("Type \"Remove\"") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        FamilySyncManager.removeAndUnlinkChildDevice(device.deviceId) {
+                            deviceForRemoveConfirm = null
+                            Toast.makeText(context, "Device unlinked and removed", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    enabled = isConfirmed,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Unlink & Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deviceForRemoveConfirm = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     // QR Code Dialog
@@ -323,7 +463,7 @@ fun ParentalTabScreen() {
             title = { Text("Request Unlink from Parent") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("This sends an unlink request notification to your parent's phone. They must approve and remove the device.", style = MaterialTheme.typography.bodyMedium)
+                    Text("This sends an unlink request to your parent's phone. They can review device stats, approve, or deny.", style = MaterialTheme.typography.bodyMedium)
                     OutlinedTextField(
                         value = reasonText,
                         onValueChange = { reasonText = it },
@@ -505,7 +645,9 @@ private fun ParentDashboardView(
     familyProfile: FamilyProfile,
     devices: List<RemoteChildDevice>,
     onShowQr: () -> Unit,
-    onConfigureDevice: (RemoteChildDevice) -> Unit
+    onConfigureDevice: (RemoteChildDevice) -> Unit,
+    onOpenUnlinkReview: (RemoteChildDevice) -> Unit,
+    onOpenRemoveDialog: (RemoteChildDevice) -> Unit
 ) {
     LazyColumn(
         modifier = modifier,
@@ -574,7 +716,9 @@ private fun ParentDashboardView(
             items(devices, key = { it.deviceId }) { device ->
                 ChildDeviceCard(
                     device = device,
-                    onConfigure = { onConfigureDevice(device) }
+                    onConfigure = { onConfigureDevice(device) },
+                    onOpenUnlinkReview = { onOpenUnlinkReview(device) },
+                    onOpenRemoveDialog = { onOpenRemoveDialog(device) }
                 )
             }
         }
@@ -584,12 +728,13 @@ private fun ParentDashboardView(
 @Composable
 private fun ChildDeviceCard(
     device: RemoteChildDevice,
-    onConfigure: () -> Unit
+    onConfigure: () -> Unit,
+    onOpenUnlinkReview: () -> Unit,
+    onOpenRemoveDialog: () -> Unit
 ) {
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
-    var showRemoveDialog by remember { mutableStateOf(false) }
 
     Card(
         shape = RoundedCornerShape(24.dp),
@@ -673,7 +818,7 @@ private fun ChildDeviceCard(
                                 leadingIcon = { Icon(Icons.Rounded.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                                 onClick = {
                                     showMenu = false
-                                    showRemoveDialog = true
+                                    onOpenRemoveDialog()
                                 }
                             )
                         }
@@ -685,8 +830,8 @@ private fun ChildDeviceCard(
             if (device.unlinkRequested) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
-                    modifier = Modifier.fillMaxWidth().clickable { onConfigure() }
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+                    modifier = Modifier.fillMaxWidth().clickable { onOpenUnlinkReview() }
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -696,7 +841,7 @@ private fun ChildDeviceCard(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Unlink Requested by Child", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                            Text("Tap Configure to review device details and unlink", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f))
+                            Text("Tap to review reason & approve/ignore", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f))
                         }
                         Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
                     }
@@ -775,146 +920,340 @@ private fun ChildDeviceCard(
             }
         )
     }
-
-    // Remove Device Dialog
-    if (showRemoveDialog) {
-        var removeInput by remember { mutableStateOf("") }
-        val isConfirmed = removeInput.trim().equals("Remove", ignoreCase = false)
-
-        AlertDialog(
-            onDismissRequest = { showRemoveDialog = false },
-            icon = { Icon(Icons.Rounded.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Remove Device from Family?") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("This will permanently disconnect ${device.displayName} and stop all remote controls.", style = MaterialTheme.typography.bodyMedium)
-                    Text("To confirm, please type \"Remove\" below:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                    OutlinedTextField(
-                        value = removeInput,
-                        onValueChange = { removeInput = it },
-                        placeholder = { Text("Type \"Remove\"") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        FamilySyncManager.removeAndUnlinkChildDevice(device.deviceId) {
-                            showRemoveDialog = false
-                            Toast.makeText(context, "Device unlinked and removed", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    enabled = isConfirmed,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Unlink & Remove")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRemoveDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
 }
 
 // =============================================================================
-// CHILD PROTECTED VIEW
+// CHILD PROTECTED VIEW (2 TABS: BLOCKS & ANALYSIS)
 // =============================================================================
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChildProtectedView(
     modifier: Modifier = Modifier,
     familyProfile: FamilyProfile,
+    pushedRules: List<BlockRule>,
+    showDenialAlert: Boolean,
+    onDismissDenialAlert: () -> Unit,
     onRequestUnlink: () -> Unit,
     onCancelUnlink: () -> Unit
 ) {
+    val context = LocalContext.current
+    var selectedChildTab by remember { mutableIntStateOf(0) }
+    val childTabs = listOf("Blocks", "Analysis")
     var isUnlinkRequested by remember { mutableStateOf(false) }
 
     Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(96.dp)
+        // One-time Denial Alert Banner
+        AnimatedVisibility(
+            visible = showDenialAlert,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
         ) {
-            Icon(
-                imageVector = Icons.Rounded.Shield,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(24.dp).fillMaxSize()
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.errorContainer,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Rounded.Cancel, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Unlink Request Denied", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                        Text("Your parent reviewed and denied your unlink request.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f))
+                    }
+                    IconButton(onClick = onDismissDenialAlert) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Dismiss", tint = MaterialTheme.colorScheme.onErrorContainer)
+                    }
+                }
+            }
+        }
+
+        // Child Secondary Tabs (Blocks, Analysis)
+        PrimaryTabRow(
+            selectedTabIndex = selectedChildTab,
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            contentColor = MaterialTheme.colorScheme.primary,
+            divider = {}
+        ) {
+            childTabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedChildTab == index,
+                    onClick = { selectedChildTab = index },
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (index == 0) Icons.Rounded.Shield else Icons.Rounded.Analytics,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(title, fontWeight = if (selectedChildTab == index) FontWeight.Bold else FontWeight.Normal)
+                        }
+                    }
+                )
+            }
+        }
+
+        AnimatedContent(
+            targetState = selectedChildTab,
+            label = "ChildTabAnimation",
+            modifier = Modifier.weight(1f)
+        ) { targetTab ->
+            when (targetTab) {
+                0 -> ChildBlocksTabContent(
+                    familyProfile = familyProfile,
+                    rules = pushedRules
+                )
+                1 -> ChildAnalysisTabContent(
+                    context = context,
+                    familyProfile = familyProfile
+                )
+            }
+        }
+
+        // Bottom Unlink Request Action Bar
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(modifier = Modifier.padding(16.dp)) {
+                if (!isUnlinkRequested) {
+                    OutlinedButton(
+                        onClick = {
+                            onRequestUnlink()
+                            isUnlinkRequested = true
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Rounded.LinkOff, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Request Unlink from Parent")
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("⏳ Unlink Request Sent", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                            Text("Waiting for parent review", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        TextButton(onClick = {
+                            onCancelUnlink()
+                            isUnlinkRequested = false
+                        }) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// =============================================================================
+// CHILD READ-ONLY BLOCKS TAB
+// =============================================================================
+
+@Composable
+private fun ChildBlocksTabContent(
+    familyProfile: FamilyProfile,
+    rules: List<BlockRule>
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Device Protected", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("Managed by: ${familyProfile.familyName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f))
+                    Text("Rules are configured by your parent and enforced automatically.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f))
+                }
+            }
+        }
+
+        item {
+            Text(
+                text = "Active Rules (${rules.size})",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Device Protected", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Linked to: ${familyProfile.familyName}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-            Spacer(modifier = Modifier.height(6.dp))
-            Text("All focus sessions, app blocks, and website filters are synchronized in real-time with the parent device.", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = Color(0xFF4CAF50).copy(alpha = 0.2f),
-                    modifier = Modifier.size(36.dp)
+        if (rules.isEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Rounded.Sync, contentDescription = null, tint = Color(0xFF2E7D32), modifier = Modifier.padding(8.dp))
+                    Column(
+                        modifier = Modifier.padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(Icons.Rounded.CheckCircleOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp))
+                        Text("No Active Restrictions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Your parent hasn't pushed any blocking rules to this phone yet.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-                Spacer(modifier = Modifier.width(14.dp))
-                Column {
-                    Text("Cloud Sync Active", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text("100% Free Firebase WebSocket connected", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Child Unlink Request Actions
-        if (!isUnlinkRequested) {
-            OutlinedButton(
-                onClick = {
-                    onRequestUnlink()
-                    isUnlinkRequested = true
-                },
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Rounded.LinkOff, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Request Unlink from Parent")
             }
         } else {
+            items(rules, key = { it.id }) { rule ->
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(18.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(rule.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (rule.selectedApps.isNotEmpty()) {
+                                    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                                        Text("${rule.selectedApps.size} Apps", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                    }
+                                }
+                                if (rule.selectedWebsites.isNotEmpty()) {
+                                    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.tertiaryContainer) {
+                                        Text("${rule.selectedWebsites.size} Websites", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                    }
+                                }
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (rule.isEnabled) Color(0xFF1B5E20).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest
+                        ) {
+                            Text(
+                                text = if (rule.isEnabled) "Enforced" else "Paused",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (rule.isEnabled) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// =============================================================================
+// CHILD ANALYSIS TAB
+// =============================================================================
+
+@Composable
+private fun ChildAnalysisTabContent(
+    context: Context,
+    familyProfile: FamilyProfile
+) {
+    val todayMinutes = remember { FamilyUsageHelper.getTodayUsageMinutes(context) }
+    val topApps = remember { FamilyUsageHelper.getTodayTopApps(context, limit = 6) }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Today Screen Time Card
+        item {
             Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("⏳ Unlink Request Sent to Parent", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-                    Text("Waiting for parent approval and removal.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    TextButton(onClick = {
-                        onCancelUnlink()
-                        isUnlinkRequested = false
-                    }) {
-                        Text("Cancel Request")
+                Column(
+                    modifier = Modifier.padding(22.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Today's Screen Time", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "${todayMinutes / 60}h ${todayMinutes % 60}m",
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+
+        item {
+            Text(
+                text = "Most Used Apps Today",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        if (topApps.isEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "No app usage recorded yet today.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(20.dp)
+                    )
+                }
+            }
+        } else {
+            items(topApps, key = { it.packageName }) { app ->
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(app.appName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                            Text(app.packageName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(
+                            text = "${app.durationMinutes}m",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
