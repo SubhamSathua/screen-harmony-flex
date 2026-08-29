@@ -70,14 +70,30 @@ data class TimeSlot(
     val endMinute: Int = 1439 // 0-1439
 ) {
     fun isActive(now: LocalTime = LocalTime.now(), day: DayOfWeek = DayOfWeek.from(java.time.LocalDate.now())): Boolean {
-        if ((dayBitmask and (1 shl (day.value - 1))) == 0) return false
         val currentMin = now.hour * 60 + now.minute
-        return if (startMinute <= endMinute) {
-            currentMin in startMinute..endMinute
-        } else {
-            // Over midnight support (e.g. 10 PM to 2 AM)
-            currentMin >= startMinute || currentMin <= endMinute
+
+        // 1. Check if a slot started TODAY is active
+        val todayMask = 1 shl (day.value - 1)
+        if ((dayBitmask and todayMask) != 0) {
+            if (startMinute <= endMinute) {
+                if (currentMin in startMinute..endMinute) return true
+            } else {
+                // Spans over midnight: active from startMinute to 23:59 tonight
+                if (currentMin >= startMinute) return true
+            }
         }
+
+        // 2. Check if a slot started YESTERDAY spanned over midnight into early today
+        val yesterdayValue = if (day.value == 1) 7 else day.value - 1
+        val yesterdayMask = 1 shl (yesterdayValue - 1)
+        if ((dayBitmask and yesterdayMask) != 0) {
+            if (startMinute > endMinute) {
+                // Spans over midnight: active from 00:00 to endMinute early today
+                if (currentMin <= endMinute) return true
+            }
+        }
+
+        return false
     }
 
     val startTime: LocalTime get() = LocalTime.of(startMinute / 60, startMinute % 60)

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
@@ -190,6 +191,9 @@ fun ScreenHarmonyFlexApp() {
             )
         }
         ScreenState.MAIN_TABS -> {
+            BackHandler(enabled = currentDestination != AppDestinations.BLOCK) {
+                currentDestination = AppDestinations.BLOCK
+            }
             NavigationSuiteScaffold(
                 navigationSuiteColors = navSuiteColors,
                 navigationSuiteItems = {

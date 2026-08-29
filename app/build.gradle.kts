@@ -13,6 +13,13 @@ val versionProps = Properties().apply {
     }
 }
 
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) {
+        FileInputStream(keystorePropsFile).use { load(it) }
+    }
+}
+
 val appVersionMajor = versionProps.getProperty("VERSION_MAJOR", "0").toInt()
 val appVersionMinor = versionProps.getProperty("VERSION_MINOR", "1").toInt()
 val appVersionPatch = versionProps.getProperty("VERSION_PATCH", "0").toInt()
@@ -24,6 +31,19 @@ android {
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            val storeFilePath = keystoreProps.getProperty("storeFile")
+            val resolvedFile = if (storeFilePath != null) rootProject.file(storeFilePath) else null
+            if (resolvedFile != null && resolvedFile.exists()) {
+                storeFile = resolvedFile
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
         }
     }
 
@@ -40,6 +60,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

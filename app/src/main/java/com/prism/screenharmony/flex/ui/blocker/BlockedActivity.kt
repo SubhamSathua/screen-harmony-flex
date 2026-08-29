@@ -47,6 +47,12 @@ class BlockedActivity : ComponentActivity() {
         setTurnScreenOn(true)
 
         renderUI(intent)
+
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                goHome()
+            }
+        })
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -108,12 +114,6 @@ class BlockedActivity : ComponentActivity() {
             Log.e(TAG, "Error starting home intent", e)
         }
         finishAndRemoveTask()
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        super.onBackPressed()
-        goHome()
     }
 }
 
