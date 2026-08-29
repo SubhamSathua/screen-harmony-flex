@@ -162,18 +162,30 @@ class WebsiteAccessibilityService : AccessibilityService() {
                         } else null
 
                         val delaySec = rule.blockDurationSeconds
+                        val redirectUrl = com.prism.screenharmony.flex.utils.AppConstants.BROWSER_REDIRECT_URL
 
-                        // 1. Point the active tab away to google.com so browser is not stuck in a block loop on next launch
+                        // 1. Force the browser tab to actually load the fallback redirect URL (e.g. google.com)
+                        try {
+                            val redirectIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(redirectUrl)).apply {
+                                setPackage(packageName)
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            startActivity(redirectIntent)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to launch redirect intent to browser", e)
+                        }
+
+                        // 2. Set the address bar text for instant synchronization
                         try {
                             val arguments = Bundle().apply {
-                                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "https://www.google.com")
+                                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, redirectUrl)
                             }
                             urlNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
                         } catch (e: Exception) {
-                            Log.e(TAG, "Failed to redirect URL bar to google.com", e)
+                            Log.e(TAG, "Failed to update URL bar text", e)
                         }
 
-                        // 2. Launch the Lock Wall over the browser
+                        // 3. Launch the Lock Wall directly over the browser
                         launchBlockWall(target = domain, isWebsite = true, quote = customQuote, delaySeconds = delaySec)
 
                         serviceScope.launch {
