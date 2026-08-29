@@ -72,19 +72,11 @@ fun M3ShapeMorphingDot(
         )
     }
 
-    val arrowShape = remember {
-        val vertices = floatArrayOf(
-            0f, -1f,      // Top tip
-            0.9f, 0.4f,   // Right wing tip
-            0.35f, 0.3f,  // Right inner notch
-            0.35f, 1f,    // Right stem base
-            -0.35f, 1f,   // Left stem base
-            -0.35f, 0.3f, // Left inner notch
-            -0.9f, 0.4f   // Left wing tip
-        )
-        RoundedPolygon(
-            vertices = vertices,
-            rounding = CornerRounding(radius = 0.15f)
+    val eightLeafShape = remember {
+        RoundedPolygon.star(
+            numVerticesPerRadius = 8,
+            innerRadius = 0.78f,
+            rounding = CornerRounding(radius = 0.5f)
         )
     }
 
@@ -96,10 +88,10 @@ fun M3ShapeMorphingDot(
 
     // 2. Official AndroidX Morphs between adjacent stages
     val morphSunnyToPentagon = remember { Morph(sunnyShape, pentagonShape) }
-    val morphPentagonToArrow = remember { Morph(pentagonShape, arrowShape) }
-    val morphArrowToCircle   = remember { Morph(arrowShape, circleShape) }
+    val morphPentagonToEightLeaf = remember { Morph(pentagonShape, eightLeafShape) }
+    val morphEightLeafToCircle   = remember { Morph(eightLeafShape, circleShape) }
 
-    // 3. One-shot shape morph sequence (Sunny -> Pentagon -> Arrow -> Circle) total duration = 1 sec (1000ms)
+    // 3. One-shot shape morph sequence (Sunny -> Pentagon -> 8-Leaf Circle -> Circle) total duration = 1 sec (1000ms)
     val morphProgress = remember { Animatable(0f) }
     val entranceScale = remember { Animatable(0f) }
 
@@ -130,10 +122,10 @@ fun M3ShapeMorphingDot(
         val segmentFraction = if (progress >= 3f) 1f else (progress - segmentIndex).coerceIn(0f, 1f)
 
         val currentMorph = when {
-            progress >= 3f -> morphArrowToCircle
+            progress >= 3f -> morphEightLeafToCircle
             segmentIndex == 0 -> morphSunnyToPentagon
-            segmentIndex == 1 -> morphPentagonToArrow
-            else -> morphArrowToCircle
+            segmentIndex == 1 -> morphPentagonToEightLeaf
+            else -> morphEightLeafToCircle
         }
 
         // Convert to Android graphics Path at evaluated progress fraction
