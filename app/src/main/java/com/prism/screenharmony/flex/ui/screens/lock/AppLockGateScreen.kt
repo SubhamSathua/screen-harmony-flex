@@ -94,6 +94,7 @@ fun AppLockGateScreen(
                     Text(
                         text = "ScreenHarmony",
                         style = MaterialTheme.typography.titleLarge,
+                        fontFamily = com.prism.screenharmony.flex.ui.theme.UrbanistFontFamily,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )

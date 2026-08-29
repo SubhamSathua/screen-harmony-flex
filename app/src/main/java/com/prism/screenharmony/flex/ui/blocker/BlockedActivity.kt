@@ -177,7 +177,20 @@ fun BlockWallScreen(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 48.dp)
+                modifier = Modifier.padding(bottom = 24.dp)
+            ) {
+                Text(
+                    text = "ScreenHarmony",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = com.prism.screenharmony.flex.ui.theme.UrbanistFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 36.dp)
             ) {
                 if (appIcon != null) {
                     Image(

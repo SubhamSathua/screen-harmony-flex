@@ -180,44 +180,26 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                                             titleContentColor = MaterialTheme.colorScheme.onBackground
                                         ),
                                         title = {
-                                            Column(
-                                                modifier = Modifier.padding(vertical = 4.dp),
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
-                                                    text = "Screen",
-                                                    style = MaterialTheme.typography.titleLarge.copy(
-                                                        fontSize = 20.sp,
-                                                        lineHeight = 22.sp
-                                                    ),
+                                                    text = "ScreenHarmony",
+                                                    style = MaterialTheme.typography.titleLarge,
                                                     fontFamily = com.prism.screenharmony.flex.ui.theme.UrbanistFontFamily,
-                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontWeight = FontWeight.Bold,
                                                     color = MaterialTheme.colorScheme.primary
                                                 )
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = MaterialTheme.colorScheme.primaryContainer
+                                                ) {
                                                     Text(
-                                                        text = "Harmony",
-                                                        style = MaterialTheme.typography.titleLarge.copy(
-                                                            fontSize = 20.sp,
-                                                            lineHeight = 22.sp
-                                                        ),
-                                                        fontFamily = com.prism.screenharmony.flex.ui.theme.UrbanistFontFamily,
-                                                        fontWeight = FontWeight.ExtraBold,
-                                                        color = MaterialTheme.colorScheme.primary
+                                                        text = "FLEX",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                     )
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Surface(
-                                                        shape = RoundedCornerShape(6.dp),
-                                                        color = MaterialTheme.colorScheme.primaryContainer
-                                                    ) {
-                                                        Text(
-                                                            text = "FLEX",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                        )
-                                                    }
                                                 }
                                             }
                                         }
