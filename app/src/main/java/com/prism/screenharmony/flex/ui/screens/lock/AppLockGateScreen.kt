@@ -5,9 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Fingerprint
-import androidx.compose.material.icons.rounded.Lightbulb
-import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.automirrored.rounded.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,6 +35,7 @@ fun AppLockGateScreen(
     var isError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showHintDialog by remember { mutableStateOf(false) }
+    var showRecoveryDialog by remember { mutableStateOf(false) }
 
     fun triggerBiometrics() {
         if (activity != null && AppLockManager.isBiometricsEnabled && BiometricHelper.isBiometricAvailable(context)) {
@@ -136,7 +136,7 @@ fun AppLockGateScreen(
                     )
                 }
 
-                // Biometrics & Hint Actions Row
+                // Biometrics & Forgot PIN Actions Row
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -151,11 +151,17 @@ fun AppLockGateScreen(
                         }
                     }
 
+                    TextButton(onClick = { showRecoveryDialog = true }) {
+                        Icon(Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Forgot PIN?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    }
+
                     if (AppLockManager.hasHint) {
                         TextButton(onClick = { showHintDialog = true }) {
                             Icon(Icons.Rounded.Lightbulb, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("View Hint", style = MaterialTheme.typography.labelMedium)
+                            Text("Hint", style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
@@ -188,6 +194,16 @@ fun AppLockGateScreen(
                 isSubmitEnabled = inputPin.length >= 4
             )
         }
+    }
+
+    if (showRecoveryDialog) {
+        AppLockRecoveryDialog(
+            onRecoverySuccess = {
+                showRecoveryDialog = false
+                onUnlocked()
+            },
+            onDismiss = { showRecoveryDialog = false }
+        )
     }
 
     if (showHintDialog) {

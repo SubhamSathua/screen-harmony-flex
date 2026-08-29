@@ -111,6 +111,11 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                 onCancel = { viewModel.handleBack() }
             )
         }
+        ScreenState.RECOVERY_SETTINGS -> {
+            com.prism.screenharmony.flex.ui.screens.lock.RecoverySettingsScreen(
+                onBack = { viewModel.handleBack() }
+            )
+        }
         ScreenState.SELECT_APPS -> {
             AppListScreen(
                 selectedApps = editingRule.selectedApps,
@@ -231,7 +236,8 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                         AppDestinations.PARENTAL -> ParentalTabScreen()
                         AppDestinations.SETTINGS -> SettingsTabScreen(
                             permissionState = permissionState,
-                            onOpenAppLockSetup = { viewModel.openAppLockSetup() }
+                            onOpenAppLockSetup = { viewModel.openAppLockSetup() },
+                            onOpenRecoverySettings = { viewModel.openRecoverySettings() }
                         )
                     }
                 }

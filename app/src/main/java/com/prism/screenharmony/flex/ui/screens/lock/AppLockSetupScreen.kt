@@ -5,15 +5,17 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.prism.screenharmony.flex.data.AppLockManager
+import com.prism.screenharmony.flex.data.RecoveryConstants
 import com.prism.screenharmony.flex.ui.components.CustomPinKeypad
 import com.prism.screenharmony.flex.ui.components.PinDotsDisplay
 import com.prism.screenharmony.flex.ui.components.SecureFlagEffect
@@ -31,12 +34,7 @@ import com.prism.screenharmony.flex.ui.components.SecureFlagEffect
 enum class SetupStep {
     ENTER_PIN,
     RETYPE_PIN,
-    HINT_PAGE
-}
-
-enum class HintOption {
-    HINT,
-    NONE
+    RECOVERY_PAGE
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,7 +43,6 @@ fun AppLockSetupScreen(
     onComplete: () -> Unit,
     onCancel: () -> Unit
 ) {
-    // Screenshot & screen-recording protection
     SecureFlagEffect()
 
     var currentStep by remember { mutableStateOf(SetupStep.ENTER_PIN) }
@@ -54,7 +51,13 @@ fun AppLockSetupScreen(
     var isError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    var selectedHintOption by remember { mutableStateOf(HintOption.NONE) }
+    // Recovery config state
+    var isSeedPhraseEnabled by remember { mutableStateOf(true) }
+    var seedPhrase by remember { mutableStateOf(RecoveryConstants.generatePhrase(6)) }
+    var isBiometricsRecoveryEnabled by remember { mutableStateOf(true) }
+    var isSecurityQuestionEnabled by remember { mutableStateOf(false) }
+    var selectedQuestion by remember { mutableStateOf(RecoveryConstants.SECURITY_QUESTIONS[0]) }
+    var securityAnswer by remember { mutableStateOf("") }
     var hintText by remember { mutableStateOf("") }
 
     BackHandler {
@@ -66,7 +69,7 @@ fun AppLockSetupScreen(
                 errorMessage = null
                 currentStep = SetupStep.ENTER_PIN
             }
-            SetupStep.HINT_PAGE -> {
+            SetupStep.RECOVERY_PAGE -> {
                 confirmPin = ""
                 currentStep = SetupStep.RETYPE_PIN
             }
@@ -81,7 +84,7 @@ fun AppLockSetupScreen(
                         text = when (currentStep) {
                             SetupStep.ENTER_PIN -> "Create PIN"
                             SetupStep.RETYPE_PIN -> "Confirm PIN"
-                            SetupStep.HINT_PAGE -> "PIN Hint"
+                            SetupStep.RECOVERY_PAGE -> "Recovery Options"
                         },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
@@ -97,7 +100,7 @@ fun AppLockSetupScreen(
                                 errorMessage = null
                                 currentStep = SetupStep.ENTER_PIN
                             }
-                            SetupStep.HINT_PAGE -> {
+                            SetupStep.RECOVERY_PAGE -> {
                                 confirmPin = ""
                                 currentStep = SetupStep.RETYPE_PIN
                             }
@@ -112,8 +115,7 @@ fun AppLockSetupScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(bottom = 24.dp),
+                .padding(innerPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -151,7 +153,7 @@ fun AppLockSetupScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
 
                         PinDotsDisplay(
                             pinLength = firstPin.length,
@@ -216,11 +218,12 @@ fun AppLockSetupScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
 
                         PinDotsDisplay(
                             pinLength = confirmPin.length,
-                            isError = isError
+                            isError = isError,
+                            showCounter = false
                         )
 
                         errorMessage?.let { msg ->
@@ -251,7 +254,7 @@ fun AppLockSetupScreen(
                         },
                         onSubmit = {
                             if (confirmPin == firstPin) {
-                                currentStep = SetupStep.HINT_PAGE
+                                currentStep = SetupStep.RECOVERY_PAGE
                             } else {
                                 isError = true
                                 errorMessage = "PINs do not match. Try again."
@@ -263,129 +266,87 @@ fun AppLockSetupScreen(
                     )
                 }
 
-                SetupStep.HINT_PAGE -> {
+                SetupStep.RECOVERY_PAGE -> {
                     Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
                             .navigationBarsPadding()
-                            .padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(72.dp)
+                            modifier = Modifier
+                                .size(64.dp)
+                                .align(Alignment.CenterHorizontally)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Lightbulb,
+                                    imageVector = Icons.Rounded.Security,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(36.dp)
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
                         }
 
                         Text(
-                            text = "Add a PIN Hint?",
+                            text = "Account Recovery Methods",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
                         )
 
                         Text(
-                            text = "A hint helps you remember your PIN if you forget it. Never write your actual PIN.",
+                            text = "Select recovery methods in case you forget your PIN. All credentials are encrypted on-device.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        RecoveryMethodsCards(
+                            isSeedPhraseEnabled = isSeedPhraseEnabled,
+                            onSeedPhraseToggle = { isSeedPhraseEnabled = it },
+                            seedPhrase = seedPhrase,
+                            onRegeneratePhrase = { seedPhrase = RecoveryConstants.generatePhrase(6) },
+                            isBiometricsRecoveryEnabled = isBiometricsRecoveryEnabled,
+                            onBiometricsRecoveryToggle = { isBiometricsRecoveryEnabled = it },
+                            isSecurityQuestionEnabled = isSecurityQuestionEnabled,
+                            onSecurityQuestionToggle = { isSecurityQuestionEnabled = it },
+                            selectedQuestion = selectedQuestion,
+                            onQuestionSelect = { selectedQuestion = it },
+                            securityAnswer = securityAnswer,
+                            onAnswerChange = { securityAnswer = it }
+                        )
 
-                        // 2 Radio Cards: Hint vs None
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            // Option 1: Hint
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = if (selectedHintOption == HintOption.HINT) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .border(
-                                        width = if (selectedHintOption == HintOption.HINT) 2.dp else 0.dp,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        shape = RoundedCornerShape(16.dp)
-                                    )
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable { selectedHintOption = HintOption.HINT }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = selectedHintOption == HintOption.HINT,
-                                        onClick = { selectedHintOption = HintOption.HINT }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Add Hint", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                }
-                            }
+                        // Optional PIN Hint
+                        OutlinedTextField(
+                            value = hintText,
+                            onValueChange = { hintText = it },
+                            label = { Text("Optional PIN Hint") },
+                            placeholder = { Text("e.g. Favorite book year...") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
 
-                            // Option 2: None
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = if (selectedHintOption == HintOption.NONE) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .border(
-                                        width = if (selectedHintOption == HintOption.NONE) 2.dp else 0.dp,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        shape = RoundedCornerShape(16.dp)
-                                    )
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable { selectedHintOption = HintOption.NONE }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = selectedHintOption == HintOption.NONE,
-                                        onClick = { selectedHintOption = HintOption.NONE }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("None", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-
-                        AnimatedVisibility(
-                            visible = selectedHintOption == HintOption.HINT,
-                            enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut()
-                        ) {
-                            OutlinedTextField(
-                                value = hintText,
-                                onValueChange = { hintText = it },
-                                label = { Text("Hint (e.g. Grandma's birth year)") },
-                                placeholder = { Text("Enter a clue...") },
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.weight(1f))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         Button(
                             onClick = {
-                                val finalHint = if (selectedHintOption == HintOption.HINT) hintText else null
-                                AppLockManager.savePin(firstPin, finalHint)
+                                AppLockManager.savePin(firstPin, hintText.ifBlank { null })
+                                AppLockManager.saveRecoveryConfig(
+                                    isSeedEnabled = isSeedPhraseEnabled,
+                                    seedPhrase = if (isSeedPhraseEnabled) seedPhrase else null,
+                                    isBioEnabled = isBiometricsRecoveryEnabled,
+                                    isQuestionEnabled = isSecurityQuestionEnabled,
+                                    question = if (isSecurityQuestionEnabled) selectedQuestion else null,
+                                    answer = if (isSecurityQuestionEnabled) securityAnswer else null
+                                )
                                 onComplete()
                             },
                             modifier = Modifier

@@ -32,7 +32,8 @@ enum class ScreenState {
     MAIN_TABS,
     CREATE_OR_EDIT_BLOCK,
     SELECT_APPS,
-    APP_LOCK_SETUP
+    APP_LOCK_SETUP,
+    RECOVERY_SETTINGS
 }
 
 data class PermissionState(
@@ -88,6 +89,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openAppLockSetup() {
         _currentScreenState.value = ScreenState.APP_LOCK_SETUP
+    }
+
+    fun openRecoverySettings() {
+        _currentScreenState.value = ScreenState.RECOVERY_SETTINGS
     }
 
     fun onAppLockSetupComplete() {
@@ -170,6 +175,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun handleBack(): Boolean {
         return when (_currentScreenState.value) {
             ScreenState.APP_LOCK_SETUP -> {
+                _currentScreenState.value = ScreenState.MAIN_TABS
+                true
+            }
+            ScreenState.RECOVERY_SETTINGS -> {
                 _currentScreenState.value = ScreenState.MAIN_TABS
                 true
             }

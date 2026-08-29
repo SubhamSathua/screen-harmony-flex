@@ -3,9 +3,11 @@ package com.prism.screenharmony.flex.data
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.SystemClock
+import android.util.Base64
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import java.security.MessageDigest
 import java.security.SecureRandom
-import android.util.Base64
 
 enum class LockTimeout(val label: String, val millis: Long) {
     IMMEDIATELY("Immediately", 0L),
@@ -18,7 +20,7 @@ enum class LockTimeout(val label: String, val millis: Long) {
 }
 
 object AppLockManager {
-    private const val PREFS_NAME = "screenharmony_app_lock_prefs"
+    private const val PREFS_NAME = "screenharmony_app_lock_secure_prefs"
     private const val KEY_LOCK_ENABLED = "app_lock_enabled"
     private const val KEY_PIN_HASH = "pin_hash"
     private const val KEY_PIN_SALT = "pin_salt"
@@ -27,6 +29,15 @@ object AppLockManager {
     private const val KEY_BIOMETRICS_ENABLED = "biometrics_enabled"
     private const val KEY_TIMEOUT = "lock_timeout"
 
+    // Recovery config keys
+    private const val KEY_REC_SEED_ENABLED = "rec_seed_enabled"
+    private const val KEY_REC_SEED_PHRASE = "rec_seed_phrase"
+    private const val KEY_REC_BIO_ENABLED = "rec_bio_enabled"
+    private const val KEY_REC_QUESTION_ENABLED = "rec_question_enabled"
+    private const val KEY_REC_QUESTION = "rec_question"
+    private const val KEY_REC_ANSWER_HASH = "rec_answer_hash"
+    private const val KEY_REC_ANSWER_SALT = "rec_answer_salt"
+
     private lateinit var prefs: SharedPreferences
 
     // In-memory session lock state
@@ -34,7 +45,21 @@ object AppLockManager {
     private var backgroundTimestamp: Long = 0L
 
     fun initialize(context: Context) {
-        prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs = try {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+
+            EncryptedSharedPreferences.create(
+                context,
+                PREFS_NAME,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        }
     }
 
     var isAppLockEnabled: Boolean
@@ -101,6 +126,89 @@ object AppLockManager {
         return isCorrect
     }
 
+    fun saveRecoveryConfig(
+        isSeedEnabled: Boolean,
+        seedPhrase: String?,
+        isBioEnabled: Boolean,
+        isQuestionEnabled: Boolean,
+        question: String?,
+        answer: String?
+    ) {
+        val editor = prefs.edit()
+            .putBoolean(KEY_REC_SEED_ENABLED, isSeedEnabled)
+            .putBoolean(KEY_REC_BIO_ENABLED, isBioEnabled)
+            .putBoolean(KEY_REC_QUESTION_ENABLED, isQuestionEnabled)
+
+        if (isSeedEnabled && !seedPhrase.isNullOrBlank()) {
+            editor.putString(KEY_REC_SEED_PHRASE, seedPhrase.trim())
+        } else {
+            editor.remove(KEY_REC_SEED_PHRASE)
+        }
+
+        if (isQuestionEnabled && !question.isNullOrBlank() && !answer.isNullOrBlank()) {
+            val salt = ByteArray(16)
+            SecureRandom().nextBytes(salt)
+            val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+            val normalizedAnswer = answer.trim().lowercase()
+            val answerHash = hashPin(normalizedAnswer, salt)
+
+            editor.putString(KEY_REC_QUESTION, question)
+            editor.putString(KEY_REC_ANSWER_HASH, answerHash)
+            editor.putString(KEY_REC_ANSWER_SALT, saltBase64)
+        } else {
+            editor.remove(KEY_REC_QUESTION)
+            editor.remove(KEY_REC_ANSWER_HASH)
+            editor.remove(KEY_REC_ANSWER_SALT)
+        }
+
+        editor.apply()
+    }
+
+    fun getRecoveryConfig(): RecoveryConfig {
+        if (!::prefs.isInitialized) return RecoveryConfig()
+        return RecoveryConfig(
+            isSeedPhraseEnabled = prefs.getBoolean(KEY_REC_SEED_ENABLED, false),
+            seedPhrase = prefs.getString(KEY_REC_SEED_PHRASE, null),
+            isBiometricsRecoveryEnabled = prefs.getBoolean(KEY_REC_BIO_ENABLED, false),
+            isSecurityQuestionEnabled = prefs.getBoolean(KEY_REC_QUESTION_ENABLED, false),
+            securityQuestion = prefs.getString(KEY_REC_QUESTION, null),
+            securityAnswerHash = prefs.getString(KEY_REC_ANSWER_HASH, null),
+            securityAnswerSalt = prefs.getString(KEY_REC_ANSWER_SALT, null)
+        )
+    }
+
+    fun verifySeedPhrase(inputPhrase: String): Boolean {
+        val stored = prefs.getString(KEY_REC_SEED_PHRASE, null) ?: return false
+        val normalizedInput = inputPhrase.trim().lowercase().replace(Regex("\\s+"), " ")
+        val normalizedStored = stored.trim().lowercase().replace(Regex("\\s+"), " ")
+        return normalizedInput == normalizedStored
+    }
+
+    fun verifySecurityAnswer(inputAnswer: String): Boolean {
+        val storedHash = prefs.getString(KEY_REC_ANSWER_HASH, null) ?: return false
+        val storedSaltBase64 = prefs.getString(KEY_REC_ANSWER_SALT, null) ?: return false
+
+        val salt = Base64.decode(storedSaltBase64, Base64.NO_WRAP)
+        val normalizedInput = inputAnswer.trim().lowercase()
+        val inputHash = hashPin(normalizedInput, salt)
+        return inputHash == storedHash
+    }
+
+    fun resetPin(newPin: String) {
+        val salt = ByteArray(16)
+        SecureRandom().nextBytes(salt)
+        val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+        val hash = hashPin(newPin, salt)
+
+        prefs.edit()
+            .putBoolean(KEY_LOCK_ENABLED, true)
+            .putString(KEY_PIN_HASH, hash)
+            .putString(KEY_PIN_SALT, saltBase64)
+            .apply()
+
+        isSessionUnlocked = true
+    }
+
     fun disableAppLock() {
         prefs.edit()
             .putBoolean(KEY_LOCK_ENABLED, false)
@@ -109,6 +217,13 @@ object AppLockManager {
             .remove(KEY_PIN_HINT)
             .putBoolean(KEY_HAS_HINT, false)
             .putBoolean(KEY_BIOMETRICS_ENABLED, false)
+            .remove(KEY_REC_SEED_ENABLED)
+            .remove(KEY_REC_SEED_PHRASE)
+            .remove(KEY_REC_BIO_ENABLED)
+            .remove(KEY_REC_QUESTION_ENABLED)
+            .remove(KEY_REC_QUESTION)
+            .remove(KEY_REC_ANSWER_HASH)
+            .remove(KEY_REC_ANSWER_SALT)
             .apply()
 
         isSessionUnlocked = true

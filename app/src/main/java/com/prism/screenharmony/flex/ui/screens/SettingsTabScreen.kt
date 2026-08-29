@@ -36,6 +36,7 @@ import com.prism.screenharmony.flex.utils.PermissionHelper
 fun SettingsTabScreen(
     permissionState: PermissionState,
     onOpenAppLockSetup: () -> Unit = {},
+    onOpenRecoverySettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val themeState = LocalThemeState.current
@@ -50,6 +51,7 @@ fun SettingsTabScreen(
     var currentTimeout by remember { mutableStateOf(AppLockManager.lockTimeout) }
 
     var showVerifyOffDialog by remember { mutableStateOf(false) }
+    var showVerifyRecoveryDialog by remember { mutableStateOf(false) }
     var showTimeoutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -158,6 +160,23 @@ fun SettingsTabScreen(
                                     )
                                 }
                             }
+                        )
+                    }
+
+                    ItemDivider()
+
+                    // Card 4: Forgot Password Recovery Methods
+                    GroupedItemRow(
+                        icon = Icons.Rounded.KeyOff,
+                        title = "Forgot Password Methods",
+                        subtitle = if (isAppLockEnabled) "Manage Seed Phrase, biometrics & security questions" else "Disabled (App Lock is Off)",
+                        enabled = isAppLockEnabled,
+                        onClick = if (isAppLockEnabled) { { showVerifyRecoveryDialog = true } } else null
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = if (isAppLockEnabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                         )
                     }
                 }
@@ -447,6 +466,19 @@ fun SettingsTabScreen(
                 showVerifyOffDialog = false
             },
             onDismiss = { showVerifyOffDialog = false }
+        )
+    }
+
+    // Verify PIN to Open Recovery Settings
+    if (showVerifyRecoveryDialog) {
+        AppLockVerifyDialog(
+            title = "Verify App PIN",
+            subtitle = "Enter your PIN to manage password recovery methods",
+            onVerified = {
+                showVerifyRecoveryDialog = false
+                onOpenRecoverySettings()
+            },
+            onDismiss = { showVerifyRecoveryDialog = false }
         )
     }
 
