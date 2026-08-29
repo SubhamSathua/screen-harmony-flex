@@ -387,12 +387,15 @@ fun SettingsTabScreen(
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(40.dp)
+                            color = themeState.palette.primaryColor,
+                            modifier = Modifier.size(36.dp)
                         ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize().background(themeState.palette.primaryColor, CircleShape)
-                            ) {}
+                            Icon(
+                                imageVector = Icons.Rounded.Palette,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.padding(7.dp).size(20.dp)
+                            )
                         }
                         Spacer(modifier = Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -987,14 +990,39 @@ fun SingleChoiceSegmentedRow(
     selected: AppThemeMode,
     onSelect: (AppThemeMode) -> Unit
 ) {
-    SingleChoiceSegmentedButtonRow {
-        AppThemeMode.entries.forEachIndexed { index, mode ->
-            SegmentedButton(
-                selected = selected == mode,
-                onClick = { onSelect(mode) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = AppThemeMode.entries.size)
-            ) {
-                Text(mode.label, fontSize = 12.sp)
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Row(
+            modifier = Modifier.padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            AppThemeMode.entries.forEach { mode ->
+                val isSelected = mode == selected
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onSelect(mode) }
+                ) {
+                    Box(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = when (mode) {
+                                AppThemeMode.SYSTEM -> "Auto"
+                                AppThemeMode.LIGHT -> "Light"
+                                AppThemeMode.DARK -> "Dark"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }
