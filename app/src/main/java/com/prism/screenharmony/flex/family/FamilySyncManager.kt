@@ -668,6 +668,27 @@ object FamilySyncManager {
     // PARENT REMOTE COMMANDS
     // =========================================================================
 
+    fun updateFamilyName(context: Context, newName: String, onComplete: (Boolean) -> Unit = {}) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+
+            val updatedProfile = profile.copy(familyName = newName)
+            _familyProfile.value = updatedProfile
+            saveLocalProfile(context, updatedProfile)
+
+            if (profile.role == FamilyRole.PARENT) {
+                db.getReference("families/${profile.familyId}/info/familyName")
+                    .setValue(newName)
+                    .addOnSuccessListener { onComplete(true) }
+                    .addOnFailureListener { onComplete(false) }
+            } else {
+                onComplete(true)
+            }
+        }
+    }
+
     fun renameChildDevice(childDeviceId: String, customName: String, onComplete: (Boolean) -> Unit = {}) {
         ensureAuth {
             val profile = _familyProfile.value

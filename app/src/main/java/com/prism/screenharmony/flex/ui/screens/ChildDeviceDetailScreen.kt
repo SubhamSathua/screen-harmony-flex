@@ -109,24 +109,30 @@ fun ChildDeviceDetailScreen(
                         }
                         DropdownMenu(
                             expanded = showMoreMenu,
-                            onDismissRequest = { showMoreMenu = false }
+                            onDismissRequest = { showMoreMenu = false },
+                            shape = RoundedCornerShape(24.dp),
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            tonalElevation = 6.dp,
+                            shadowElevation = 8.dp,
+                            modifier = Modifier.padding(4.dp)
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Rename Device") },
+                                text = { Text("Rename Device", fontWeight = FontWeight.Medium) },
                                 leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
                                 onClick = {
                                     showMoreMenu = false
                                     showRenameDialog = true
-                                }
+                                },
+                                modifier = Modifier.clip(RoundedCornerShape(14.dp))
                             )
-                            HorizontalDivider()
                             DropdownMenuItem(
-                                text = { Text("Remove Device", color = MaterialTheme.colorScheme.error) },
+                                text = { Text("Remove Device", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.error) },
                                 leadingIcon = { Icon(Icons.Rounded.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                                 onClick = {
                                     showMoreMenu = false
                                     showRemoveDialog = true
-                                }
+                                },
+                                modifier = Modifier.clip(RoundedCornerShape(14.dp))
                             )
                         }
                     }

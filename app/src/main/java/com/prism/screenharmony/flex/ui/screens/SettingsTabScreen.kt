@@ -1,12 +1,17 @@
 package com.prism.screenharmony.flex.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -18,12 +23,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import com.prism.screenharmony.flex.data.AppLockManager
 import com.prism.screenharmony.flex.data.LockTimeout
+import com.prism.screenharmony.flex.family.*
 import com.prism.screenharmony.flex.ui.screens.lock.AppLockVerifyDialog
 import com.prism.screenharmony.flex.ui.theme.AppColorPalette
 import com.prism.screenharmony.flex.ui.theme.AppThemeMode
@@ -31,8 +40,6 @@ import com.prism.screenharmony.flex.ui.theme.LocalThemeState
 import com.prism.screenharmony.flex.ui.viewmodels.PermissionState
 import com.prism.screenharmony.flex.utils.BiometricHelper
 import com.prism.screenharmony.flex.utils.PermissionHelper
-
-import androidx.compose.animation.core.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +54,8 @@ fun SettingsTabScreen(
     val themeState = LocalThemeState.current
     val context = LocalContext.current
     val activity = context as? FragmentActivity
+
+    val familyProfile by FamilySyncManager.familyProfile.collectAsState()
 
     // Pulse animation for permission highlighting
     val pulseBorderWidth = remember { Animatable(0f) }
@@ -89,6 +98,12 @@ fun SettingsTabScreen(
     var showVerifyRecoveryDialog by remember { mutableStateOf(false) }
     var showTimeoutDialog by remember { mutableStateOf(false) }
 
+    // Parental Controls Live State
+    var selectedUnlinkMode by remember { mutableStateOf(ParentalAuthManager.getSelectedAuthMode(context)) }
+    var isUnlinkAuthExpanded by remember { mutableStateOf(false) }
+    var showFamilyNameDialog by remember { mutableStateOf(false) }
+    var showCustomPinDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -121,11 +136,11 @@ fun SettingsTabScreen(
             SectionHeader(title = "Security & App Lock")
 
             GroupedContainer {
-                // Card 1: Enable App Lock Toggle
+                // Card 1: App Lock Toggle
                 GroupedItemRow(
-                    icon = if (isAppLockEnabled) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
-                    title = "Enable App Lock",
-                    subtitle = if (isAppLockEnabled) "Active • PIN required on launch" else "Off • Open app without PIN"
+                    icon = Icons.Rounded.Lock,
+                    title = "Lock ScreenHarmony",
+                    subtitle = if (isAppLockEnabled) "App PIN lock is active" else "Protect app with secure PIN lock"
                 ) {
                     Switch(
                         checked = isAppLockEnabled,
@@ -141,11 +156,11 @@ fun SettingsTabScreen(
 
                 ItemDivider()
 
-                // Card 2: Timeout
+                // Card 2: Lock Timeout Selector
                 GroupedItemRow(
                     icon = Icons.Rounded.Timer,
                     title = "Lock Timeout",
-                    subtitle = if (isAppLockEnabled) "Locks after ${currentTimeout.label} in background" else "Disabled (App Lock is Off)",
+                    subtitle = if (isAppLockEnabled) currentTimeout.label else "Disabled (App Lock is Off)",
                     enabled = isAppLockEnabled,
                     onClick = if (isAppLockEnabled) { { showTimeoutDialog = true } } else null
                 ) {
@@ -155,9 +170,9 @@ fun SettingsTabScreen(
                     ) {
                         Text(
                             text = currentTimeout.label,
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = if (isAppLockEnabled) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            color = if (isAppLockEnabled) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
@@ -165,27 +180,22 @@ fun SettingsTabScreen(
 
                 ItemDivider()
 
-                // Card 3: Biometrics Toggle
+                // Card 3: Biometric / Fingerprint Unlock
                 GroupedItemRow(
                     icon = Icons.Rounded.Fingerprint,
-                    title = "Biometric Unlock",
-                    subtitle = when {
-                        !isAppLockEnabled -> "Disabled (App Lock is Off)"
-                        !isBioAvailable -> "Unavailable on this device"
-                        isBiometricsEnabled -> "Active • Unlock with Fingerprint or Face"
-                        else -> "Off • Tap to enable biometric unlock"
-                    },
+                    title = "Biometrics / Fingerprint",
+                    subtitle = if (!isBioAvailable) "Not supported or no enrolled biometrics" else if (isAppLockEnabled) "Unlock with fingerprint or face" else "Disabled (App Lock is Off)",
                     enabled = isAppLockEnabled && isBioAvailable
                 ) {
                     Switch(
-                        checked = isBiometricsEnabled && isAppLockEnabled,
+                        checked = isBiometricsEnabled,
                         enabled = isAppLockEnabled && isBioAvailable,
                         onCheckedChange = { targetState ->
                             if (activity != null) {
-                                BiometricHelper.showBiometricPrompt(
+                                BiometricHelper.showDeviceCredentialPrompt(
                                     activity = activity,
-                                    title = if (targetState) "Enable Biometrics" else "Disable Biometrics",
-                                    subtitle = "Verify your fingerprint or face",
+                                    title = "Confirm Biometrics",
+                                    subtitle = if (targetState) "Verify to enable biometric unlock" else "Verify to disable biometric unlock",
                                     onSuccess = {
                                         AppLockManager.isBiometricsEnabled = targetState
                                         isBiometricsEnabled = targetState
@@ -216,7 +226,124 @@ fun SettingsTabScreen(
             }
 
             // =========================================================
-            // 2. APPEARANCE
+            // 2. PARENTAL CONTROLS SECTION
+            // =========================================================
+            SectionHeader(title = "Parental Controls")
+
+            GroupedContainer {
+                // Parent / Family Display Name Customization
+                GroupedItemRow(
+                    icon = Icons.Rounded.FamilyRestroom,
+                    title = "Parent / Family Name",
+                    subtitle = familyProfile.familyName.ifBlank { "ScreenHarmony Family" },
+                    onClick = { showFamilyNameDialog = true }
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Edit,
+                        contentDescription = "Edit Name",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                ItemDivider()
+
+                // Unlink Device Password (Expandable with 4 radio options)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { isUnlinkAuthExpanded = !isUnlinkAuthExpanded }
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Key,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Unlink Device Password", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(selectedUnlinkMode.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+                        Icon(
+                            imageVector = if (isUnlinkAuthExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    AnimatedVisibility(
+                        visible = isUnlinkAuthExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val isAppPinCreated = isAppLockEnabled
+
+                            // 1. Same as app PIN (Show if app PIN is created)
+                            if (isAppPinCreated) {
+                                UnlinkAuthOptionRow(
+                                    mode = UnlinkAuthMode.APP_PIN,
+                                    isSelected = selectedUnlinkMode == UnlinkAuthMode.APP_PIN,
+                                    onClick = {
+                                        selectedUnlinkMode = UnlinkAuthMode.APP_PIN
+                                        ParentalAuthManager.setAuthMode(context, UnlinkAuthMode.APP_PIN)
+                                    }
+                                )
+                            }
+
+                            // 2. Device pass/biometrics
+                            UnlinkAuthOptionRow(
+                                mode = UnlinkAuthMode.DEVICE_BIOMETRIC,
+                                isSelected = selectedUnlinkMode == UnlinkAuthMode.DEVICE_BIOMETRIC,
+                                onClick = {
+                                    selectedUnlinkMode = UnlinkAuthMode.DEVICE_BIOMETRIC
+                                    ParentalAuthManager.setAuthMode(context, UnlinkAuthMode.DEVICE_BIOMETRIC)
+                                }
+                            )
+
+                            // 3. Custom (Opens pop up with 2 boxes: pin + verify)
+                            UnlinkAuthOptionRow(
+                                mode = UnlinkAuthMode.CUSTOM_PIN,
+                                isSelected = selectedUnlinkMode == UnlinkAuthMode.CUSTOM_PIN,
+                                onClick = {
+                                    showCustomPinDialog = true
+                                }
+                            )
+
+                            // 4. None
+                            UnlinkAuthOptionRow(
+                                mode = UnlinkAuthMode.NONE,
+                                isSelected = selectedUnlinkMode == UnlinkAuthMode.NONE,
+                                onClick = {
+                                    selectedUnlinkMode = UnlinkAuthMode.NONE
+                                    ParentalAuthManager.setAuthMode(context, UnlinkAuthMode.NONE)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // =========================================================
+            // 3. APPEARANCE
             // =========================================================
             SectionHeader(title = "Appearance")
 
@@ -250,25 +377,22 @@ fun SettingsTabScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .clickable { isColorPaletteExpanded = !isColorPaletteExpanded }
                         .padding(16.dp)
                 ) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = themeState.palette.primaryColor,
-                            modifier = Modifier.size(36.dp)
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(40.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Palette,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.padding(7.dp).size(20.dp)
-                            )
+                            Box(
+                                modifier = Modifier.fillMaxSize().background(themeState.palette.primaryColor, CircleShape)
+                            ) {}
                         }
                         Spacer(modifier = Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -329,7 +453,7 @@ fun SettingsTabScreen(
             }
 
             // =========================================================
-            // 3. PERMISSIONS & BACKGROUND ENFORCEMENT
+            // 4. PERMISSIONS & BACKGROUND ENFORCEMENT
             // =========================================================
             SectionHeader(title = "Permissions & Background Enforcement")
 
@@ -477,7 +601,7 @@ fun SettingsTabScreen(
             }
 
             // =========================================================
-            // 4. ABOUT & SYNC
+            // 5. ABOUT & SYNC
             // =========================================================
             SectionHeader(title = "About & Sync")
 
@@ -511,6 +635,145 @@ fun SettingsTabScreen(
         }
     }
 
+    // Custom PIN Popup Dialog (2 Boxes: PIN + Verify)
+    if (showCustomPinDialog) {
+        var pinInput by remember { mutableStateOf("") }
+        var confirmPinInput by remember { mutableStateOf("") }
+        var pinError by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { showCustomPinDialog = false },
+            icon = { Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Set Custom Unlink PIN") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("This PIN will be required whenever a device is being unlinked from Family Control.", style = MaterialTheme.typography.bodyMedium)
+
+                    OutlinedTextField(
+                        value = pinInput,
+                        onValueChange = {
+                            if (it.length <= 6 && it.all { char -> char.isDigit() }) {
+                                pinInput = it
+                                pinError = null
+                            }
+                        },
+                        label = { Text("Enter 4-6 digit PIN") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = confirmPinInput,
+                        onValueChange = {
+                            if (it.length <= 6 && it.all { char -> char.isDigit() }) {
+                                confirmPinInput = it
+                                pinError = null
+                            }
+                        },
+                        label = { Text("Verify PIN") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    pinError?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+
+                    if (isBioAvailable && activity != null) {
+                        TextButton(
+                            onClick = {
+                                BiometricHelper.showDeviceCredentialPrompt(
+                                    activity = activity,
+                                    title = "Reset Unlink PIN",
+                                    subtitle = "Authenticate to reset your unlink PIN",
+                                    onSuccess = {
+                                        showCustomPinDialog = false
+                                        selectedUnlinkMode = UnlinkAuthMode.DEVICE_BIOMETRIC
+                                        ParentalAuthManager.setAuthMode(context, UnlinkAuthMode.DEVICE_BIOMETRIC)
+                                        Toast.makeText(context, "Switched to Device Lock / Biometrics", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = { /* Error */ }
+                                )
+                            },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Text("Forgot PIN? Reset with Biometrics")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (pinInput.length < 4) {
+                            pinError = "PIN must be at least 4 digits"
+                        } else if (pinInput != confirmPinInput) {
+                            pinError = "PINs do not match"
+                        } else {
+                            ParentalAuthManager.setCustomPin(context, pinInput)
+                            selectedUnlinkMode = UnlinkAuthMode.CUSTOM_PIN
+                            showCustomPinDialog = false
+                            Toast.makeText(context, "Custom Unlink PIN saved!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save PIN")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomPinDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Family Name Customization Dialog
+    if (showFamilyNameDialog) {
+        var familyNameInput by remember { mutableStateOf(familyProfile.familyName) }
+
+        AlertDialog(
+            onDismissRequest = { showFamilyNameDialog = false },
+            icon = { Icon(Icons.Rounded.FamilyRestroom, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Customise Family Name") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Enter a display name for your family group (e.g. \"The Smiths\" or \"Alex's Family\").", style = MaterialTheme.typography.bodyMedium)
+                    OutlinedTextField(
+                        value = familyNameInput,
+                        onValueChange = { familyNameInput = it },
+                        singleLine = true,
+                        placeholder = { Text("Family Name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        FamilySyncManager.updateFamilyName(context, familyNameInput.trim().ifBlank { "ScreenHarmony Family" }) {
+                            showFamilyNameDialog = false
+                            Toast.makeText(context, "Family name updated!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFamilyNameDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     // Verify PIN to Turn Off App Lock
     if (showVerifyOffDialog) {
         AppLockVerifyDialog(
@@ -526,11 +789,11 @@ fun SettingsTabScreen(
         )
     }
 
-    // Verify PIN to Open Recovery Settings
+    // Verify PIN to Open Forgot Recovery Settings
     if (showVerifyRecoveryDialog) {
         AppLockVerifyDialog(
-            title = "Verify App PIN",
-            subtitle = "Enter your PIN to manage password recovery methods",
+            title = "Recovery Settings",
+            subtitle = "Enter your PIN to manage recovery methods",
             onVerified = {
                 showVerifyRecoveryDialog = false
                 onOpenRecoverySettings()
@@ -539,19 +802,16 @@ fun SettingsTabScreen(
         )
     }
 
-    // Select Timeout Dialog
+    // Lock Timeout Picker Dialog
     if (showTimeoutDialog) {
         AlertDialog(
             onDismissRequest = { showTimeoutDialog = false },
-            icon = { Icon(Icons.Rounded.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             title = { Text("Select Lock Timeout") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     LockTimeout.entries.forEach { timeout ->
                         val isSelected = currentTimeout == timeout
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
@@ -560,29 +820,83 @@ fun SettingsTabScreen(
                                     currentTimeout = timeout
                                     showTimeoutDialog = false
                                 }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = timeout.label,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (isSelected) {
-                                    Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
-                                }
-                            }
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = null
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = timeout.label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
                         }
                     }
                 }
             },
-            confirmButton = {}
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showTimeoutDialog = false }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 }
+
+// =============================================================================
+// UNLINK AUTH OPTION ROW COMPOSABLE
+// =============================================================================
+
+@Composable
+private fun UnlinkAuthOptionRow(
+    mode: UnlinkAuthMode,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .selectable(
+                selected = isSelected,
+                onClick = onClick,
+                role = Role.RadioButton
+            )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(
+                selected = isSelected,
+                onClick = null
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = mode.label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                )
+                Text(
+                    text = mode.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+// =============================================================================
+// COMMON SETTINGS COMPONENTS
+// =============================================================================
 
 @Composable
 fun SectionHeader(title: String) {
@@ -652,51 +966,11 @@ fun GroupedItemRow(
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 0.8f else 0.4f)
             )
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
         trailing()
-    }
-}
-
-@Composable
-fun SingleChoiceSegmentedRow(
-    selected: AppThemeMode,
-    onSelect: (AppThemeMode) -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
-    ) {
-        Row(
-            modifier = Modifier.padding(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            AppThemeMode.entries.forEach { mode ->
-                val isSelected = mode == selected
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { onSelect(mode) }
-                ) {
-                    Box(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = mode.label.substringBefore(" "),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -704,6 +978,24 @@ fun SingleChoiceSegmentedRow(
 fun ItemDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = 16.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
     )
+}
+
+@Composable
+fun SingleChoiceSegmentedRow(
+    selected: AppThemeMode,
+    onSelect: (AppThemeMode) -> Unit
+) {
+    SingleChoiceSegmentedButtonRow {
+        AppThemeMode.entries.forEachIndexed { index, mode ->
+            SegmentedButton(
+                selected = selected == mode,
+                onClick = { onSelect(mode) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = AppThemeMode.entries.size)
+            ) {
+                Text(mode.label, fontSize = 12.sp)
+            }
+        }
+    }
 }
