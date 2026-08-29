@@ -13,9 +13,7 @@ import com.prism.screenharmony.flex.data.BlockRepository
 import com.prism.screenharmony.flex.data.BlockRule
 import com.prism.screenharmony.flex.utils.PermissionHelper
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -52,6 +50,8 @@ data class PermissionState(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val rules: StateFlow<List<BlockRule>> = BlockRepository.rules
+        .map { list -> list.filter { !it.id.startsWith("remote_") } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _currentDestination = MutableStateFlow(AppDestinations.BLOCK)
     val currentDestination: StateFlow<AppDestinations> = _currentDestination.asStateFlow()

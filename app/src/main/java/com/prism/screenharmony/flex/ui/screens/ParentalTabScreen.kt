@@ -1117,13 +1117,16 @@ private fun ChildProtectedView(
 }
 
 // =============================================================================
-// CHILD READ-ONLY BLOCKS TAB (WITHOUT "DEVICE PROTECTED" CARD)
+// CHILD READ-ONLY BLOCKS TAB
 // =============================================================================
 
 @Composable
 private fun ChildBlocksTabContent(
     rules: List<BlockRule>
 ) {
+    var selectedSummaryRule by remember { mutableStateOf<BlockRule?>(null) }
+    var showPauseDialogForRule by remember { mutableStateOf<BlockRule?>(null) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -1159,20 +1162,24 @@ private fun ChildBlocksTabContent(
             }
         } else {
             items(rules, key = { it.id }) { rule ->
+                val isStrict = rule.pauseConfig.type == com.prism.screenharmony.flex.data.PauseType.STRICT || rule.blockType == com.prism.screenharmony.flex.data.BlockType.STRICT
+                val isCurrentlyPaused = rule.isPaused()
+
                 Card(
+                    onClick = { selectedSummaryRule = rule },
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(18.dp),
+                        modifier = Modifier.padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(rule.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(rule.name.ifBlank { "Parental Block" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(6.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 if (rule.selectedApps.isNotEmpty()) {
                                     Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
                                         Text("${rule.selectedApps.size} Apps", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.onSecondaryContainer)
@@ -1180,28 +1187,188 @@ private fun ChildBlocksTabContent(
                                 }
                                 if (rule.selectedWebsites.isNotEmpty()) {
                                     Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.tertiaryContainer) {
-                                        Text("${rule.selectedWebsites.size} Websites", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                        Text("${rule.selectedWebsites.size} Sites", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                    }
+                                }
+                                if (isCurrentlyPaused) {
+                                    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f)) {
+                                        Text("Paused", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.error)
                                     }
                                 }
                             }
                         }
 
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (rule.isEnabled) Color(0xFF1B5E20).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest
-                        ) {
-                            Text(
-                                text = if (rule.isEnabled) "Enforced" else "Paused",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (rule.isEnabled) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            )
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Actions: STRICT (No Pause allowed) vs PAUSE BUTTON (Child can pause only)
+                        if (isStrict) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Strict", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        } else {
+                            if (isCurrentlyPaused) {
+                                FilledTonalButton(
+                                    onClick = { com.prism.screenharmony.flex.data.BlockRepository.unpauseRule(rule.id) },
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Resume", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                FilledTonalButton(
+                                    onClick = { showPauseDialogForRule = rule },
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Pause, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Pause", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    // Read-Only Summary Dialog of the Parent Rule
+    selectedSummaryRule?.let { rule ->
+        AlertDialog(
+            onDismissRequest = { selectedSummaryRule = null },
+            icon = { Icon(Icons.Rounded.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(rule.name.ifBlank { "Parental Block" }, fontWeight = FontWeight.Bold)
+                    Text("Enforced by Parent • Read Only", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Blocked Apps
+                    if (rule.selectedApps.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Blocked Apps (${rule.selectedApps.size}):", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    rule.selectedApps.forEach { pkg ->
+                                        Text("• $pkg", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Blocked Websites
+                    if (rule.selectedWebsites.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Blocked Websites (${rule.selectedWebsites.size}):", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    rule.selectedWebsites.forEach { site ->
+                                        Text("• $site", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Schedules
+                    val schedule = rule.weeklySchedule
+                    if (schedule != null && schedule.slots.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Active Schedule:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            schedule.slots.forEach { slot ->
+                                val daysText = com.prism.screenharmony.flex.data.DayBitmask.toNames(slot.dayBitmask).joinToString(", ")
+                                Text("• $daysText (${String.format("%02d:%02d", slot.startMinute / 60, slot.startMinute % 60)} - ${String.format("%02d:%02d", slot.endMinute / 60, slot.endMinute % 60)})", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    } else {
+                        Text("• Always Active (24/7)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    // Mode & Restriction Type
+                    val isStrict = rule.pauseConfig.type == com.prism.screenharmony.flex.data.PauseType.STRICT || rule.blockType == com.prism.screenharmony.flex.data.BlockType.STRICT
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Restriction Mode:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        Text(if (isStrict) "Strict (Unpausable)" else "Standard (Pausable)", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = if (isStrict) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { selectedSummaryRule = null },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // Pause Duration Picker Dialog for Child
+    showPauseDialogForRule?.let { rule ->
+        val pauseOptions = listOf(5, 10, 15, 30, 60)
+
+        AlertDialog(
+            onDismissRequest = { showPauseDialogForRule = null },
+            icon = { Icon(Icons.Rounded.Pause, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Pause Block Rule") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Select how long to temporarily pause this block:", style = MaterialTheme.typography.bodyMedium)
+                    pauseOptions.forEach { mins ->
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    com.prism.screenharmony.flex.data.BlockRepository.pauseRule(rule.id, mins)
+                                    showPauseDialogForRule = null
+                                }
+                        ) {
+                            Text(
+                                text = if (mins == 60) "1 hour" else "$mins minutes",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showPauseDialogForRule = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
