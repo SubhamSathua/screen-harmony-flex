@@ -118,6 +118,16 @@ fun ParentalTabScreen() {
                     )
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            FamilySyncManager.forceRefresh(context) { success, msg ->
+                                Toast.makeText(context, if (success) "Data refreshed successfully" else "Refresh failed: $msg", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = "Refresh")
+                    }
+
                     if (familyProfile.role == FamilyRole.PARENT) {
                         IconButton(onClick = { showParentLeaveDialog = true }) {
                             Icon(Icons.Rounded.DeleteForever, contentDescription = "Delete Family", tint = MaterialTheme.colorScheme.error)
@@ -923,7 +933,7 @@ private fun ChildDeviceCard(
 }
 
 // =============================================================================
-// CHILD PROTECTED VIEW (2 TABS: BLOCKS & ANALYSIS)
+// CHILD PROTECTED VIEW (3 TABS: BLOCKS, ANALYSIS, CONTROLS)
 // =============================================================================
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -939,7 +949,7 @@ private fun ChildProtectedView(
 ) {
     val context = LocalContext.current
     var selectedChildTab by remember { mutableIntStateOf(0) }
-    val childTabs = listOf("Blocks", "Analysis")
+    val childTabs = listOf("Blocks", "Analysis", "Controls")
     var isUnlinkRequested by remember { mutableStateOf(false) }
 
     Column(
@@ -977,7 +987,7 @@ private fun ChildProtectedView(
             }
         }
 
-        // Child Secondary Tabs (Blocks, Analysis)
+        // Child Secondary Tabs (Clean unselected styling)
         PrimaryTabRow(
             selectedTabIndex = selectedChildTab,
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -988,15 +998,24 @@ private fun ChildProtectedView(
                 Tab(
                     selected = selectedChildTab == index,
                     onClick = { selectedChildTab = index },
+                    selectedContentColor = MaterialTheme.colorScheme.primary,
+                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (index == 0) Icons.Rounded.Shield else Icons.Rounded.Analytics,
+                                imageVector = when (index) {
+                                    0 -> Icons.Rounded.Shield
+                                    1 -> Icons.Rounded.Analytics
+                                    else -> Icons.Rounded.Tune
+                                },
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(title, fontWeight = if (selectedChildTab == index) FontWeight.Bold else FontWeight.Normal)
+                            Text(
+                                text = title,
+                                fontWeight = if (selectedChildTab == index) FontWeight.Bold else FontWeight.Normal
+                            )
                         }
                     }
                 )
@@ -1017,47 +1036,18 @@ private fun ChildProtectedView(
                     context = context,
                     familyProfile = familyProfile
                 )
-            }
-        }
-
-        // Bottom Unlink Request Action Bar
-        Surface(
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Box(modifier = Modifier.padding(16.dp)) {
-                if (!isUnlinkRequested) {
-                    OutlinedButton(
-                        onClick = {
-                            onRequestUnlink()
-                            isUnlinkRequested = true
-                        },
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Rounded.LinkOff, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Request Unlink from Parent")
+                2 -> ChildControlsTabContent(
+                    familyProfile = familyProfile,
+                    isUnlinkRequested = isUnlinkRequested,
+                    onRequestUnlink = {
+                        onRequestUnlink()
+                        isUnlinkRequested = true
+                    },
+                    onCancelUnlink = {
+                        onCancelUnlink()
+                        isUnlinkRequested = false
                     }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("⏳ Unlink Request Sent", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-                            Text("Waiting for parent review", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        TextButton(onClick = {
-                            onCancelUnlink()
-                            isUnlinkRequested = false
-                        }) {
-                            Text("Cancel")
-                        }
-                    }
-                }
+                )
             }
         }
     }
@@ -1254,6 +1244,113 @@ private fun ChildAnalysisTabContent(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// =============================================================================
+// CHILD CONTROLS TAB
+// =============================================================================
+
+@Composable
+private fun ChildControlsTabContent(
+    familyProfile: FamilyProfile,
+    isUnlinkRequested: Boolean,
+    onRequestUnlink: () -> Unit,
+    onCancelUnlink: () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Device Protected Card
+        item {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(Icons.Rounded.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(10.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Device Protected", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Linked to: ${familyProfile.familyName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    Text(
+                        text = "All focus sessions, app blocks, and website rules are synchronized in real-time with the parent device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // Unlink Request Section Card
+        item {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text("Family Pairing Controls", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "If you need to disconnect this device from family management, you can send an unlink request to your parent.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    if (!isUnlinkRequested) {
+                        OutlinedButton(
+                            onClick = onRequestUnlink,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Rounded.LinkOff, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Request Unlink from Parent")
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("⏳ Unlink Request Sent", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                    Text("Waiting for parent review", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                TextButton(onClick = onCancelUnlink) {
+                                    Text("Cancel")
+                                }
+                            }
+                        }
                     }
                 }
             }

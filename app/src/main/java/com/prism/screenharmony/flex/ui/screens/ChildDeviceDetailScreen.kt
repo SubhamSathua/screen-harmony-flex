@@ -3,7 +3,6 @@ package com.prism.screenharmony.flex.ui.screens
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.prism.screenharmony.flex.data.BlockRule
+import com.prism.screenharmony.flex.family.ChildAppUsage
 import com.prism.screenharmony.flex.family.FamilySyncManager
 import com.prism.screenharmony.flex.family.RemoteChildDevice
 
@@ -45,14 +45,21 @@ fun ChildDeviceDetailScreen(
 
     // Live Rules for this Child Device
     var childRules by remember { mutableStateOf<List<BlockRule>>(emptyList()) }
+    var childAppsUsage by remember { mutableStateOf<List<ChildAppUsage>>(emptyList()) }
 
     DisposableEffect(device.deviceId) {
-        val listener = FamilySyncManager.listenChildRules(device.deviceId) { rules ->
+        val ruleListener = FamilySyncManager.listenChildRules(device.deviceId) { rules ->
             childRules = rules
         }
+        val appUsageListener = FamilySyncManager.listenChildScreenTimeApps(device.deviceId) { apps ->
+            childAppsUsage = apps
+        }
         onDispose {
-            if (listener != null) {
-                FamilySyncManager.removeRulesListener(device.deviceId, listener)
+            if (ruleListener != null) {
+                FamilySyncManager.removeRulesListener(device.deviceId, ruleListener)
+            }
+            if (appUsageListener != null) {
+                FamilySyncManager.removeScreenTimeListener(device.deviceId, appUsageListener)
             }
         }
     }
@@ -84,6 +91,16 @@ fun ChildDeviceDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            FamilySyncManager.forceRefresh(context) { success, msg ->
+                                Toast.makeText(context, if (success) "Data refreshed successfully" else "Refresh failed: $msg", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = "Refresh")
+                    }
+
                     Box {
                         IconButton(onClick = { showMoreMenu = true }) {
                             Icon(Icons.Rounded.MoreVert, contentDescription = "More Options")
@@ -132,6 +149,8 @@ fun ChildDeviceDetailScreen(
                     Tab(
                         selected = selectedTabIndex == index,
                         onClick = { selectedTabIndex = index },
+                        selectedContentColor = MaterialTheme.colorScheme.primary,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
@@ -168,7 +187,10 @@ fun ChildDeviceDetailScreen(
                             Toast.makeText(context, "Rule deleted", Toast.LENGTH_SHORT).show()
                         }
                     )
-                    1 -> AnalysisTabContent(device = device)
+                    1 -> AnalysisTabContent(
+                        device = device,
+                        appsUsage = childAppsUsage
+                    )
                     2 -> ControlsTabContent(
                         device = device,
                         onToggleLock = { lock ->
@@ -445,7 +467,10 @@ private fun BlockTabContent(
 // =============================================================================
 
 @Composable
-private fun AnalysisTabContent(device: RemoteChildDevice) {
+private fun AnalysisTabContent(
+    device: RemoteChildDevice,
+    appsUsage: List<ChildAppUsage>
+) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -494,6 +519,58 @@ private fun AnalysisTabContent(device: RemoteChildDevice) {
                                 color = if (device.isOnline) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        // Top Apps Breakdown (Transferred from Child Device)
+        item {
+            Text(
+                text = "Child's App Usage Today",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        if (appsUsage.isEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "App usage syncs automatically as the child uses their device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(20.dp)
+                    )
+                }
+            }
+        } else {
+            items(appsUsage, key = { it.packageName }) { app ->
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(app.appName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                            Text(app.packageName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(
+                            text = "${app.durationMinutes}m",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }

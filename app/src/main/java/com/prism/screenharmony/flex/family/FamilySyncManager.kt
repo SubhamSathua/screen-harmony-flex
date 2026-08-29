@@ -506,6 +506,16 @@ object FamilySyncManager {
             val isScreenOn = pm?.isInteractive ?: true
 
             val todayMinutes = FamilyUsageHelper.getTodayUsageMinutes(context)
+            val topApps = FamilyUsageHelper.getTodayTopApps(context, limit = 10)
+            val appsMap = mutableMapOf<String, Any>()
+            for (app in topApps) {
+                val safeKey = app.packageName.replace(".", "_")
+                appsMap[safeKey] = mapOf(
+                    "packageName" to app.packageName,
+                    "appName" to app.appName,
+                    "durationMinutes" to app.durationMinutes
+                )
+            }
 
             val updates = mapOf(
                 "batteryLevel" to batteryLevel,
@@ -520,10 +530,80 @@ object FamilySyncManager {
             db.getReference("families/${profile.familyId}/devices/$deviceId/status").updateChildren(statusUpdates)
 
             val screenTimeUpdates = mapOf(
-                "todayMinutes" to todayMinutes
+                "todayMinutes" to todayMinutes,
+                "apps" to appsMap
             )
             db.getReference("families/${profile.familyId}/devices/$deviceId/screenTime").updateChildren(screenTimeUpdates)
         }
+    }
+
+    fun forceRefresh(context: Context, onResult: (Boolean, String) -> Unit) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.familyId.isBlank()) {
+                onResult(false, "No active family connection")
+                return@ensureAuth
+            }
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+
+            when (profile.role) {
+                FamilyRole.PARENT -> {
+                    db.getReference("families/${profile.familyId}/devices").addListenerForSingleValueEvent(object : ValueEventListener {
+                        override fun onDataChange(snapshot: DataSnapshot) {
+                            startRoleSync(context)
+                            onResult(true, "Data refreshed successfully")
+                        }
+                        override fun onCancelled(error: DatabaseError) {
+                            onResult(false, "Refresh failed: ${error.message}")
+                        }
+                    })
+                }
+                FamilyRole.CHILD -> {
+                    val deviceId = getDeviceId(context)
+                    pushChildTelemetry(context)
+                    db.getReference("families/${profile.familyId}/devices/$deviceId/rules").addListenerForSingleValueEvent(object : ValueEventListener {
+                        override fun onDataChange(snapshot: DataSnapshot) {
+                            startRoleSync(context)
+                            onResult(true, "Data refreshed successfully")
+                        }
+                        override fun onCancelled(error: DatabaseError) {
+                            onResult(false, "Refresh failed: ${error.message}")
+                        }
+                    })
+                }
+                FamilyRole.STANDALONE -> {
+                    onResult(true, "Refreshed")
+                }
+            }
+        }
+    }
+
+    fun listenChildScreenTimeApps(childDeviceId: String, onApps: (List<ChildAppUsage>) -> Unit): ValueEventListener? {
+        val profile = _familyProfile.value
+        if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return null
+        val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<ChildAppUsage>()
+                for (appSnap in snapshot.child("apps").children) {
+                    val pkg = appSnap.child("packageName").getValue(String::class.java) ?: continue
+                    val name = appSnap.child("appName").getValue(String::class.java) ?: pkg
+                    val duration = appSnap.child("durationMinutes").getValue(Long::class.java) ?: 0L
+                    list.add(ChildAppUsage(packageName = pkg, appName = name, durationMinutes = duration))
+                }
+                onApps(list.sortedByDescending { it.durationMinutes })
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        db.getReference("families/${profile.familyId}/devices/$childDeviceId/screenTime").addValueEventListener(listener)
+        return listener
+    }
+
+    fun removeScreenTimeListener(childDeviceId: String, listener: ValueEventListener) {
+        val profile = _familyProfile.value
+        if (profile.familyId.isBlank()) return
+        database?.getReference("families/${profile.familyId}/devices/$childDeviceId/screenTime")?.removeEventListener(listener)
     }
 
     // =========================================================================
