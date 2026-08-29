@@ -33,6 +33,12 @@ class AppBlockerService : Service() {
         const val LOCK_NOTIFICATION_ID = 2002
 
         val isRunning = AtomicBoolean(false)
+        @Volatile
+        var lastInterceptedPackage: String? = null
+
+        fun resetInterceptState() {
+            lastInterceptedPackage = null
+        }
 
         fun start(context: Context) {
             if (isRunning.get()) {
@@ -52,11 +58,14 @@ class AppBlockerService : Service() {
         }
     }
 
+    private var currentActiveForegroundPackage: String? = null
+
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "AppBlockerService onCreate")
         BlockRepository.initialize(this)
         createNotificationChannels()
+        WatchdogAlarmReceiver.scheduleNext(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -78,8 +87,23 @@ class AppBlockerService : Service() {
             Log.e(TAG, "startForeground error", e)
         }
 
+        WatchdogAlarmReceiver.scheduleNext(this)
         startAppMonitoringLoop()
         return START_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.w(TAG, "AppBlockerService onTaskRemoved. Scheduling immediate watchdog wake...")
+        WatchdogAlarmReceiver.scheduleNext(this)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.w(TAG, "AppBlockerService onDestroy. Scheduling immediate watchdog wake...")
+        isRunning.set(false)
+        serviceScope.cancel()
+        WatchdogAlarmReceiver.scheduleNext(this)
     }
 
     private fun startAppMonitoringLoop() {
@@ -96,15 +120,19 @@ class AppBlockerService : Service() {
                 try {
                     val hasUsage = PermissionHelper.isUsageAccessGranted(this@AppBlockerService)
                     if (hasUsage) {
-                        val currentForeground = getForegroundPackage(usm)
+                        val detectedForeground = getForegroundPackage(usm)
+                        if (detectedForeground != null) {
+                            currentActiveForegroundPackage = detectedForeground
+                        }
 
-                        if (currentForeground != null && currentForeground != packageName) {
-                            val matchingRule = BlockRepository.getActiveRuleForApp(currentForeground)
+                        val activeApp = currentActiveForegroundPackage
+                        if (activeApp != null && activeApp != packageName) {
+                            val matchingRule = BlockRepository.getActiveRuleForApp(activeApp)
 
                             if (matchingRule != null) {
-                                if (lastInterceptedPackage != currentForeground) {
-                                    lastInterceptedPackage = currentForeground
-                                    Log.i(TAG, "🚨 BLOCKED APP DETECTED: '$currentForeground' | Rule: '${matchingRule.name}'")
+                                if (lastInterceptedPackage != activeApp) {
+                                    lastInterceptedPackage = activeApp
+                                    Log.i(TAG, "🚨 BLOCKED APP DETECTED: '$activeApp' | Rule: '${matchingRule.name}'")
 
                                     val customQuote = if (matchingRule.wallConfig is WallConfig.StandardQuote) {
                                         (matchingRule.wallConfig as WallConfig.StandardQuote).quote
@@ -113,13 +141,15 @@ class AppBlockerService : Service() {
                                     val delaySec = matchingRule.blockDurationSeconds
 
                                     executeBlockTakeover(
-                                        targetPackage = currentForeground,
+                                        targetPackage = activeApp,
                                         quote = customQuote,
                                         delaySeconds = delaySec
                                     )
                                 }
                             } else {
-                                lastInterceptedPackage = null
+                                if (lastInterceptedPackage == activeApp) {
+                                    lastInterceptedPackage = null
+                                }
                             }
                         }
                     } else {
@@ -149,12 +179,21 @@ class AppBlockerService : Service() {
 
         var latestTime = 0L
         var latestApp: String? = null
-
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             if ((event.eventType == UsageEvents.Event.ACTIVITY_RESUMED || event.eventType == 1) && event.timeStamp >= latestTime) {
                 latestTime = event.timeStamp
                 latestApp = event.packageName
+            }
+        }
+
+        if (latestApp == null) {
+            val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 60_000L, now)
+            if (!stats.isNullOrEmpty()) {
+                val mostRecent = stats.filter { it.packageName != packageName }.maxByOrNull { it.lastTimeUsed }
+                if (mostRecent != null && (now - mostRecent.lastTimeUsed) < 15_000L) {
+                    latestApp = mostRecent.packageName
+                }
             }
         }
 
@@ -260,11 +299,4 @@ class AppBlockerService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
-
-    override fun onDestroy() {
-        super.onDestroy()
-        Log.w(TAG, "AppBlockerService onDestroy")
-        isRunning.set(false)
-        serviceScope.cancel()
-    }
 }

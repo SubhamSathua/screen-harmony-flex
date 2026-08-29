@@ -66,7 +66,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
         }
 
         // 2. Check if browser URL needs to be blocked
-        if (browserUrlBarIds.containsKey(packageName)) {
+        if (browserUrlBarIds.containsKey(packageName) || browserPackages.contains(packageName)) {
             checkAndBlockWebsite(packageName)
         }
 
@@ -116,37 +116,86 @@ class WebsiteAccessibilityService : AccessibilityService() {
         return false
     }
 
+    private val browserPackages = setOf(
+        "com.android.chrome",
+        "org.mozilla.firefox",
+        "com.opera.browser",
+        "com.sec.android.app.sbrowser",
+        "com.microsoft.emmx",
+        "com.brave.browser",
+        "com.duckduckgo.mobile.android",
+        "com.google.android.apps.chrome"
+    )
+
     private fun checkAndBlockWebsite(packageName: String) {
         val rootNode = rootInActiveWindow ?: return
+
+        // 1. Check URL Bar Node directly
+        var detectedMatch: Pair<com.prism.screenharmony.flex.data.BlockRule, String>? = null
         val urlNode = findUrlNode(rootNode, browserUrlBarIds[packageName])
 
         if (urlNode != null) {
             val currentUrl = urlNode.text?.toString() ?: ""
             if (currentUrl.isNotBlank()) {
-                val match = BlockRepository.getActiveRuleForWebsite(currentUrl)
-                if (match != null) {
-                    val (rule, domain) = match
-                    if (lastBlockedUrl != domain) {
-                        lastBlockedUrl = domain
-                        Log.i(TAG, "🚨 ACCESSIBILITY: Blocked website '$domain' in '$packageName'")
-
-                        val customQuote = if (rule.wallConfig is WallConfig.StandardQuote) {
-                            (rule.wallConfig as WallConfig.StandardQuote).quote
-                        } else null
-
-                        val delaySec = rule.blockDurationSeconds
-
-                        redirectAndBlock(urlNode, domain, customQuote, delaySec)
-                    }
-                } else {
-                    lastBlockedUrl = null
-                    urlNode.recycle()
-                }
-            } else {
-                urlNode.recycle()
+                detectedMatch = BlockRepository.getActiveRuleForWebsite(currentUrl)
             }
         }
+
+        // 2. Fallback: Deep scan browser text & descriptions if URL bar didn't match
+        if (detectedMatch == null) {
+            detectedMatch = scanNodeForBlockedWebsite(rootNode)
+        }
+
+        if (detectedMatch != null) {
+            val (rule, domain) = detectedMatch
+            if (lastBlockedUrl != domain) {
+                lastBlockedUrl = domain
+                Log.i(TAG, "🚨 ACCESSIBILITY: Blocked website '$domain' in '$packageName'")
+
+                val customQuote = if (rule.wallConfig is WallConfig.StandardQuote) {
+                    (rule.wallConfig as WallConfig.StandardQuote).quote
+                } else null
+
+                val delaySec = rule.blockDurationSeconds
+
+                // Perform global home action to drop browser to background & launch Wall
+                performGlobalAction(GLOBAL_ACTION_HOME)
+                launchBlockWall(target = domain, isWebsite = true, quote = customQuote, delaySeconds = delaySec)
+
+                serviceScope.launch {
+                    kotlinx.coroutines.delay(2000)
+                    lastBlockedUrl = null
+                }
+            }
+        } else {
+            lastBlockedUrl = null
+        }
+
+        urlNode?.recycle()
         rootNode.recycle()
+    }
+
+    private fun scanNodeForBlockedWebsite(node: AccessibilityNodeInfo?): Pair<com.prism.screenharmony.flex.data.BlockRule, String>? {
+        if (node == null) return null
+        val text = node.text?.toString() ?: ""
+        val desc = node.contentDescription?.toString() ?: ""
+
+        if (text.isNotBlank()) {
+            val match = BlockRepository.getActiveRuleForWebsite(text)
+            if (match != null) return match
+        }
+        if (desc.isNotBlank()) {
+            val match = BlockRepository.getActiveRuleForWebsite(desc)
+            if (match != null) return match
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val found = scanNodeForBlockedWebsite(child)
+            child.recycle()
+            if (found != null) return found
+        }
+        return null
     }
 
     private fun findUrlNode(root: AccessibilityNodeInfo, targetId: String?): AccessibilityNodeInfo? {
@@ -178,20 +227,6 @@ class WebsiteAccessibilityService : AccessibilityService() {
             child.recycle()
         }
         return null
-    }
-
-    private fun redirectAndBlock(
-        urlNode: AccessibilityNodeInfo,
-        blockedDomain: String,
-        quote: String?,
-        delaySeconds: Int
-    ) {
-        val arguments = Bundle()
-        arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "about:blank")
-        urlNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
-        urlNode.recycle()
-
-        launchBlockWall(target = blockedDomain, isWebsite = true, quote = quote, delaySeconds = delaySeconds)
     }
 
     private fun launchBlockWall(

@@ -76,16 +76,21 @@ class BlockedActivity : ComponentActivity() {
             Pair(target, null)
         }
 
+        val sessionKey = System.currentTimeMillis()
+
         setContent {
             ScreenHarmonyFlexTheme {
-                BlockWallScreen(
-                    appName = displayName,
-                    appIcon = appIcon,
-                    isWebsite = isWebsite,
-                    customQuote = customQuote,
-                    delaySeconds = delaySeconds,
-                    onClose = { goHome() }
-                )
+                androidx.compose.runtime.key(sessionKey) {
+                    BlockWallScreen(
+                        appName = displayName,
+                        appIcon = appIcon,
+                        isWebsite = isWebsite,
+                        customQuote = customQuote,
+                        delaySeconds = delaySeconds,
+                        sessionKey = sessionKey,
+                        onClose = { goHome() }
+                    )
+                }
             }
         }
     }
@@ -124,23 +129,25 @@ fun BlockWallScreen(
     isWebsite: Boolean,
     customQuote: String?,
     delaySeconds: Int,
+    sessionKey: Long = 0L,
     onClose: () -> Unit
 ) {
     androidx.activity.compose.BackHandler {
         onClose()
     }
 
-    val quoteItem = remember {
+    val quoteItem = remember(sessionKey) {
         if (customQuote != null) com.prism.screenharmony.flex.data.QuoteItem(customQuote, "")
         else com.prism.screenharmony.flex.data.QuoteProvider.getRandomQuote()
     }
 
     val totalWaitTime = (delaySeconds * 1000L).coerceAtLeast(0L)
-    val progressAnimatable = remember { Animatable(if (totalWaitTime == 0L) 1f else 0f) }
-    var timeLeft by remember { mutableIntStateOf(delaySeconds) }
+    val progressAnimatable = remember(sessionKey) { Animatable(if (totalWaitTime == 0L) 1f else 0f) }
+    var timeLeft by remember(sessionKey) { mutableIntStateOf(delaySeconds) }
 
-    LaunchedEffect(delaySeconds) {
+    LaunchedEffect(sessionKey) {
         if (totalWaitTime > 0L) {
+            progressAnimatable.snapTo(0f)
             progressAnimatable.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(durationMillis = totalWaitTime.toInt(), easing = LinearEasing)
@@ -148,7 +155,7 @@ fun BlockWallScreen(
         }
     }
 
-    LaunchedEffect(delaySeconds) {
+    LaunchedEffect(sessionKey) {
         if (delaySeconds > 0) {
             for (i in delaySeconds downTo 0) {
                 timeLeft = i

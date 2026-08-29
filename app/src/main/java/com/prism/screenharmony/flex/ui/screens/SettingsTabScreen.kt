@@ -394,7 +394,34 @@ fun SettingsTabScreen(
 
                 ItemDivider()
 
-                // 4. Accessibility
+                // 4. Exact Alarms & Watchdog
+                GroupedItemRow(
+                    icon = Icons.Rounded.Alarm,
+                    title = "Alarms & Reminders",
+                    subtitle = if (permissionState.isExactAlarmGranted) "Active • Wakes up blocker reliably" else "Crucial • Resumes blocking after device kill"
+                ) {
+                    if (permissionState.isExactAlarmGranted) {
+                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                            Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { PermissionHelper.openExactAlarmSettings(context) },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text("Grant", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                ItemDivider()
+
+                // 5. Accessibility
                 GroupedItemRow(
                     icon = Icons.Rounded.Language,
                     title = "Accessibility (Websites)",

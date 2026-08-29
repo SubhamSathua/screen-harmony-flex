@@ -156,7 +156,8 @@ object BlockRepository {
         if (changed) {
             _rules.value = updated
             saveToDisk(updated)
-            Log.i(TAG, "cleanExpiredPauses: Expired paused blocks reactivated")
+            com.prism.screenharmony.flex.service.AppBlockerService.resetInterceptState()
+            Log.i(TAG, "cleanExpiredPauses: Expired paused blocks reactivated and intercept reset")
         }
     }
 

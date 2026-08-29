@@ -41,9 +41,10 @@ data class PermissionState(
     val isUsageGranted: Boolean = true,
     val isOverlayGranted: Boolean = true,
     val isBatteryIgnored: Boolean = true,
+    val isExactAlarmGranted: Boolean = true,
     val isAccessibilityGranted: Boolean = false
 ) {
-    val hasCrucialPermissions: Boolean get() = isUsageGranted && isOverlayGranted
+    val hasCrucialPermissions: Boolean get() = isUsageGranted && isOverlayGranted && isBatteryIgnored
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -115,12 +116,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val usage = PermissionHelper.isUsageAccessGranted(context)
             val overlay = PermissionHelper.isOverlayGranted(context)
             val battery = PermissionHelper.isBatteryOptimizationIgnored(context)
+            val exactAlarm = PermissionHelper.isExactAlarmGranted(context)
             val accessibility = PermissionHelper.isAccessibilityGranted(context)
             withContext(Dispatchers.Main) {
                 _permissionState.value = PermissionState(
                     isUsageGranted = usage,
                     isOverlayGranted = overlay,
                     isBatteryIgnored = battery,
+                    isExactAlarmGranted = exactAlarm,
                     isAccessibilityGranted = accessibility
                 )
             }

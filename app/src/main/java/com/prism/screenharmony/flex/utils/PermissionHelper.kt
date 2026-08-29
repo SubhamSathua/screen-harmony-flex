@@ -146,6 +146,39 @@ object PermissionHelper {
         }
         context.startActivity(intent)
     }
+    /**
+     * Checks if Exact Alarm permission is granted.
+     * CRUCIAL: Allows watchdog alarms to wake up the app and enforce blocks even after force stop/kill.
+     */
+    fun isExactAlarmGranted(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? android.app.AlarmManager
+            return alarmManager?.canScheduleExactAlarms() ?: true
+        }
+        return true
+    }
+
+    fun openExactAlarmSettings(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                openAppSettings(context)
+            }
+        }
+    }
+
+    private fun openAppSettings(context: Context) {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:${context.packageName}")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    }
 
     fun getAllPermissions(context: Context): List<PermissionItem> {
         return listOf(
@@ -172,6 +205,14 @@ object PermissionHelper {
                 isGranted = isBatteryOptimizationIgnored(context),
                 isCrucialForBackground = true,
                 onGrant = { openBatteryOptimizationSettings(it) }
+            ),
+            PermissionItem(
+                id = "alarm",
+                name = "Alarms & Reminders",
+                description = "Wakes up and resumes block enforcement reliably",
+                isGranted = isExactAlarmGranted(context),
+                isCrucialForBackground = true,
+                onGrant = { openExactAlarmSettings(it) }
             ),
             PermissionItem(
                 id = "accessibility",
