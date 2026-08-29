@@ -458,17 +458,7 @@ fun DelayPauseWarningDialog(
     onConfirm: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val quotes = remember {
-        listOf(
-            "Almost everything will work again if you unplug it for a few minutes, including you.",
-            "Discipline is choosing between what you want now and what you want most.",
-            "Focus is a muscle. The more you practice, the stronger it gets.",
-            "You will never regret the time you spent focusing on your goals.",
-            "Your future self is watching you right now through your choices.",
-            "Small disciplines repeated with consistency every day lead to great achievements."
-        )
-    }
-    val quote = remember { quotes.random() }
+    val quoteItem = remember { com.prism.screenharmony.flex.data.QuoteProvider.getRandomQuote() }
 
     var timeLeft by remember { mutableIntStateOf(durationSeconds) }
     val progressAnimatable = remember { Animatable(0f) }
@@ -554,7 +544,7 @@ fun DelayPauseWarningDialog(
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = quote,
+                                text = "\"${quoteItem.quote}\"",
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     fontFamily = com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily,
                                     fontWeight = FontWeight.Bold,
@@ -564,6 +554,15 @@ fun DelayPauseWarningDialog(
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
+                            if (quoteItem.author.isNotEmpty() && quoteItem.author != "Unknown") {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "— ${quoteItem.author}",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
 
@@ -758,16 +757,7 @@ fun DelayToggleWarningDialog(
                 )
 
                 // Quote Card
-                val quotes = remember {
-                    listOf(
-                        "Almost everything will work again if you unplug it for a few minutes, including you.",
-                        "Discipline is choosing between what you want now and what you want most.",
-                        "Focus is a muscle. The more you practice, the stronger it gets.",
-                        "You will never regret the time you spent focusing on your goals.",
-                        "Your future self is watching you right now through your choices."
-                    )
-                }
-                val quote = remember { quotes.random() }
+                val quoteItem = remember { com.prism.screenharmony.flex.data.QuoteProvider.getRandomQuote() }
                 Card(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
@@ -787,7 +777,7 @@ fun DelayToggleWarningDialog(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = quote,
+                            text = "\"${quoteItem.quote}\"",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontFamily = com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily,
                                 fontWeight = FontWeight.Bold,
@@ -797,6 +787,15 @@ fun DelayToggleWarningDialog(
                             textAlign = TextAlign.Center,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
+                        if (quoteItem.author.isNotEmpty() && quoteItem.author != "Unknown") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "— ${quoteItem.author}",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
 
@@ -855,6 +854,7 @@ fun ActiveBlockActionDialog(
     onDismiss: () -> Unit
 ) {
     var timeLeft by remember { mutableIntStateOf(5) }
+    val quoteItem = remember { com.prism.screenharmony.flex.data.QuoteProvider.getRandomQuote() }
 
     LaunchedEffect(Unit) {
         while (timeLeft > 0) {
@@ -900,7 +900,7 @@ fun ActiveBlockActionDialog(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Discipline is choosing between what you want now and what you want most.",
+                            text = "\"${quoteItem.quote}\"",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontFamily = com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily,
                                 fontWeight = FontWeight.Bold,
@@ -910,6 +910,15 @@ fun ActiveBlockActionDialog(
                             textAlign = TextAlign.Center,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
+                        if (quoteItem.author.isNotEmpty() && quoteItem.author != "Unknown") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "— ${quoteItem.author}",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
 

@@ -126,19 +126,10 @@ fun BlockWallScreen(
     delaySeconds: Int,
     onClose: () -> Unit
 ) {
-    val quotes = remember {
-        listOf(
-            "Focus on what matters. This app doesn't.",
-            "Your future self will thank you for closing this.",
-            "Is this really how you want to spend your time?",
-            "One step closer to your goals if you stop now.",
-            "Breathe. Reset. Do something meaningful.",
-            "The secret of getting ahead is getting started.",
-            "Don't watch the clock; do what it does. Keep going.",
-            "Action is the foundational key to all success."
-        )
+    val quoteItem = remember {
+        if (customQuote != null) com.prism.screenharmony.flex.data.QuoteItem(customQuote, "")
+        else com.prism.screenharmony.flex.data.QuoteProvider.getRandomQuote()
     }
-    val quote = remember { customQuote ?: quotes.random() }
 
     val totalWaitTime = (delaySeconds * 1000L).coerceAtLeast(0L)
     val progressAnimatable = remember { Animatable(if (totalWaitTime == 0L) 1f else 0f) }
@@ -246,15 +237,26 @@ fun BlockWallScreen(
                     )
                     Spacer(modifier = Modifier.height(20.dp))
                     Text(
-                        text = quote,
+                        text = "\"${quoteItem.quote}\"",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontFamily = com.prism.screenharmony.flex.ui.theme.PlayfairFontFamily,
-                            lineHeight = 38.sp,
+                            lineHeight = 36.sp,
                             fontWeight = FontWeight.Bold
                         ),
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
+                    if (quoteItem.author.isNotEmpty() && quoteItem.author != "Unknown") {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = "— ${quoteItem.author}",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
 
