@@ -4,9 +4,14 @@ import android.app.Activity
 import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -20,11 +25,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -39,6 +52,63 @@ fun SecureFlagEffect() {
             window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
     }
+}
+
+/**
+ * Material 3 Expressive 4-sided rounded star shape
+ */
+val ExpressiveStarShape = object : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val path = Path().apply {
+            val cx = size.width / 2f
+            val cy = size.height / 2f
+            val r = minOf(cx, cy)
+            val pinch = r * 0.28f // curve pinch factor for organic curved star
+
+            moveTo(cx, cy - r)
+            cubicTo(cx, cy - pinch, cx + pinch, cy, cx + r, cy)
+            cubicTo(cx + pinch, cy, cx, cy + pinch, cx, cy + r)
+            cubicTo(cx, cy + pinch, cx - pinch, cy, cx - r, cy)
+            cubicTo(cx - pinch, cy, cx, cy - pinch, cx, cy - r)
+            close()
+        }
+        return Outline.Generic(path)
+    }
+}
+
+@Composable
+fun ExpressiveStarDot(
+    isError: Boolean,
+    size: Dp = 20.dp
+) {
+    var isEntered by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        isEntered = true
+    }
+
+    val scale by animateFloatAsState(
+        targetValue = if (isEntered) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = 600f),
+        label = "StarScale"
+    )
+
+    val rotation by animateFloatAsState(
+        targetValue = if (isEntered) 0f else -45f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = 450f),
+        label = "StarRotation"
+    )
+
+    val color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+
+    Surface(
+        shape = ExpressiveStarShape,
+        color = color,
+        modifier = Modifier
+            .size(size)
+            .scale(scale)
+            .rotate(rotation)
+    ) {}
 }
 
 @Composable
@@ -80,7 +150,7 @@ fun PinDotsDisplay(
     ) {
         Box(
             modifier = Modifier
-                .height(28.dp)
+                .height(36.dp)
                 .padding(vertical = 4.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -90,14 +160,12 @@ fun PinDotsDisplay(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     for (i in 0 until pinLength) {
-                        val dotColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                        Surface(
-                            shape = CircleShape,
-                            color = dotColor,
-                            modifier = Modifier
-                                .size(14.dp)
-                                .scale(1.05f)
-                        ) {}
+                        key(i) {
+                            ExpressiveStarDot(
+                                isError = isError,
+                                size = 22.dp
+                            )
+                        }
                     }
                 }
             }
