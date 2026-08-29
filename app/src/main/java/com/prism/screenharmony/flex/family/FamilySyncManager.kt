@@ -312,8 +312,10 @@ object FamilySyncManager {
                             val statusSnap = childSnap.child("status")
                             val rulesSnap = childSnap.child("rules")
                             val screenTimeSnap = childSnap.child("screenTime")
+                            val unlinkSnap = childSnap.child("unlinkRequest")
 
                             val deviceName = infoSnap.child("deviceName").getValue(String::class.java) ?: "Child Device"
+                            val customName = infoSnap.child("customName").getValue(String::class.java) ?: ""
                             val model = infoSnap.child("model").getValue(String::class.java) ?: ""
                             val androidVersion = infoSnap.child("androidVersion").getValue(String::class.java) ?: ""
                             val batteryLevel = (infoSnap.child("batteryLevel").getValue(Long::class.java) ?: 100L).toInt()
@@ -325,10 +327,15 @@ object FamilySyncManager {
                             val rulesCount = rulesSnap.childrenCount.toInt()
                             val screenTimeMinutes = screenTimeSnap.child("todayMinutes").getValue(Long::class.java) ?: 0L
 
+                            val unlinkRequested = unlinkSnap.child("requested").getValue(Boolean::class.java) ?: false
+                            val unlinkRequestedAt = unlinkSnap.child("requestedAt").getValue(Long::class.java) ?: 0L
+                            val unlinkReason = unlinkSnap.child("reason").getValue(String::class.java) ?: ""
+
                             devices.add(
                                 RemoteChildDevice(
                                     deviceId = deviceId,
                                     deviceName = deviceName,
+                                    customName = customName,
                                     model = model,
                                     androidVersion = androidVersion,
                                     batteryLevel = batteryLevel,
@@ -338,7 +345,10 @@ object FamilySyncManager {
                                     lastSeen = lastSeen,
                                     isLocked = isLocked,
                                     rulesCount = rulesCount,
-                                    screenTimeMinutes = screenTimeMinutes
+                                    screenTimeMinutes = screenTimeMinutes,
+                                    unlinkRequested = unlinkRequested,
+                                    unlinkRequestedAt = unlinkRequestedAt,
+                                    unlinkReason = unlinkReason
                                 )
                             )
                         }
@@ -405,7 +415,18 @@ object FamilySyncManager {
                 rulesListener = ruleListListener
                 db.getReference("families/${profile.familyId}/devices/$deviceId/rules").addValueEventListener(ruleListListener)
 
-                // 2. Child telemetry loop (Heartbeat, battery, active app)
+                // 2. Listen for Device Removal by Parent
+                db.getReference("families/${profile.familyId}/devices/$deviceId").addValueEventListener(object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        if (!snapshot.exists() && _familyProfile.value.role == FamilyRole.CHILD) {
+                            Log.w(TAG, "Child device was removed by Parent. Unlinking...")
+                            unlinkFamily(context)
+                        }
+                    }
+                    override fun onCancelled(error: DatabaseError) {}
+                })
+
+                // 3. Child telemetry loop (Heartbeat, battery, active app)
                 scope.launch {
                     while (isActive) {
                         try {
@@ -454,8 +475,72 @@ object FamilySyncManager {
     }
 
     // =========================================================================
+    // CHILD UNLINK REQUEST
+    // =========================================================================
+
+    fun requestUnlinkFromChild(context: Context, reason: String = "", onComplete: (Boolean) -> Unit) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.CHILD || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+            val deviceId = getDeviceId(context)
+
+            val requestData = mapOf(
+                "requested" to true,
+                "requestedAt" to ServerValue.TIMESTAMP,
+                "reason" to reason
+            )
+
+            db.getReference("families/${profile.familyId}/devices/$deviceId/unlinkRequest")
+                .setValue(requestData)
+                .addOnSuccessListener { onComplete(true) }
+                .addOnFailureListener { onComplete(false) }
+        }
+    }
+
+    fun cancelUnlinkRequestFromChild(context: Context, onComplete: (Boolean) -> Unit) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.CHILD || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+            val deviceId = getDeviceId(context)
+
+            db.getReference("families/${profile.familyId}/devices/$deviceId/unlinkRequest")
+                .removeValue()
+                .addOnSuccessListener { onComplete(true) }
+                .addOnFailureListener { onComplete(false) }
+        }
+    }
+
+    // =========================================================================
     // PARENT REMOTE COMMANDS
     // =========================================================================
+
+    fun renameChildDevice(childDeviceId: String, customName: String, onComplete: (Boolean) -> Unit = {}) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+
+            db.getReference("families/${profile.familyId}/devices/$childDeviceId/info/customName")
+                .setValue(customName.trim())
+                .addOnSuccessListener { onComplete(true) }
+                .addOnFailureListener { onComplete(false) }
+        }
+    }
+
+    fun removeAndUnlinkChildDevice(childDeviceId: String, onComplete: (Boolean) -> Unit = {}) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+
+            db.getReference("families/${profile.familyId}/devices/$childDeviceId")
+                .removeValue()
+                .addOnSuccessListener { onComplete(true) }
+                .addOnFailureListener { onComplete(false) }
+        }
+    }
 
     fun toggleRemoteLock(childDeviceId: String, lock: Boolean) {
         ensureAuth {

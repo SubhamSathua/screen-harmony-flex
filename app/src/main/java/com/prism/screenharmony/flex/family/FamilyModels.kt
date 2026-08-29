@@ -18,6 +18,7 @@ data class FamilyProfile(
 data class RemoteChildDevice(
     val deviceId: String = "",
     val deviceName: String = "Child Phone",
+    val customName: String = "",
     val model: String = "",
     val androidVersion: String = "",
     val batteryLevel: Int = 100,
@@ -27,8 +28,14 @@ data class RemoteChildDevice(
     val lastSeen: Long = 0L,
     val isLocked: Boolean = false,
     val rulesCount: Int = 0,
-    val screenTimeMinutes: Long = 0L
+    val screenTimeMinutes: Long = 0L,
+    val unlinkRequested: Boolean = false,
+    val unlinkRequestedAt: Long = 0L,
+    val unlinkReason: String = ""
 ) {
+    val displayName: String
+        get() = customName.ifBlank { deviceName }
+
     val isOnline: Boolean
         get() = (System.currentTimeMillis() - lastSeen) < 120_000L // Active in last 2 minutes
 }
