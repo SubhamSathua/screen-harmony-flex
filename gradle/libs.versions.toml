@@ -29,6 +29,7 @@ androidx-compose-material-icons-extended = { group = "androidx.compose.material"
 androidx-compose-ui-text-google-fonts = { group = "androidx.compose.ui", name = "ui-text-google-fonts" }
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version = "1.2.0-alpha05" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version = "1.7.0" }
+androidx-graphics-shapes = { group = "androidx.graphics", name = "graphics-shapes", version = "1.0.1" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

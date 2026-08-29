@@ -1,11 +1,9 @@
 package com.prism.screenharmony.flex.ui.components
 
 import android.app.Activity
+import android.graphics.Matrix
 import android.view.WindowManager
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.keyframes
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -20,15 +18,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.graphics.shapes.CornerRounding
+import androidx.graphics.shapes.Morph
+import androidx.graphics.shapes.RoundedPolygon
+import androidx.graphics.shapes.circle
+import androidx.graphics.shapes.star
+import androidx.graphics.shapes.toPath
 import kotlinx.coroutines.launch
 
 @Composable
@@ -44,40 +47,80 @@ fun SecureFlagEffect() {
 }
 
 /**
- * Material 3 Expressive Shape Morphing Dot:
- * Continuously morphs from a Circle (progress = 0) -> Squircle -> 4-Sided Rounded Star (progress = 1)
- * via cubic Bézier control point interpolation with spring dynamics.
+ * Material 3 Shape-Morphing Dot powered by official androidx.graphics.shapes:
+ * Sequence: Sunny (Starburst) -> Pentagon -> Arrow -> Circle -> Sunny
  */
 @Composable
-fun ExpressiveMorphingStarDot(
+fun M3ShapeMorphingDot(
+    index: Int,
     isError: Boolean,
-    size: Dp = 22.dp
+    size: Dp = 24.dp
 ) {
-    var isEntered by remember { mutableStateOf(false) }
+    // 1. Define the 4 target Material 3 polygons (normalized unit coordinate space)
+    val sunnyShape = remember {
+        RoundedPolygon.star(
+            numVerticesPerRadius = 8,
+            innerRadius = 0.65f,
+            rounding = CornerRounding(radius = 0.15f)
+        )
+    }
 
+    val pentagonShape = remember {
+        RoundedPolygon(
+            numVertices = 5,
+            rounding = CornerRounding(radius = 0.2f)
+        )
+    }
+
+    val arrowShape = remember {
+        val vertices = floatArrayOf(
+            0f, -1f,      // Top tip
+            0.9f, 0.4f,   // Right wing tip
+            0.35f, 0.3f,  // Right inner notch
+            0.35f, 1f,    // Right stem base
+            -0.35f, 1f,   // Left stem base
+            -0.35f, 0.3f, // Left inner notch
+            -0.9f, 0.4f   // Left wing tip
+        )
+        RoundedPolygon(
+            vertices = vertices,
+            rounding = CornerRounding(radius = 0.15f)
+        )
+    }
+
+    val circleShape = remember {
+        RoundedPolygon.circle(
+            numVertices = 12
+        )
+    }
+
+    // 2. Official AndroidX Morphs between adjacent stages
+    val morphSunnyToPentagon = remember { Morph(sunnyShape, pentagonShape) }
+    val morphPentagonToArrow = remember { Morph(pentagonShape, arrowShape) }
+    val morphArrowToCircle   = remember { Morph(arrowShape, circleShape) }
+    val morphCircleToSunny   = remember { Morph(circleShape, sunnyShape) }
+
+    // 3. Continuous smooth morph sequence (Sunny -> Pentagon -> Arrow -> Circle)
+    val infiniteTransition = rememberInfiniteTransition(label = "ShapeMorphSequence")
+    val totalProgress = infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "MorphProgress"
+    )
+
+    var isEntered by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         isEntered = true
     }
 
-    // Morph progress: 0f (Circle) -> 1f (4-Sided Expressive Star)
-    val morphProgress by animateFloatAsState(
+    val entranceScale by animateFloatAsState(
         targetValue = if (isEntered) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.52f, stiffness = 520f),
-        label = "ShapeMorphProgress"
-    )
-
-    // Bouncy scale entrance
-    val scale by animateFloatAsState(
-        targetValue = if (isEntered) 1f else 0.2f,
         animationSpec = spring(dampingRatio = 0.55f, stiffness = 600f),
-        label = "StarScale"
-    )
-
-    // Dynamic rotational entrance
-    val rotation by animateFloatAsState(
-        targetValue = if (isEntered) 0f else -45f,
-        animationSpec = spring(dampingRatio = 0.65f, stiffness = 450f),
-        label = "StarRotation"
+        label = "DotEntranceScale"
     )
 
     val color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
@@ -85,62 +128,36 @@ fun ExpressiveMorphingStarDot(
     Canvas(
         modifier = Modifier
             .size(size)
-            .scale(scale)
-            .rotate(rotation)
+            .scale(entranceScale)
     ) {
-        val w = this.size.width
-        val h = this.size.height
-        val cx = w / 2f
-        val cy = h / 2f
-        val r = minOf(w, h) / 2f
+        // Offset starting phase based on dot index for visual rhythm
+        val progress = (totalProgress.value + (index * 1.0f)) % 4f
+        val segmentIndex = progress.toInt().coerceIn(0, 3)
+        val segmentFraction = progress - segmentIndex
 
-        // Circle cubic handle constant
-        val kCircle = 0.55228475f * r
-        // Star inner pinch control coordinate
-        val kStar = 0.26f * r
-
-        // Interpolate control handles between Circle (t=0) and Expressive Star (t=1)
-        val t = morphProgress.coerceIn(0f, 1f)
-
-        // Curve 1: Top (0, -r) to Right (r, 0)
-        val cp1x_c1 = lerp(cx + kCircle, cx, t)
-        val cp1y_c1 = lerp(cy - r, cy - kStar, t)
-        val cp2x_c1 = lerp(cx + r, cx + kStar, t)
-        val cp2y_c1 = lerp(cy - kCircle, cy, t)
-
-        // Curve 2: Right (r, 0) to Bottom (0, r)
-        val cp1x_c2 = lerp(cx + r, cx + kStar, t)
-        val cp1y_c2 = lerp(cy + kCircle, cy, t)
-        val cp2x_c2 = lerp(cx + kCircle, cx, t)
-        val cp2y_c2 = lerp(cy + r, cy + kStar, t)
-
-        // Curve 3: Bottom (0, r) to Left (-r, 0)
-        val cp1x_c3 = lerp(cx - kCircle, cx, t)
-        val cp1y_c3 = lerp(cy + r, cy + kStar, t)
-        val cp2x_c3 = lerp(cx - r, cx - kStar, t)
-        val cp2y_c3 = lerp(cy + kCircle, cy, t)
-
-        // Curve 4: Left (-r, 0) to Top (0, -r)
-        val cp1x_c4 = lerp(cx - r, cx - kStar, t)
-        val cp1y_c4 = lerp(cy - kCircle, cy, t)
-        val cp2x_c4 = lerp(cx - kCircle, cx, t)
-        val cp2y_c4 = lerp(cy - r, cy - kStar, t)
-
-        val path = Path().apply {
-            moveTo(cx, cy - r)
-            cubicTo(cp1x_c1, cp1y_c1, cp2x_c1, cp2y_c1, cx + r, cy)
-            cubicTo(cp1x_c2, cp1y_c2, cp2x_c2, cp2y_c2, cx, cy + r)
-            cubicTo(cp1x_c3, cp1y_c3, cp2x_c3, cp2y_c3, cx - r, cy)
-            cubicTo(cp1x_c4, cp1y_c4, cp2x_c4, cp2y_c4, cx, cy - r)
-            close()
+        val currentMorph = when (segmentIndex) {
+            0 -> morphSunnyToPentagon
+            1 -> morphPentagonToArrow
+            2 -> morphArrowToCircle
+            else -> morphCircleToSunny
         }
 
-        drawPath(path = path, color = color)
-    }
-}
+        // Convert to Android graphics Path at evaluated progress fraction
+        val androidPath = currentMorph.toPath(progress = segmentFraction)
 
-private fun lerp(start: Float, stop: Float, fraction: Float): Float {
-    return start + (stop - start) * fraction
+        // Scale and center the unit path inside Canvas bounds
+        val matrix = Matrix()
+        val minDimension = this.size.minDimension
+        matrix.postScale(minDimension / 2.2f, minDimension / 2.2f)
+        matrix.postTranslate(this.size.width / 2f, this.size.height / 2f)
+        androidPath.transform(matrix)
+
+        // Draw natively on Compose Canvas
+        drawPath(
+            path = androidPath.asComposePath(),
+            color = color
+        )
+    }
 }
 
 @Composable
@@ -182,7 +199,7 @@ fun PinDotsDisplay(
     ) {
         Box(
             modifier = Modifier
-                .height(36.dp)
+                .height(38.dp)
                 .padding(vertical = 4.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -193,9 +210,10 @@ fun PinDotsDisplay(
                 ) {
                     for (i in 0 until pinLength) {
                         key(i) {
-                            ExpressiveMorphingStarDot(
+                            M3ShapeMorphingDot(
+                                index = i,
                                 isError = isError,
-                                size = 22.dp
+                                size = 24.dp
                             )
                         }
                     }
