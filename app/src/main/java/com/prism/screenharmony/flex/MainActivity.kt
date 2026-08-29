@@ -163,21 +163,22 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                                                     )
                                                 }
                                             }
-                                        },
-                                        actions = {
-                                            FilledTonalButton(
-                                                onClick = { viewModel.openCreateRule() },
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.filledTonalButtonColors(
-                                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                                ),
-                                                modifier = Modifier.padding(end = 8.dp)
-                                            ) {
-                                                Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Add Block", fontWeight = FontWeight.Bold)
-                                            }
+                                        }
+                                    )
+                                },
+                                floatingActionButton = {
+                                    ExtendedFloatingActionButton(
+                                        onClick = { viewModel.openCreateRule() },
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                                        shape = RoundedCornerShape(20.dp),
+                                        icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                                        text = {
+                                            Text(
+                                                text = "Create a Block",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
                                     )
                                 }
