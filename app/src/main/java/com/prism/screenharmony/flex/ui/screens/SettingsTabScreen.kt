@@ -226,117 +226,119 @@ fun SettingsTabScreen(
             }
 
             // =========================================================
-            // 2. PARENTAL CONTROLS SECTION
+            // 2. PARENTAL CONTROLS SECTION (PARENT DEVICE ONLY)
             // =========================================================
-            SectionHeader(title = "Parental Controls")
+            if (familyProfile.role == FamilyRole.PARENT) {
+                SectionHeader(title = "Parental Controls")
 
-            GroupedContainer {
-                // Parent / Family Display Name Customization
-                GroupedItemRow(
-                    icon = Icons.Rounded.FamilyRestroom,
-                    title = "Parent / Family Name",
-                    subtitle = familyProfile.familyName.ifBlank { "ScreenHarmony Family" },
-                    onClick = { showFamilyNameDialog = true }
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Edit,
-                        contentDescription = "Edit Name",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                ItemDivider()
-
-                // Unlink Device Password (Expandable with 4 radio options)
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { isUnlinkAuthExpanded = !isUnlinkAuthExpanded }
-                        .padding(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                GroupedContainer {
+                    // Parent / Family Display Name Customization
+                    GroupedItemRow(
+                        icon = Icons.Rounded.FamilyRestroom,
+                        title = "Parent / Family Name",
+                        subtitle = familyProfile.familyName.ifBlank { "ScreenHarmony Family" },
+                        onClick = { showFamilyNameDialog = true }
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Key,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Unlink Device Password", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(selectedUnlinkMode.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                        }
                         Icon(
-                            imageVector = if (isUnlinkAuthExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            imageVector = Icons.Rounded.Edit,
+                            contentDescription = "Edit Name",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
-                    AnimatedVisibility(
-                        visible = isUnlinkAuthExpanded,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            val isAppPinCreated = isAppLockEnabled
+                    ItemDivider()
 
-                            // 1. Same as app PIN (Show if app PIN is created)
-                            if (isAppPinCreated) {
+                    // Unlink Device Password (Expandable with 4 radio options)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { isUnlinkAuthExpanded = !isUnlinkAuthExpanded }
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Key,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Unlink Device Password", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text(selectedUnlinkMode.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            }
+                            Icon(
+                                imageVector = if (isUnlinkAuthExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        AnimatedVisibility(
+                            visible = isUnlinkAuthExpanded,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val isAppPinCreated = isAppLockEnabled
+
+                                // 1. Same as app PIN (Show if app PIN is created)
+                                if (isAppPinCreated) {
+                                    UnlinkAuthOptionRow(
+                                        mode = UnlinkAuthMode.APP_PIN,
+                                        isSelected = selectedUnlinkMode == UnlinkAuthMode.APP_PIN,
+                                        onClick = {
+                                            selectedUnlinkMode = UnlinkAuthMode.APP_PIN
+                                            ParentalAuthManager.setAuthMode(context, UnlinkAuthMode.APP_PIN)
+                                        }
+                                    )
+                                }
+
+                                // 2. Device pass/biometrics
                                 UnlinkAuthOptionRow(
-                                    mode = UnlinkAuthMode.APP_PIN,
-                                    isSelected = selectedUnlinkMode == UnlinkAuthMode.APP_PIN,
+                                    mode = UnlinkAuthMode.DEVICE_BIOMETRIC,
+                                    isSelected = selectedUnlinkMode == UnlinkAuthMode.DEVICE_BIOMETRIC,
                                     onClick = {
-                                        selectedUnlinkMode = UnlinkAuthMode.APP_PIN
-                                        ParentalAuthManager.setAuthMode(context, UnlinkAuthMode.APP_PIN)
+                                        selectedUnlinkMode = UnlinkAuthMode.DEVICE_BIOMETRIC
+                                        ParentalAuthManager.setAuthMode(context, UnlinkAuthMode.DEVICE_BIOMETRIC)
+                                    }
+                                )
+
+                                // 3. Custom (Opens pop up with 2 boxes: pin + verify)
+                                UnlinkAuthOptionRow(
+                                    mode = UnlinkAuthMode.CUSTOM_PIN,
+                                    isSelected = selectedUnlinkMode == UnlinkAuthMode.CUSTOM_PIN,
+                                    onClick = {
+                                        showCustomPinDialog = true
+                                    }
+                                )
+
+                                // 4. None
+                                UnlinkAuthOptionRow(
+                                    mode = UnlinkAuthMode.NONE,
+                                    isSelected = selectedUnlinkMode == UnlinkAuthMode.NONE,
+                                    onClick = {
+                                        selectedUnlinkMode = UnlinkAuthMode.NONE
+                                        ParentalAuthManager.setAuthMode(context, UnlinkAuthMode.NONE)
                                     }
                                 )
                             }
-
-                            // 2. Device pass/biometrics
-                            UnlinkAuthOptionRow(
-                                mode = UnlinkAuthMode.DEVICE_BIOMETRIC,
-                                isSelected = selectedUnlinkMode == UnlinkAuthMode.DEVICE_BIOMETRIC,
-                                onClick = {
-                                    selectedUnlinkMode = UnlinkAuthMode.DEVICE_BIOMETRIC
-                                    ParentalAuthManager.setAuthMode(context, UnlinkAuthMode.DEVICE_BIOMETRIC)
-                                }
-                            )
-
-                            // 3. Custom (Opens pop up with 2 boxes: pin + verify)
-                            UnlinkAuthOptionRow(
-                                mode = UnlinkAuthMode.CUSTOM_PIN,
-                                isSelected = selectedUnlinkMode == UnlinkAuthMode.CUSTOM_PIN,
-                                onClick = {
-                                    showCustomPinDialog = true
-                                }
-                            )
-
-                            // 4. None
-                            UnlinkAuthOptionRow(
-                                mode = UnlinkAuthMode.NONE,
-                                isSelected = selectedUnlinkMode == UnlinkAuthMode.NONE,
-                                onClick = {
-                                    selectedUnlinkMode = UnlinkAuthMode.NONE
-                                    ParentalAuthManager.setAuthMode(context, UnlinkAuthMode.NONE)
-                                }
-                            )
                         }
                     }
                 }
