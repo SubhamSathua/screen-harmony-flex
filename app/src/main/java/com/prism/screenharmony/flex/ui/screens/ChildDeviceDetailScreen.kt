@@ -614,15 +614,11 @@ private fun AnalysisTabContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Rounded.Apps, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                }
-                            }
+                            com.prism.screenharmony.flex.ui.components.RemoteAppIcon(
+                                packageName = app.packageName,
+                                appName = app.appName,
+                                size = 40.dp
+                            )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(app.appName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)

@@ -40,7 +40,7 @@ object AppIconCache {
 }
 
 @Composable
-fun AppIcon(packageName: String, pm: PackageManager, size: Int) {
+fun AppIcon(packageName: String, pm: PackageManager, size: Int, appName: String = "") {
     var icon by remember(packageName) { mutableStateOf(AppIconCache.get(packageName)) }
 
     if (icon == null) {
@@ -58,7 +58,7 @@ fun AppIcon(packageName: String, pm: PackageManager, size: Int) {
                         icon = bmp
                     }
                 } catch (e: Exception) {
-                    // Fallback
+                    // Fallback handled below
                 }
             }
         }
@@ -71,10 +71,10 @@ fun AppIcon(packageName: String, pm: PackageManager, size: Int) {
             modifier = Modifier.size(size.dp)
         )
     } else {
-        Box(
-            modifier = Modifier
-                .size(size.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+        AppInitialsBadge(
+            appName = appName.ifBlank { packageName.substringAfterLast('.') },
+            packageName = packageName,
+            size = size.dp
         )
     }
 }
