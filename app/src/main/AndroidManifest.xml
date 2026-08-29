@@ -43,13 +43,14 @@
             </intent-filter>
         </activity>
 
-        <!-- Direct Lock Screen -->
+        <!-- Direct Lock Screen (Isolated Task) -->
         <activity
             android:name=".ui.blocker.BlockedActivity"
             android:exported="false"
-            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:launchMode="singleInstance"
             android:excludeFromRecents="true"
-            android:noHistory="true"
+            android:noHistory="false"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:showForAllUsers="true"

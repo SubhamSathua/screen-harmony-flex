@@ -147,9 +147,9 @@ class AppBlockerService : Service() {
                                     )
                                 }
                             } else {
-                                if (lastInterceptedPackage == activeApp) {
-                                    lastInterceptedPackage = null
-                                }
+                                // The active app is not blocked (e.g. Home Launcher, ScreenHarmony, or unblocked app)
+                                // Reset lastInterceptedPackage so returning to a blocked app triggers immediately
+                                lastInterceptedPackage = null
                             }
                         }
                     } else {

@@ -55,9 +55,13 @@ class WebsiteAccessibilityService : AccessibilityService() {
 
                     val delaySec = matchingAppRule.blockDurationSeconds
 
-                    // Perform Home Action & launch Lock Wall
-                    performGlobalAction(GLOBAL_ACTION_HOME)
+                    // Launch Lock Wall directly over the blocked app
                     launchBlockWall(target = packageName, isWebsite = false, quote = customQuote, delaySeconds = delaySec)
+
+                    serviceScope.launch {
+                        kotlinx.coroutines.delay(1500)
+                        lastBlockedPackage = null
+                    }
                 }
                 return
             } else {
@@ -158,12 +162,11 @@ class WebsiteAccessibilityService : AccessibilityService() {
 
                 val delaySec = rule.blockDurationSeconds
 
-                // Perform global home action to drop browser to background & launch Wall
-                performGlobalAction(GLOBAL_ACTION_HOME)
+                // Launch Lock Wall directly over the blocked website
                 launchBlockWall(target = domain, isWebsite = true, quote = customQuote, delaySeconds = delaySec)
 
                 serviceScope.launch {
-                    kotlinx.coroutines.delay(2000)
+                    kotlinx.coroutines.delay(1500)
                     lastBlockedUrl = null
                 }
             }
@@ -238,7 +241,8 @@ class WebsiteAccessibilityService : AccessibilityService() {
         val intent = Intent(this, BlockedActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             putExtra("TARGET", target)
             putExtra("IS_WEBSITE", isWebsite)
             putExtra("QUOTE", quote)
