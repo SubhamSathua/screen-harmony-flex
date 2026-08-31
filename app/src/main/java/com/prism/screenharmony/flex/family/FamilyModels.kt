@@ -15,6 +15,32 @@ data class FamilyProfile(
     val linkedAt: Long = 0L
 )
 
+data class ChildPermissionsState(
+    val isUsageGranted: Boolean = false,
+    val isOverlayGranted: Boolean = false,
+    val isBatteryIgnored: Boolean = false,
+    val isExactAlarmGranted: Boolean = false,
+    val isAccessibilityGranted: Boolean = false,
+    val isNotificationGranted: Boolean = false
+) {
+    val totalCount: Int = 6
+    val grantedCount: Int
+        get() = listOf(
+            isUsageGranted,
+            isOverlayGranted,
+            isBatteryIgnored,
+            isExactAlarmGranted,
+            isAccessibilityGranted,
+            isNotificationGranted
+        ).count { it }
+
+    val areAllGranted: Boolean
+        get() = grantedCount == totalCount
+
+    val hasCrucialGranted: Boolean
+        get() = isUsageGranted && isOverlayGranted && isBatteryIgnored
+}
+
 data class RemoteChildDevice(
     val deviceId: String = "",
     val deviceName: String = "Child Phone",
@@ -31,7 +57,8 @@ data class RemoteChildDevice(
     val screenTimeMinutes: Long = 0L,
     val unlinkRequested: Boolean = false,
     val unlinkRequestedAt: Long = 0L,
-    val unlinkReason: String = ""
+    val unlinkReason: String = "",
+    val permissions: ChildPermissionsState = ChildPermissionsState()
 ) {
     val displayName: String
         get() = customName.ifBlank { deviceName }

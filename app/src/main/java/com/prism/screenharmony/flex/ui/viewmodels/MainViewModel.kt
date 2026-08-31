@@ -23,7 +23,7 @@ enum class AppDestinations(
     val icon: ImageVector,
 ) {
     BLOCK("Block", Icons.Rounded.Block),
-    PARENTAL("Parental", Icons.Rounded.FamilyRestroom),
+    PARENTAL("Parenting", Icons.Rounded.FamilyRestroom),
     SETTINGS("Settings", Icons.Rounded.Settings),
 }
 
@@ -62,6 +62,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _highlightPermissions = MutableStateFlow(false)
     val highlightPermissions: StateFlow<Boolean> = _highlightPermissions.asStateFlow()
 
+    private val _highlightParentalControls = MutableStateFlow(false)
+    val highlightParentalControls: StateFlow<Boolean> = _highlightParentalControls.asStateFlow()
+
     fun navigateToPermissionsSettings() {
         _currentDestination.value = AppDestinations.SETTINGS
         _currentScreenState.value = ScreenState.MAIN_TABS
@@ -70,6 +73,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearPermissionsHighlight() {
         _highlightPermissions.value = false
+    }
+
+    fun navigateToParentalSettings() {
+        _currentDestination.value = AppDestinations.SETTINGS
+        _currentScreenState.value = ScreenState.MAIN_TABS
+        _highlightParentalControls.value = true
+    }
+
+    fun clearParentalHighlight() {
+        _highlightParentalControls.value = false
     }
 
     private val _editingRule = MutableStateFlow(BlockRule())

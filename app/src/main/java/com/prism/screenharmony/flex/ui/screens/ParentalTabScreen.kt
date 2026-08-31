@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -43,7 +44,8 @@ import org.json.JSONObject
 @Composable
 fun ParentalTabScreen(
     permissionState: PermissionState = PermissionState(),
-    onNavigateToPermissions: () -> Unit = {}
+    onNavigateToPermissions: () -> Unit = {},
+    onNavigateToParentalSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -79,6 +81,8 @@ fun ParentalTabScreen(
     var deviceForRemoveConfirm by remember { mutableStateOf<RemoteChildDevice?>(null) }
     var showChildRequestUnlinkDialog by remember { mutableStateOf(false) }
     var showParentLeaveDialog by remember { mutableStateOf(false) }
+    var showParentMenu by remember { mutableStateOf(false) }
+    var deviceForPermissionsCard by remember { mutableStateOf<RemoteChildDevice?>(null) }
 
     // If a device is opened for configuration, render the 3-tab detail screen
     selectedDeviceForConfigure?.let { selected ->
@@ -117,28 +121,30 @@ fun ParentalTabScreen(
                 ),
                 title = {
                     Text(
-                        text = "Family & Parental Control",
+                        text = "Parental Control",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                 },
                 actions = {
-                    // Permission Health Icon (Red if <4 baseline, Dark-Yellow/Amber if missing accessibility)
-                    if (!permissionState.areBase4PermissionsGranted) {
-                        IconButton(onClick = onNavigateToPermissions) {
-                            Icon(
-                                imageVector = Icons.Rounded.Error,
-                                contentDescription = "Missing Crucial Permissions",
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    } else if (!permissionState.isAccessibilityGranted) {
-                        IconButton(onClick = onNavigateToPermissions) {
-                            Icon(
-                                imageVector = Icons.Rounded.Warning,
-                                contentDescription = "Accessibility Service Inactive",
-                                tint = Color(0xFFF57F17) // Dark Yellow / Amber
-                            )
+                    // Warning signs at top: ONLY shown on Child device!
+                    if (familyProfile.role == FamilyRole.CHILD) {
+                        if (!permissionState.areBase4PermissionsGranted) {
+                            IconButton(onClick = onNavigateToPermissions) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Error,
+                                    contentDescription = "Missing Crucial Permissions",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        } else if (!permissionState.isAccessibilityGranted) {
+                            IconButton(onClick = onNavigateToPermissions) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Warning,
+                                    contentDescription = "Accessibility Service Inactive",
+                                    tint = Color(0xFFF57F17) // Dark Yellow / Amber
+                                )
+                            }
                         }
                     }
 
@@ -153,9 +159,40 @@ fun ParentalTabScreen(
                         Icon(Icons.Rounded.Refresh, contentDescription = "Refresh")
                     }
 
+                    // Parent Top MoreVert Actions: Settings (with triple pulse) & Reset Parental controls
                     if (familyProfile.role == FamilyRole.PARENT) {
-                        IconButton(onClick = { showParentLeaveDialog = true }) {
-                            Icon(Icons.Rounded.DeleteForever, contentDescription = "Delete Family", tint = MaterialTheme.colorScheme.error)
+                        Box {
+                            IconButton(onClick = { showParentMenu = true }) {
+                                Icon(Icons.Rounded.MoreVert, contentDescription = "Parental Options")
+                            }
+                            DropdownMenu(
+                                expanded = showParentMenu,
+                                onDismissRequest = { showParentMenu = false },
+                                shape = RoundedCornerShape(20.dp),
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                tonalElevation = 6.dp,
+                                shadowElevation = 8.dp,
+                                modifier = Modifier.padding(4.dp)
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Settings", fontWeight = FontWeight.Medium) },
+                                    leadingIcon = { Icon(Icons.Rounded.Settings, contentDescription = null) },
+                                    onClick = {
+                                        showParentMenu = false
+                                        onNavigateToParentalSettings()
+                                    },
+                                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Reset Parental controls", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = { Icon(Icons.Rounded.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                    onClick = {
+                                        showParentMenu = false
+                                        showParentLeaveDialog = true
+                                    },
+                                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                                )
+                            }
                         }
                     }
                 }
@@ -200,6 +237,9 @@ fun ParentalTabScreen(
                     },
                     onOpenRemoveDialog = { device ->
                         deviceForRemoveConfirm = device
+                    },
+                    onOpenPermissionsCard = { device ->
+                        deviceForPermissionsCard = device
                     }
                 )
             }
@@ -532,32 +572,23 @@ fun ParentalTabScreen(
         )
     }
 
-    // Parent Leave Family Confirmation
+    // Parent Leave / Reset Parental Controls Confirmation (2-Step Warning + Random Code Flow)
     if (showParentLeaveDialog) {
-        AlertDialog(
-            onDismissRequest = { showParentLeaveDialog = false },
-            icon = { Icon(Icons.Rounded.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Reset Family Control?") },
-            text = {
-                Text("This will disconnect all child devices and delete the family group.")
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        FamilySyncManager.unlinkFamily(context)
-                        showParentLeaveDialog = false
-                        Toast.makeText(context, "Family reset", Toast.LENGTH_SHORT).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Reset")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showParentLeaveDialog = false }) {
-                    Text("Cancel")
-                }
+        ResetParentalControlsDialog(
+            onDismiss = { showParentLeaveDialog = false },
+            onConfirmed = {
+                FamilySyncManager.unlinkFamily(context)
+                showParentLeaveDialog = false
+                Toast.makeText(context, "Parental controls reset successfully", Toast.LENGTH_SHORT).show()
             }
+        )
+    }
+
+    // Child Permissions Card Dialog
+    deviceForPermissionsCard?.let { device ->
+        ChildPermissionsCardDialog(
+            device = device,
+            onDismiss = { deviceForPermissionsCard = null }
         )
     }
 }
@@ -682,7 +713,8 @@ private fun ParentDashboardView(
     onShowQr: () -> Unit,
     onConfigureDevice: (RemoteChildDevice) -> Unit,
     onOpenUnlinkReview: (RemoteChildDevice) -> Unit,
-    onOpenRemoveDialog: (RemoteChildDevice) -> Unit
+    onOpenRemoveDialog: (RemoteChildDevice) -> Unit,
+    onOpenPermissionsCard: (RemoteChildDevice) -> Unit
 ) {
     val context = LocalContext.current
     var isPullRefreshing by remember { mutableStateOf(false) }
@@ -767,7 +799,8 @@ private fun ParentDashboardView(
                         device = device,
                         onConfigure = { onConfigureDevice(device) },
                         onOpenUnlinkReview = { onOpenUnlinkReview(device) },
-                        onOpenRemoveDialog = { onOpenRemoveDialog(device) }
+                        onOpenRemoveDialog = { onOpenRemoveDialog(device) },
+                        onOpenPermissionsCard = { onOpenPermissionsCard(device) }
                     )
                 }
             }
@@ -780,7 +813,8 @@ private fun ChildDeviceCard(
     device: RemoteChildDevice,
     onConfigure: () -> Unit,
     onOpenUnlinkReview: () -> Unit,
-    onOpenRemoveDialog: () -> Unit
+    onOpenRemoveDialog: () -> Unit,
+    onOpenPermissionsCard: () -> Unit
 ) {
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
@@ -930,6 +964,60 @@ private fun ChildDeviceCard(
                 Column {
                     Text("Rules Active", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("${device.rulesCount}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // Clickable Permission Health Status Row
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = when {
+                    device.permissions.areAllGranted -> Color(0xFF1B5E20).copy(alpha = 0.12f)
+                    device.permissions.hasCrucialGranted -> Color(0xFFF57F17).copy(alpha = 0.12f)
+                    else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable { onOpenPermissionsCard() }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (device.permissions.areAllGranted) Icons.Rounded.VerifiedUser else Icons.Rounded.Security,
+                        contentDescription = null,
+                        tint = when {
+                            device.permissions.areAllGranted -> Color(0xFF2E7D32)
+                            device.permissions.hasCrucialGranted -> Color(0xFFE65100)
+                            else -> MaterialTheme.colorScheme.error
+                        },
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Permissions: ${device.permissions.grantedCount}/${device.permissions.totalCount} Active",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = when {
+                                device.permissions.areAllGranted -> Color(0xFF2E7D32)
+                                device.permissions.hasCrucialGranted -> Color(0xFFE65100)
+                                else -> MaterialTheme.colorScheme.error
+                            }
+                        )
+                        Text(
+                            text = if (device.permissions.areAllGranted) "All required permissions granted" else "${device.permissions.totalCount - device.permissions.grantedCount} permission(s) missing",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        Icons.Rounded.ChevronRight,
+                        contentDescription = "Details",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
 
@@ -1570,5 +1658,342 @@ private fun ChildControlsTabContent(
                 }
             }
         }
+    }
+}
+
+// =============================================================================
+// CHILD PERMISSIONS CARD DIALOG
+// =============================================================================
+
+@Composable
+fun ChildPermissionsCardDialog(
+    device: RemoteChildDevice,
+    onDismiss: () -> Unit
+) {
+    val perms = device.permissions
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = if (perms.areAllGranted) Icons.Rounded.VerifiedUser else Icons.Rounded.Security,
+                contentDescription = null,
+                tint = if (perms.areAllGranted) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(36.dp)
+            )
+        },
+        title = {
+            Text(
+                text = "${device.displayName} Permissions",
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "${perms.grantedCount} of ${perms.totalCount} permissions are active on this child device.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                PermissionStatusItem(
+                    name = "Usage Access (Apps)",
+                    description = "Detects active running apps to enforce blocks",
+                    isGranted = perms.isUsageGranted
+                )
+
+                PermissionStatusItem(
+                    name = "Display Over Other Apps",
+                    description = "Displays the lock screen over apps",
+                    isGranted = perms.isOverlayGranted
+                )
+
+                PermissionStatusItem(
+                    name = "Battery Optimization Disabled",
+                    description = "Prevents Android from killing blocker in background",
+                    isGranted = perms.isBatteryIgnored
+                )
+
+                PermissionStatusItem(
+                    name = "Exact Alarms",
+                    description = "Wakes up device for scheduled block times",
+                    isGranted = perms.isExactAlarmGranted
+                )
+
+                PermissionStatusItem(
+                    name = "Accessibility Service",
+                    description = "Monitors websites & prevents tamper/uninstall",
+                    isGranted = perms.isAccessibilityGranted
+                )
+
+                PermissionStatusItem(
+                    name = "Notifications",
+                    description = "Alerts and unlink requests delivery",
+                    isGranted = perms.isNotificationGranted
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Done")
+            }
+        }
+    )
+}
+
+@Composable
+private fun PermissionStatusItem(
+    name: String,
+    description: String,
+    isGranted: Boolean
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (isGranted) Color(0xFF1B5E20).copy(alpha = 0.08f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (isGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Cancel,
+                contentDescription = null,
+                tint = if (isGranted) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isGranted) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = if (isGranted) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
+            ) {
+                Text(
+                    text = if (isGranted) "Active" else "Missing",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+// =============================================================================
+// RESET PARENTAL CONTROLS DIALOG (2-STEP WARNING + RANDOM CODE)
+// =============================================================================
+
+@Composable
+fun ResetParentalControlsDialog(
+    onDismiss: () -> Unit,
+    onConfirmed: () -> Unit
+) {
+    var step by remember { mutableIntStateOf(1) }
+    var randomCode by remember { mutableStateOf((1000..9999).random().toString()) }
+    var enteredText by remember { mutableStateOf("") }
+
+    val requiredPhrase = remember(randomCode) { "remove $randomCode" }
+    val isCodeMatch = enteredText.trim().equals(requiredPhrase, ignoreCase = true)
+
+    if (step == 1) {
+        // STEP 1: WARNING & WHAT WILL HAPPEN
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            icon = {
+                Icon(
+                    imageVector = Icons.Rounded.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Reset Parental Controls?",
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = "Resetting parental controls will permanently remove family supervision from all connected devices.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "What will happen:",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Row(verticalAlignment = Alignment.Top) {
+                                Text("• ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                Text(
+                                    text = "All connected child devices will be disconnected and unlinked immediately.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.Top) {
+                                Text("• ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                Text(
+                                    text = "All remote app blocks, website filters, and schedules will be permanently cleared.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.Top) {
+                                Text("• ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                Text(
+                                    text = "Your family pairing code and cloud profile will be completely erased.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        step = 2
+                        randomCode = (1000..9999).random().toString()
+                        enteredText = ""
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Next")
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            }
+        )
+    } else {
+        // STEP 2: CODE VERIFICATION & REMOVE
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            icon = {
+                Icon(
+                    imageVector = Icons.Rounded.DeleteForever,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Type Confirmation Code",
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = "To confirm and permanently reset, type the phrase below into the box:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Target Code Display Box (above text-field)
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Required confirmation phrase:",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = requiredPhrase,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.error,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = enteredText,
+                        onValueChange = { enteredText = it },
+                        placeholder = { Text(requiredPhrase) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = onConfirmed,
+                    enabled = isCodeMatch,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        disabledContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Rounded.DeleteForever, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { step = 1 }) {
+                    Text("Back")
+                }
+            }
+        )
     }
 }

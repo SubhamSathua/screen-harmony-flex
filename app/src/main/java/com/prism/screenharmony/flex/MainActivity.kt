@@ -90,6 +90,7 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
     val isAppListGridView by viewModel.isAppListGridView.collectAsState()
     val permissionState by viewModel.permissionState.collectAsState()
     val highlightPermissions by viewModel.highlightPermissions.collectAsState()
+    val highlightParentalControls by viewModel.highlightParentalControls.collectAsState()
     val rules by viewModel.rules.collectAsState()
     val isOnlyParentMode by viewModel.isOnlyParentMode.collectAsState()
 
@@ -264,12 +265,15 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                         }
                         AppDestinations.PARENTAL -> ParentalTabScreen(
                             permissionState = permissionState,
-                            onNavigateToPermissions = { viewModel.navigateToPermissionsSettings() }
+                            onNavigateToPermissions = { viewModel.navigateToPermissionsSettings() },
+                            onNavigateToParentalSettings = { viewModel.navigateToParentalSettings() }
                         )
                         AppDestinations.SETTINGS -> SettingsTabScreen(
                             permissionState = permissionState,
                             highlightPermissions = highlightPermissions,
                             onHighlightFinished = { viewModel.clearPermissionsHighlight() },
+                            highlightParentalControls = highlightParentalControls,
+                            onHighlightParentalControlsFinished = { viewModel.clearParentalHighlight() },
                             onOpenAppLockSetup = { viewModel.openAppLockSetup() },
                             onOpenRecoverySettings = { viewModel.openRecoverySettings() }
                         )

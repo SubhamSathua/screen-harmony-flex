@@ -354,6 +354,16 @@ object FamilySyncManager {
                                 }
                             }
 
+                            val permSnap = childSnap.child("permissions")
+                            val childPermissions = ChildPermissionsState(
+                                isUsageGranted = permSnap.child("isUsageGranted").getValue(Boolean::class.java) ?: false,
+                                isOverlayGranted = permSnap.child("isOverlayGranted").getValue(Boolean::class.java) ?: false,
+                                isBatteryIgnored = permSnap.child("isBatteryIgnored").getValue(Boolean::class.java) ?: false,
+                                isExactAlarmGranted = permSnap.child("isExactAlarmGranted").getValue(Boolean::class.java) ?: false,
+                                isAccessibilityGranted = permSnap.child("isAccessibilityGranted").getValue(Boolean::class.java) ?: false,
+                                isNotificationGranted = permSnap.child("isNotificationGranted").getValue(Boolean::class.java) ?: false
+                            )
+
                             devices.add(
                                 RemoteChildDevice(
                                     deviceId = deviceId,
@@ -371,7 +381,8 @@ object FamilySyncManager {
                                     screenTimeMinutes = screenTimeMinutes,
                                     unlinkRequested = unlinkRequested,
                                     unlinkRequestedAt = unlinkRequestedAt,
-                                    unlinkReason = unlinkReason
+                                    unlinkReason = unlinkReason,
+                                    permissions = childPermissions
                                 )
                             )
                         }
@@ -576,6 +587,16 @@ object FamilySyncManager {
                 "apps" to appsMap
             )
             db.getReference("families/${profile.familyId}/devices/$deviceId/screenTime").updateChildren(screenTimeUpdates)
+
+            val permissionsMap = mapOf(
+                "isUsageGranted" to com.prism.screenharmony.flex.utils.PermissionHelper.isUsageAccessGranted(context),
+                "isOverlayGranted" to com.prism.screenharmony.flex.utils.PermissionHelper.isOverlayGranted(context),
+                "isBatteryIgnored" to com.prism.screenharmony.flex.utils.PermissionHelper.isBatteryOptimizationIgnored(context),
+                "isExactAlarmGranted" to com.prism.screenharmony.flex.utils.PermissionHelper.isExactAlarmGranted(context),
+                "isAccessibilityGranted" to com.prism.screenharmony.flex.utils.PermissionHelper.isAccessibilityGranted(context),
+                "isNotificationGranted" to com.prism.screenharmony.flex.utils.PermissionHelper.isNotificationGranted(context)
+            )
+            db.getReference("families/${profile.familyId}/devices/$deviceId/permissions").updateChildren(permissionsMap)
         }
     }
 

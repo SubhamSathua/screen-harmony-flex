@@ -6,6 +6,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -739,7 +740,68 @@ private fun ControlsTabContent(
             }
         }
 
-        // 3. Remote Instant Lock Switch
+        // 3. Permission Health Status Card
+        item {
+            var isExpanded by remember { mutableStateOf(false) }
+            val perms = device.permissions
+
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isExpanded = !isExpanded },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Permission Health", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "${perms.grantedCount}/${perms.totalCount} Active",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (perms.areAllGranted) Color(0xFF2E7D32) else if (perms.hasCrucialGranted) Color(0xFFE65100) else MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (perms.areAllGranted) Color(0xFF1B5E20).copy(alpha = 0.15f) else if (perms.hasCrucialGranted) Color(0xFFF57F17).copy(alpha = 0.15f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                        ) {
+                            Text(
+                                text = if (perms.areAllGranted) "All Active" else "${perms.totalCount - perms.grantedCount} Missing",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (perms.areAllGranted) Color(0xFF2E7D32) else if (perms.hasCrucialGranted) Color(0xFFE65100) else MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = isExpanded,
+                        enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            PermissionDetailRow(title = "Usage Access (Apps)", isGranted = perms.isUsageGranted)
+                            PermissionDetailRow(title = "Display Over Apps", isGranted = perms.isOverlayGranted)
+                            PermissionDetailRow(title = "Battery Optimization Disabled", isGranted = perms.isBatteryIgnored)
+                            PermissionDetailRow(title = "Exact Alarms", isGranted = perms.isExactAlarmGranted)
+                            PermissionDetailRow(title = "Accessibility Service", isGranted = perms.isAccessibilityGranted)
+                            PermissionDetailRow(title = "Notifications", isGranted = perms.isNotificationGranted)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Remote Instant Lock Switch
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
@@ -791,5 +853,39 @@ private fun ControlsTabContent(
         }
 
         item { Spacer(modifier = Modifier.height(32.dp)) }
+    }
+}
+
+@Composable
+private fun PermissionDetailRow(title: String, isGranted: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(
+            shape = RoundedCornerShape(6.dp),
+            color = if (isGranted) Color(0xFF1B5E20).copy(alpha = 0.15f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = if (isGranted) Icons.Rounded.Check else Icons.Rounded.Close,
+                    contentDescription = null,
+                    tint = if (isGranted) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = if (isGranted) "Active" else "Missing",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isGranted) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
+                )
+            }
+        }
     }
 }

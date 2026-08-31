@@ -48,6 +48,8 @@ fun SettingsTabScreen(
     permissionState: PermissionState,
     highlightPermissions: Boolean = false,
     onHighlightFinished: () -> Unit = {},
+    highlightParentalControls: Boolean = false,
+    onHighlightParentalControlsFinished: () -> Unit = {},
     onOpenAppLockSetup: () -> Unit = {},
     onOpenRecoverySettings: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -66,6 +68,10 @@ fun SettingsTabScreen(
     val pulseBorderWidth = remember { Animatable(0f) }
     val pulseAlpha = remember { Animatable(0f) }
 
+    // Pulse animation for parental controls highlighting
+    val parentalPulseBorderWidth = remember { Animatable(0f) }
+    val parentalPulseAlpha = remember { Animatable(0f) }
+
     val scrollState = rememberScrollState()
 
     LaunchedEffect(highlightPermissions) {
@@ -78,6 +84,19 @@ fun SettingsTabScreen(
                 pulseAlpha.animateTo(0f, tween(300, easing = FastOutSlowInEasing))
             }
             onHighlightFinished()
+        }
+    }
+
+    LaunchedEffect(highlightParentalControls) {
+        if (highlightParentalControls) {
+            scrollState.animateScrollTo(250)
+            repeat(3) {
+                parentalPulseBorderWidth.animateTo(3f, tween(300, easing = FastOutSlowInEasing))
+                parentalPulseAlpha.animateTo(1f, tween(300, easing = FastOutSlowInEasing))
+                parentalPulseBorderWidth.animateTo(0f, tween(300, easing = FastOutSlowInEasing))
+                parentalPulseAlpha.animateTo(0f, tween(300, easing = FastOutSlowInEasing))
+            }
+            onHighlightParentalControlsFinished()
         }
     }
 
@@ -242,7 +261,15 @@ fun SettingsTabScreen(
             if (familyProfile.role == FamilyRole.PARENT) {
                 SectionHeader(title = "Parental Controls")
 
-                GroupedContainer {
+                GroupedContainer(
+                    modifier = if (parentalPulseAlpha.value > 0.01f) {
+                        Modifier.border(
+                            width = parentalPulseBorderWidth.value.dp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = parentalPulseAlpha.value),
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                    } else Modifier
+                ) {
                     // Parent / Family Display Name Customization
                     GroupedItemRow(
                         icon = Icons.Rounded.FamilyRestroom,
