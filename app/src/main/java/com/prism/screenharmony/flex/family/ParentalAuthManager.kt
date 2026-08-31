@@ -22,6 +22,10 @@ object ParentalAuthManager {
     private const val KEY_AUTH_MODE = "unlink_auth_mode"
     private const val KEY_CUSTOM_PIN_HASH = "unlink_custom_pin_hash"
     private const val KEY_CUSTOM_PIN_SALT = "unlink_custom_pin_salt"
+    private const val KEY_ONLY_PARENT_MODE = "key_only_parent_mode"
+
+    private val _onlyParentModeFlow = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val onlyParentModeFlow: kotlinx.coroutines.flow.StateFlow<Boolean> = _onlyParentModeFlow
 
     private lateinit var prefs: SharedPreferences
 
@@ -41,6 +45,7 @@ object ParentalAuthManager {
         } catch (e: Exception) {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         }
+        _onlyParentModeFlow.value = prefs.getBoolean(KEY_ONLY_PARENT_MODE, false)
     }
 
     private fun ensureInit(context: Context) {
@@ -99,6 +104,17 @@ object ParentalAuthManager {
     fun hasCustomPin(context: Context): Boolean {
         ensureInit(context)
         return prefs.contains(KEY_CUSTOM_PIN_HASH)
+    }
+
+    fun isOnlyParentMode(context: Context): Boolean {
+        ensureInit(context)
+        return prefs.getBoolean(KEY_ONLY_PARENT_MODE, false)
+    }
+
+    fun setOnlyParentMode(context: Context, enabled: Boolean) {
+        ensureInit(context)
+        prefs.edit().putBoolean(KEY_ONLY_PARENT_MODE, enabled).apply()
+        _onlyParentModeFlow.value = enabled
     }
 
     private fun hashPin(pin: String, salt: ByteArray): ByteArray {

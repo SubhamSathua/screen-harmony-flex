@@ -29,6 +29,19 @@ object BlockScheduleManager {
 
     fun reschedule(context: Context) {
         val appContext = context.applicationContext
+        com.prism.screenharmony.flex.family.ParentalAuthManager.initialize(appContext)
+
+        val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+
+        // If 'Only Parent Mode' is active, this phone is purely a parent monitor.
+        // Complete background shutdown: 0% CPU, 0% battery, no alarms, no blocker service.
+        if (com.prism.screenharmony.flex.family.ParentalAuthManager.isOnlyParentMode(appContext)) {
+            Log.i(TAG, "🛡️ 'Only Parent Mode' is ACTIVE. Blocker service stopped, all alarms cleared (0% BG drain).")
+            AppBlockerService.stop(appContext)
+            alarmManager?.let { cancelAlarm(appContext, it) }
+            return
+        }
+
         BlockRepository.initialize(appContext)
         BlockRepository.cleanExpiredPauses()
 
@@ -39,8 +52,6 @@ object BlockScheduleManager {
         // 1. Check if any rule is actively blocking right now
         val activeRules = rules.filter { it.isEnabled && it.isCurrentlyBlocked(nowTime, today) }
         val hasActiveRuleNow = activeRules.isNotEmpty()
-
-        val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
 
         if (hasActiveRuleNow) {
             Log.i(TAG, "🟢 Active rules detected (${activeRules.size} rules). Starting Blocker Service...")

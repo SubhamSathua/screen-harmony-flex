@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -107,6 +108,12 @@ fun SettingsTabScreen(
     var isUnlinkAuthExpanded by remember { mutableStateOf(false) }
     var showFamilyNameDialog by remember { mutableStateOf(false) }
     var showCustomPinDialog by remember { mutableStateOf(false) }
+
+    val allRules by com.prism.screenharmony.flex.data.BlockRepository.rules.collectAsState()
+    val localRules = remember(allRules) { allRules.filter { !it.id.startsWith("remote_") } }
+    val hasSelfBlocks = localRules.isNotEmpty()
+    var isOnlyParentMode by remember { mutableStateOf(ParentalAuthManager.isOnlyParentMode(context)) }
+    var showHasSelfBlocksDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -345,6 +352,39 @@ fun SettingsTabScreen(
                             }
                         }
                     }
+
+                    ItemDivider()
+
+                    // Only Parent Mode Switch
+                    GroupedItemRow(
+                        icon = Icons.Rounded.AdminPanelSettings,
+                        title = "Only Parent Mode",
+                        subtitle = when {
+                            hasSelfBlocks && !isOnlyParentMode -> "Disabled • Remove self-block rules to enable"
+                            isOnlyParentMode -> "Active • Blocker engine OFF (0% BG drain, monitor only)"
+                            else -> "Disable local blocking & run purely as parent monitor"
+                        },
+                        onClick = if (hasSelfBlocks && !isOnlyParentMode) { { showHasSelfBlocksDialog = true } } else null
+                    ) {
+                        Switch(
+                            checked = isOnlyParentMode,
+                            enabled = !hasSelfBlocks || isOnlyParentMode,
+                            onCheckedChange = { checked ->
+                                if (checked && hasSelfBlocks) {
+                                    showHasSelfBlocksDialog = true
+                                } else {
+                                    isOnlyParentMode = checked
+                                    ParentalAuthManager.setOnlyParentMode(context, checked)
+                                    com.prism.screenharmony.flex.service.BlockScheduleManager.reschedule(context)
+                                    Toast.makeText(
+                                        context,
+                                        if (checked) "Only Parent Mode enabled (0% background usage)" else "Only Parent Mode disabled",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        )
+                    }
                 }
             }
 
@@ -475,11 +515,48 @@ fun SettingsTabScreen(
                     )
                 } else Modifier
             ) {
+                if (isOnlyParentMode) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Rounded.VerifiedUser,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "Only Parent Mode is Active",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    "Background blocker service and Usage Access/Overlay permissions are disabled on this device.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    ItemDivider()
+                }
+
                 // 1. Usage Access
                 GroupedItemRow(
                     icon = Icons.Rounded.QueryStats,
                     title = "Usage Access (Apps)",
-                    subtitle = if (permissionState.isUsageGranted) "Active • Detects foreground apps" else "Required • Tap to grant permission"
+                    subtitle = if (isOnlyParentMode) "Not required in Only Parent Mode" else if (permissionState.isUsageGranted) "Active • Detects foreground apps" else "Required • Tap to grant permission"
                 ) {
                     if (permissionState.isUsageGranted) {
                         Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
@@ -850,6 +927,30 @@ fun SettingsTabScreen(
             dismissButton = {
                 TextButton(onClick = { showTimeoutDialog = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showHasSelfBlocksDialog) {
+        AlertDialog(
+            onDismissRequest = { showHasSelfBlocksDialog = false },
+            icon = {
+                Icon(Icons.Rounded.Block, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+            },
+            title = {
+                Text("Self-Block Rules Active", fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            },
+            text = {
+                Text(
+                    "You have ${localRules.size} local self-blocking rule(s) configured on this device.\n\nTo enable 'Only Parent Mode' and turn off all background blocker services, please delete or clear your local self-block rules first.",
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(onClick = { showHasSelfBlocksDialog = false }) {
+                    Text("Got It")
                 }
             }
         )

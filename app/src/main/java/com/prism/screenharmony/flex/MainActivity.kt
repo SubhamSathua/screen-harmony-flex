@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
@@ -90,6 +91,9 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
     val permissionState by viewModel.permissionState.collectAsState()
     val highlightPermissions by viewModel.highlightPermissions.collectAsState()
     val rules by viewModel.rules.collectAsState()
+    val isOnlyParentMode by viewModel.isOnlyParentMode.collectAsState()
+
+    var showDisableOnlyParentModeDialog by remember { mutableStateOf(false) }
 
     // Lifecycle observer to handle app foregrounding & permissions refresh
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -211,7 +215,13 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                                 },
                                 floatingActionButton = {
                                     ExtendedFloatingActionButton(
-                                        onClick = { viewModel.openCreateRule() },
+                                        onClick = {
+                                            if (isOnlyParentMode) {
+                                                showDisableOnlyParentModeDialog = true
+                                            } else {
+                                                viewModel.openCreateRule()
+                                            }
+                                        },
                                         containerColor = MaterialTheme.colorScheme.primary,
                                         contentColor = MaterialTheme.colorScheme.onPrimary,
                                         shape = RoundedCornerShape(20.dp),
@@ -231,10 +241,12 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                                         .fillMaxSize()
                                         .padding(innerPadding)
                                 ) {
-                                    PermissionWarningBanner(
-                                        permissionState = permissionState,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                    )
+                                    if (!isOnlyParentMode) {
+                                        PermissionWarningBanner(
+                                            permissionState = permissionState,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                        )
+                                    }
 
                                     Box(modifier = Modifier.weight(1f)) {
                                         BlocksPage(
@@ -242,7 +254,9 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                                             onToggleRule = { rule, isEnabled -> viewModel.toggleRule(rule.id, isEnabled) },
                                             onEditRule = { rule -> viewModel.openEditRule(rule) },
                                             onDeleteRule = { rule -> viewModel.deleteRule(rule.id) },
-                                            onPauseRule = { rule, minutes -> viewModel.togglePause(rule, minutes) }
+                                            onPauseRule = { rule, minutes -> viewModel.togglePause(rule, minutes) },
+                                            isOnlyParentMode = isOnlyParentMode,
+                                            onTurnOffOnlyParentMode = { viewModel.setOnlyParentMode(false) }
                                         )
                                     }
                                 }
@@ -263,5 +277,40 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                 }
             }
         }
+    }
+
+    if (showDisableOnlyParentModeDialog) {
+        AlertDialog(
+            onDismissRequest = { showDisableOnlyParentModeDialog = false },
+            icon = {
+                Icon(Icons.Rounded.PowerSettingsNew, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+            },
+            title = {
+                Text("Turn Off 'Only Parent Mode'?", fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            },
+            text = {
+                Text(
+                    "To create and enforce local self-blocks on this device, 'Only Parent Mode' must be turned off.\n\nWould you like to turn it off and proceed with creating a block?",
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDisableOnlyParentModeDialog = false
+                        viewModel.setOnlyParentMode(false)
+                        viewModel.openCreateRule()
+                    }
+                ) {
+                    Text("Turn Off & Create Block")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisableOnlyParentModeDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

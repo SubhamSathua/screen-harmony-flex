@@ -84,7 +84,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isAppLocked = MutableStateFlow(AppLockManager.isAppLocked())
     val isAppLocked: StateFlow<Boolean> = _isAppLocked.asStateFlow()
 
+    val isOnlyParentMode: StateFlow<Boolean> = com.prism.screenharmony.flex.family.ParentalAuthManager.onlyParentModeFlow
+
     init {
+        com.prism.screenharmony.flex.family.ParentalAuthManager.initialize(application)
+        if (com.prism.screenharmony.flex.family.ParentalAuthManager.isOnlyParentMode(application)) {
+            _currentDestination.value = AppDestinations.PARENTAL
+        }
         refreshPermissions()
         checkAppLockState()
 
@@ -95,6 +101,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 BlockRepository.cleanExpiredPauses()
             }
         }
+    }
+
+    fun setOnlyParentMode(enabled: Boolean) {
+        val context = getApplication<Application>()
+        com.prism.screenharmony.flex.family.ParentalAuthManager.setOnlyParentMode(context, enabled)
+        if (enabled) {
+            _currentDestination.value = AppDestinations.PARENTAL
+        }
+        com.prism.screenharmony.flex.service.BlockScheduleManager.reschedule(context)
     }
 
     fun checkAppLockState() {

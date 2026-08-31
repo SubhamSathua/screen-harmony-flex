@@ -36,8 +36,71 @@ fun BlocksPage(
     onToggleRule: (BlockRule, Boolean) -> Unit,
     onEditRule: (BlockRule) -> Unit,
     onDeleteRule: (BlockRule) -> Unit,
-    onPauseRule: (BlockRule, Int) -> Unit
+    onPauseRule: (BlockRule, Int) -> Unit,
+    isOnlyParentMode: Boolean = false,
+    onTurnOffOnlyParentMode: () -> Unit = {}
 ) {
+    if (isOnlyParentMode) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(32.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.size(96.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.PowerSettingsNew,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                ) {
+                    Text(
+                        text = "OFF MODE • ONLY PARENT ACTIVE",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Local Blocker is Off",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "This device is set to 'Only Parent Mode'. Local blocking is turned off with 0% background battery drain, operating purely as a parental monitor.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = onTurnOffOnlyParentMode,
+                    shape = RoundedCornerShape(16.dp),
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                ) {
+                    Icon(Icons.Rounded.ToggleOff, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Turn OFF 'Only Parent Mode'", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        return
+    }
     if (rules.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(
