@@ -83,7 +83,7 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- Auto-resume on reboot & package update -->
+        <!-- Auto-resume and reschedule on reboot, package update, and time changes -->
         <receiver
             android:name=".service.BootReceiver"
             android:exported="true">
@@ -91,10 +91,21 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
 
-        <!-- Watchdog Wakeup Alarm Receiver -->
+        <!-- Exact Block Schedule Wakeup Alarm Receiver -->
+        <receiver
+            android:name=".service.BlockAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.prism.screenharmony.flex.ACTION_EVALUATE_SCHEDULE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Watchdog Wakeup Alarm Receiver (Fallback recovery) -->
         <receiver
             android:name=".service.WatchdogAlarmReceiver"
             android:exported="true">

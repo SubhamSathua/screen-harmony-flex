@@ -56,6 +56,20 @@ class AppBlockerService : Service() {
                 Log.e(TAG, "Failed to start AppBlockerService", e)
             }
         }
+
+        fun stop(context: Context) {
+            if (!isRunning.get()) {
+                return
+            }
+            try {
+                val intent = Intent(context, AppBlockerService::class.java)
+                context.stopService(intent)
+                isRunning.set(false)
+                Log.d(TAG, "AppBlockerService stop requested (idle state)")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to stop AppBlockerService", e)
+            }
+        }
     }
 
     private var currentActiveForegroundPackage: String? = null
@@ -65,7 +79,6 @@ class AppBlockerService : Service() {
         Log.d(TAG, "AppBlockerService onCreate")
         BlockRepository.initialize(this)
         createNotificationChannels()
-        WatchdogAlarmReceiver.scheduleNext(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -87,23 +100,21 @@ class AppBlockerService : Service() {
             Log.e(TAG, "startForeground error", e)
         }
 
-        WatchdogAlarmReceiver.scheduleNext(this)
         startAppMonitoringLoop()
         return START_STICKY
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        Log.w(TAG, "AppBlockerService onTaskRemoved. Scheduling immediate watchdog wake...")
-        WatchdogAlarmReceiver.scheduleNext(this)
+        Log.w(TAG, "AppBlockerService onTaskRemoved. Re-evaluating schedule...")
+        BlockScheduleManager.reschedule(this)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.w(TAG, "AppBlockerService onDestroy. Scheduling immediate watchdog wake...")
+        Log.w(TAG, "AppBlockerService onDestroy.")
         isRunning.set(false)
         serviceScope.cancel()
-        WatchdogAlarmReceiver.scheduleNext(this)
     }
 
     private fun startAppMonitoringLoop() {

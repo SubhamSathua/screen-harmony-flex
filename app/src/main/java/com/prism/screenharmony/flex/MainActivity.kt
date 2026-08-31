@@ -53,8 +53,8 @@ class MainActivity : FragmentActivity() {
         com.prism.screenharmony.flex.family.FamilySyncManager.initialize(this)
         com.prism.screenharmony.flex.family.ParentalAuthManager.initialize(this)
 
-        // Start background usage blocker engine
-        AppBlockerService.start(this)
+        // Intelligently evaluate block schedules and start blocker service only if active now
+        com.prism.screenharmony.flex.service.BlockScheduleManager.reschedule(this)
 
         setContent {
             val dbHelper = remember { com.prism.screenharmony.flex.data.db.AppDatabaseHelper.getInstance(this@MainActivity) }

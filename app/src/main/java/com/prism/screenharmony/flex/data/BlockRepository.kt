@@ -27,11 +27,14 @@ object BlockRepository {
 
     private var dbHelper: com.prism.screenharmony.flex.data.db.AppDatabaseHelper? = null
 
+    private var appContext: Context? = null
+
     fun initialize(context: Context) {
         if (prefs != null && dbHelper != null) return
-        val appContext = context.applicationContext
-        prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        dbHelper = com.prism.screenharmony.flex.data.db.AppDatabaseHelper.getInstance(appContext)
+        val appCtx = context.applicationContext
+        appContext = appCtx
+        prefs = appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        dbHelper = com.prism.screenharmony.flex.data.db.AppDatabaseHelper.getInstance(appCtx)
         loadFromDisk()
     }
 
@@ -89,6 +92,11 @@ object BlockRepository {
                 dbHelper?.syncAllRules(triples, singleJsons)
 
                 Log.d(TAG, "Successfully synced ${rulesList.size} rules to SQLite database.")
+
+                // Automatically re-evaluate and optimize background schedule
+                appContext?.let { ctx ->
+                    com.prism.screenharmony.flex.service.BlockScheduleManager.reschedule(ctx)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to save rules to disk/SQLite", e)
             }
