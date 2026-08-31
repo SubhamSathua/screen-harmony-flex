@@ -488,7 +488,23 @@ object FamilySyncManager {
                     override fun onCancelled(error: DatabaseError) {}
                 })
 
-                // 4. Child telemetry loop (Heartbeat, battery, screen time, active app, installed apps)
+                // 4. Listen for Remote App Sync Requests from Parent
+                db.getReference("families/${profile.familyId}/devices/$deviceId/commands/requestAppSync").addValueEventListener(object : ValueEventListener {
+                    private var lastHandledTimestamp = 0L
+
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        val timestamp = snapshot.getValue(Long::class.java) ?: return
+                        if (timestamp > lastHandledTimestamp) {
+                            lastHandledTimestamp = timestamp
+                            Log.i(TAG, "Parent requested installed apps sync. Scanning and pushing apps to parent...")
+                            syncChildInstalledApps(context)
+                        }
+                    }
+
+                    override fun onCancelled(error: DatabaseError) {}
+                })
+
+                // 5. Child telemetry loop (Heartbeat, battery, screen time, active app, installed apps)
                 scope.launch {
                     // Sync installed apps immediately on startup
                     syncChildInstalledApps(context)
@@ -574,10 +590,15 @@ object FamilySyncManager {
 
             when (profile.role) {
                 FamilyRole.PARENT -> {
+                    // Send remote command to all connected child devices to scan and sync their installed apps
+                    for (dev in _connectedDevices.value) {
+                        requestChildAppSync(dev.deviceId)
+                    }
+
                     db.getReference("families/${profile.familyId}/devices").addListenerForSingleValueEvent(object : ValueEventListener {
                         override fun onDataChange(snapshot: DataSnapshot) {
                             startRoleSync(context)
-                            onResult(true, "Data refreshed successfully")
+                            onResult(true, "Data refreshed & requested app list from child phone")
                         }
                         override fun onCancelled(error: DatabaseError) {
                             onResult(false, "Refresh failed: ${error.message}")
@@ -927,6 +948,27 @@ object FamilySyncManager {
         }
         db.getReference("families/${profile.familyId}/devices/$childDeviceId/installedApps").addValueEventListener(listener)
         return listener
+    }
+
+    fun requestChildAppSync(childDeviceId: String, onComplete: ((Boolean) -> Unit)? = null) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) {
+                onComplete?.invoke(false)
+                return@ensureAuth
+            }
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+            db.getReference("families/${profile.familyId}/devices/$childDeviceId/commands/requestAppSync")
+                .setValue(ServerValue.TIMESTAMP)
+                .addOnSuccessListener {
+                    Log.i(TAG, "Sent app sync request command to child device: $childDeviceId")
+                    onComplete?.invoke(true)
+                }
+                .addOnFailureListener {
+                    Log.e(TAG, "Failed to send app sync request to child device", it)
+                    onComplete?.invoke(false)
+                }
+        }
     }
 
     fun removeInstalledAppsListener(childDeviceId: String, listener: ValueEventListener) {

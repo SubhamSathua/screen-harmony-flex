@@ -94,6 +94,11 @@ fun ChildDeviceDetailScreen(
             selectedApps = editingRule!!.selectedApps,
             isGridView = isAppListGridView,
             onViewToggle = { isAppListGridView = it },
+            onRefresh = {
+                FamilySyncManager.requestChildAppSync(device.deviceId) { success ->
+                    Toast.makeText(context, if (success) "Requested app scan from ${device.displayName}" else "Failed to send request", Toast.LENGTH_SHORT).show()
+                }
+            },
             onDone = { selected ->
                 editingRule = editingRule!!.copy(selectedApps = selected)
                 isSelectingApps = false

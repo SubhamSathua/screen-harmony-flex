@@ -41,6 +41,7 @@ fun ChildAppListScreen(
     selectedApps: Set<String>,
     onDone: (Set<String>) -> Unit,
     onBack: () -> Unit,
+    onRefresh: (() -> Unit)? = null,
     isGridView: Boolean = false,
     onViewToggle: (Boolean) -> Unit = {}
 ) {
@@ -85,6 +86,11 @@ fun ChildAppListScreen(
                     }
                 },
                 actions = {
+                    if (onRefresh != null) {
+                        IconButton(onClick = onRefresh) {
+                            Icon(Icons.Rounded.Refresh, contentDescription = "Fetch latest apps")
+                        }
+                    }
                     TextButton(
                         onClick = {
                             tempSelectedApps = if (tempSelectedApps.size == installedApps.size) {
@@ -209,12 +215,22 @@ fun ChildAppListScreen(
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.padding(32.dp)
                         ) {
                             Icon(Icons.Rounded.PhoneAndroid, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp))
                             Text("No Apps Fetched Yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("Tap refresh on the parent header to pull the installed apps from $childName's phone.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Ask $childName's phone to scan and send its installed app list.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (onRefresh != null) {
+                                Button(
+                                    onClick = onRefresh,
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Fetch Installed Apps")
+                                }
+                            }
                         }
                     }
                 } else {
