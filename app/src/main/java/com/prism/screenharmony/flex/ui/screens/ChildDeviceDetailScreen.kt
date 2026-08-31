@@ -58,8 +58,9 @@ fun ChildDeviceDetailScreen(
     var isSelectingApps by remember { mutableStateOf(false) }
     var isAppListGridView by remember { mutableStateOf(false) }
 
-    // Live Rules and Telemetry for this Child Device
+    // Live Rules, Installed Apps, and Telemetry for this Child Device
     var childRules by remember { mutableStateOf<List<BlockRule>>(emptyList()) }
+    var childInstalledApps by remember { mutableStateOf<List<com.prism.screenharmony.flex.family.ChildAppInfo>>(emptyList()) }
     var childAppsUsage by remember { mutableStateOf<List<ChildAppUsage>>(emptyList()) }
 
     DisposableEffect(device.deviceId) {
@@ -69,6 +70,9 @@ fun ChildDeviceDetailScreen(
         val appUsageListener = FamilySyncManager.listenChildScreenTimeApps(device.deviceId) { apps ->
             childAppsUsage = apps
         }
+        val installedAppsListener = FamilySyncManager.listenChildInstalledApps(device.deviceId) { apps ->
+            childInstalledApps = apps
+        }
         onDispose {
             if (ruleListener != null) {
                 FamilySyncManager.removeRulesListener(device.deviceId, ruleListener)
@@ -76,12 +80,17 @@ fun ChildDeviceDetailScreen(
             if (appUsageListener != null) {
                 FamilySyncManager.removeScreenTimeListener(device.deviceId, appUsageListener)
             }
+            if (installedAppsListener != null) {
+                FamilySyncManager.removeInstalledAppsListener(device.deviceId, installedAppsListener)
+            }
         }
     }
 
-    // Full-screen App Selection for Remote Block Rule
+    // Dedicated Full-screen Child App Selection for Remote Block Rule
     if (isSelectingApps && editingRule != null) {
-        AppListScreen(
+        ChildAppListScreen(
+            childName = device.displayName,
+            installedApps = childInstalledApps,
             selectedApps = editingRule!!.selectedApps,
             isGridView = isAppListGridView,
             onViewToggle = { isAppListGridView = it },
@@ -94,14 +103,14 @@ fun ChildDeviceDetailScreen(
         return
     }
 
-    // Full-screen Create/Edit Block Rule Flow (Same logic & UI as main Block Screen)
+    // Dedicated Full-screen Child Block Editor Flow (Completely isolated from local blocker)
     if (editingRule != null) {
-        CreateBlockPage(
+        ChildBlockEditorScreen(
+            childName = device.displayName,
             rule = editingRule!!,
             onRuleChanged = { editingRule = it },
             onSelectApps = { isSelectingApps = true },
-            onSave = {
-                val ruleToSave = editingRule!!
+            onSave = { ruleToSave ->
                 FamilySyncManager.pushRuleToChild(device.deviceId, ruleToSave)
                 editingRule = null
                 Toast.makeText(context, "Rule saved & pushed to ${device.displayName}!", Toast.LENGTH_SHORT).show()

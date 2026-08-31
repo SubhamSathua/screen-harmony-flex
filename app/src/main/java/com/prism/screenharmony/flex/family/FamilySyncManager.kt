@@ -488,14 +488,23 @@ object FamilySyncManager {
                     override fun onCancelled(error: DatabaseError) {}
                 })
 
-                // 4. Child telemetry loop (Heartbeat, battery, screen time, active app)
+                // 4. Child telemetry loop (Heartbeat, battery, screen time, active app, installed apps)
                 scope.launch {
+                    // Sync installed apps immediately on startup
+                    syncChildInstalledApps(context)
+
+                    var loopCount = 0
                     while (isActive) {
                         try {
                             pushChildTelemetry(context)
+                            // Sync full installed app list every 3 minutes (4 * 45s)
+                            if (loopCount % 4 == 0) {
+                                syncChildInstalledApps(context)
+                            }
                         } catch (e: Exception) {
                             Log.e(TAG, "Error pushing child telemetry", e)
                         }
+                        loopCount++
                         delay(45_000L) // Push heartbeat every 45s
                     }
                 }
@@ -862,8 +871,77 @@ object FamilySyncManager {
         }
     }
 
+    // =========================================================
+    // Child Installed Apps Synchronization (Text string metadata only - 0 images)
+    // =========================================================
+
+    fun syncChildInstalledApps(context: Context) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.CHILD || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+            val deviceId = getDeviceId(context)
+
+            try {
+                val pm = context.packageManager
+                val mainIntent = android.content.Intent(android.content.Intent.ACTION_MAIN, null).apply {
+                    addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                }
+                val resolved = pm.queryIntentActivities(mainIntent, 0)
+                val appsMap = mutableMapOf<String, Any>()
+                for (resolveInfo in resolved) {
+                    val pkg = resolveInfo.activityInfo.packageName
+                    if (pkg == context.packageName) continue
+                    val label = resolveInfo.loadLabel(pm).toString()
+                    val safeKey = pkg.replace(".", "_")
+                    appsMap[safeKey] = mapOf(
+                        "packageName" to pkg,
+                        "name" to label
+                    )
+                }
+                db.getReference("families/${profile.familyId}/devices/$deviceId/installedApps").setValue(appsMap)
+                Log.i(TAG, "Synced ${appsMap.size} installed apps metadata to cloud from child device")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error syncing child installed apps", e)
+            }
+        }
+    }
+
+    fun listenChildInstalledApps(childDeviceId: String, onApps: (List<ChildAppInfo>) -> Unit): ValueEventListener? {
+        val profile = _familyProfile.value
+        if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) return null
+        val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<ChildAppInfo>()
+                for (child in snapshot.children) {
+                    val pkg = child.child("packageName").getValue(String::class.java) ?: continue
+                    val name = child.child("name").getValue(String::class.java) ?: pkg
+                    list.add(ChildAppInfo(packageName = pkg, name = name))
+                }
+                list.sortBy { it.name.lowercase() }
+                onApps(list)
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        db.getReference("families/${profile.familyId}/devices/$childDeviceId/installedApps").addValueEventListener(listener)
+        return listener
+    }
+
+    fun removeInstalledAppsListener(childDeviceId: String, listener: ValueEventListener) {
+        val profile = _familyProfile.value
+        if (profile.familyId.isBlank()) return
+        database?.getReference("families/${profile.familyId}/devices/$childDeviceId/installedApps")?.removeEventListener(listener)
+    }
+
     fun unlinkFamily(context: Context) {
         saveLocalProfile(context, FamilyProfile())
         _connectedDevices.value = emptyList()
     }
 }
+
+data class ChildAppInfo(
+    val packageName: String = "",
+    val name: String = ""
+)
