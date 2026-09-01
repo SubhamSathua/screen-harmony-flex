@@ -1,8 +1,4 @@
-<!--
-# RULES for README.md
-- no emojies.
-- the intro description will be designed based on: main feature, functionality at first of the sentence as nobody reads full sentence so they must learn just by reading few first words of sentence.
--->
+
 
 # ScreenHarmony Flex
 
@@ -17,6 +13,7 @@ Individuals and parents need dependable focus enforcement that cannot be easily 
 
 ## # Index
 - [Features](#-features)
+- [Screenshots](#-screenshots)
 - [How to install](#-how-to-install)
 - [How to contribute](#-how-to-contribute)
 - [Requirements](#-requirements)
@@ -38,6 +35,22 @@ Individuals and parents need dependable focus enforcement that cannot be easily 
 - **Visual Schedule Planner:** Configure active hours and weekly schedules with a 24-hour visual canvas graph.
 - **Strict & Delay Modes:** Prevent impulsive unpausing using countdown delay timers, typing challenges, or unbreakable strict sessions.
 - **Material 3 Expressive UI:** Personalize with 7 curated color palettes, dynamic system recoloring, and pitch-black AMOLED mode.
+
+---
+
+## # Screenshots
+
+> **Full Gallery:** [View all high-resolution screenshots](.github/assets/screenshots/SCREENSHOTS.md)
+
+<p align="center">
+  <img src=".github/assets/screenshots/Screenshot-BlockPage.png" width="48%" alt="Blocks Dashboard" />
+  <img src=".github/assets/screenshots/Screenshot-WeeklySchedule.png" width="48%" alt="Weekly Schedule Planner" />
+</p>
+
+<p align="center">
+  <img src=".github/assets/screenshots/Screenshot-BlockScreen.png" width="48%" alt="Zero-Flicker Lock Screen" />
+  <img src=".github/assets/screenshots/Screenshot-SelfBlock.png" width="48%" alt="Self Block Configuration" />
+</p>
 
 ---
 
