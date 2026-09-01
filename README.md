@@ -1,191 +1,134 @@
+<!--
+# RULES for README.md
+- no emojies.
+- the intro description will be designed based on: main feature, functionality at first of the sentence as nobody reads full sentence so they must learn just by reading few first words of sentence.
+-->
+
 # ScreenHarmony Flex
 
-ScreenHarmony Flex is a modern, privacy-first Android application designed for granular digital wellbeing, active distraction blocking, and parental control enforcement. Built entirely with Kotlin, Jetpack Compose, and Material 3 Expressive design, it delivers real-time application and website restrictions with zero-flicker lock screens and zero background throttling.
+**Block distracting apps and websites with real-time parental control and family synchronization on Android.**
+
+ScreenHarmony Flex enforces digital wellbeing, focused productivity, and tamper-resistant parental supervision. It combines usage-access foreground monitoring, browser domain inspection, instant remote screen locking, and anti-tamper safeguards to maintain distraction-free focus routines across devices.
+
+**Use Case:**
+Individuals and parents need dependable focus enforcement that cannot be easily bypassed. ScreenHarmony Flex delivers zero-flicker lock screens, cross-device Family Sync for remote control, scheduled blocking routines, and self-healing permission guards without draining battery or tracking personal data.
 
 ---
 
-## Key Highlights
-
-- **Usage Access Engine**: Enforces application restrictions in real time via `UsageStatsManager` without requiring high-privilege accessibility services for app blocking.
-- **Zero-Flicker Lock Wall**: Transitions instantly to the focus lock screen using system overlay layers, eliminating home-screen flashing.
-- **Website Domain Filtering**: Inspects browser address bars dynamically across major browsers (Chrome, Firefox, Brave, Opera, Samsung Internet) using a lightweight accessibility hook.
-- **Interactive Visual Scheduling**: Configures active hours and weekly schedules using an integrated 24-hour canvas timeline graph and Material 3 time pickers.
-- **Configurable Pause Challenges**: Restricts unpausing through Strict mode (no pausing), countdown delay sliders (3s to 60s), or text typing challenges.
-- **Material 3 Expressive Theming**: Features 7 curated color schemes, dynamic system recoloring, automatic light/dark switching, and true pitch-black AMOLED mode.
-- **Gradle Sync-Free Versioning**: Reads application version codes directly from an isolated `version.properties` file, preventing Gradle build cache invalidation during version bumps.
-
----
-
-## Core Architecture
-
-The application uses a decoupled dual-engine architecture to ensure compatibility across Android 10 through Android 15.
-
-```
-+-------------------------------------------------------------------+
-|                        ScreenHarmony Flex                         |
-+---------------------------------+---------------------------------+
-|        App Blocker Engine       |     Website Blocker Engine      |
-|  (Foreground Service + Polling) |     (Accessibility Service)     |
-+---------------------------------+---------------------------------+
-| - PACKAGE_USAGE_STATS           | - BIND_ACCESSIBILITY_SERVICE    |
-| - SYSTEM_ALERT_WINDOW (Overlay) | - Real-time browser URL check   |
-| - Continuous 200ms loop         | - Automatic about:blank reroute |
-| - High-Priority Intent Launch   | - Chrome, Firefox, Brave, Opera |
-+---------------------------------+---------------------------------+
-                                  |
-                                  v
-+-------------------------------------------------------------------+
-|                    Zero-Flicker Lock Activity                     |
-|           - App Icon & Title Header                               |
-|           - Mindfulness Quote Container                           |
-|           - Interactive Countdown Delay Timer                     |
-|           - Single-Task Foreground Transition                     |
-+-------------------------------------------------------------------+
-```
+## # Index
+- [Features](#-features)
+- [How to install](#-how-to-install)
+- [How to contribute](#-how-to-contribute)
+- [Requirements](#-requirements)
+- [Troubleshooting](#-troubleshooting)
+- [License & Legal](#-license--legal)
+- [Privacy Policy](#-privacy-policy)
+- [Links](#-links)
+- [Contact](#-contact)
 
 ---
 
-## Features
-
-### 1. Distraction & App Blocking
-- **Installed App Discovery**: Fetches all launchable packages asynchronously with high-resolution application icons.
-- **Layout Switcher**: Supports detailed list view and responsive adaptive grid view.
-- **Package Identifier Toggle**: Toggles technical package names on or off for developer analysis.
-- **Real-Time Search**: Filters applications instantly by name or package identifier.
-
-### 2. Time & Schedule Management
-- **Day Bitmask Engine**: Configures rules across custom day combinations (Weekdays, Weekends, or specific days).
-- **24-Hour Visual Graph**: Visualizes active block segments on a weekly 7-column canvas.
-- **Dual Time Pickers**: Sets start and end times with native Material 3 time dialogs.
-
-### 3. Pause & Enforcement Controls
-- **Strict Mode**: Disables pausing completely to enforce unbreakable focus sessions.
-- **Delay Slider**: Requires users to wait a designated duration (3s to 60s) before pausing.
-- **Text Typing Challenge**: Demands typing randomly generated alphanumeric strings to unlock.
-- **Mindfulness Countdown**: Displays a 5-second countdown safeguard before allowing rule deletion or disabling.
-
-### 4. Appearance & Personalization
-- **Theme Modes**: Supports System Default, Pure Light, and Pitch Dark.
-- **AMOLED Black**: Converts background and surface containers to pure black (`#000000`) for OLED power savings.
-- **Color Palettes**: Includes Teal Sage, Ocean Blue, Emerald Green, Sunset Coral, Lavender Purple, Rose Pink, Amber Gold, and Dynamic Material You.
-- **Connected Containers**: Implements grouped card sections with internal dividers for unified visual hierarchy.
+## # Features
+- **App Blocking:** Intercept launchable packages in real time using UsageStatsManager and system overlay layers.
+- **Website Filtering:** Inspect browser address bars dynamically across Chrome, Firefox, Brave, Opera, and Samsung Internet.
+- **Remote Device Lock:** Lock child device screens on demand from the parent dashboard via Accessibility actions.
+- **5-Vector Anti-Tamper:** Shield against uninstallation, force stop, storage clearing, and permission revocation on child devices.
+- **Auto-Healing Permissions:** Detect and automatically re-enable critical permissions if turned off in system settings.
+- **Cross-Device Family Sync:** Synchronize live battery status, screen state, and block rules in real time via Firebase.
+- **Visual Schedule Planner:** Configure active hours and weekly schedules with a 24-hour visual canvas graph.
+- **Strict & Delay Modes:** Prevent impulsive unpausing using countdown delay timers, typing challenges, or unbreakable strict sessions.
+- **Material 3 Expressive UI:** Personalize with 7 curated color palettes, dynamic system recoloring, and pitch-black AMOLED mode.
 
 ---
 
-## Required Permissions
+## # How to install
 
-| Permission | Identifier | Purpose |
-| :--- | :--- | :--- |
-| **Usage Access** | `android.permission.PACKAGE_USAGE_STATS` | Detects currently active foreground applications. |
-| **Display Over Other Apps** | `android.permission.SYSTEM_ALERT_WINDOW` | Displays the lock screen immediately over running apps in the background. |
-| **Unrestricted Battery** | `android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Prevents Android OS from killing the background monitoring service. |
-| **Accessibility Service** | `android.permission.BIND_ACCESSIBILITY_SERVICE` | Optional. Inspects browser URL address bars for blocked websites. |
-| **Post Notifications** | `android.permission.POST_NOTIFICATIONS` | Maintains the persistent foreground service notification on Android 13+. |
+> **Download:** [Get the latest release here](https://github.com/SubhamSathua/screen-harmony-flex/releases)
 
----
-
-## Technology Stack
-
-- **Language**: Kotlin 2.0+
-- **UI Framework**: Jetpack Compose (BOM 2026+)
-- **Design System**: Material Design 3 (M3 Expressive)
-- **Adaptive Components**: Compose Material 3 Adaptive Navigation Suite
-- **Asynchronous Architecture**: Kotlin Coroutines, StateFlow, Lifecycle-aware composables
-- **Build System**: Gradle Kotlin DSL (`build.gradle.kts`) with version catalog (`libs.versions.toml`)
+1. **Download APK:** Select the APK matching your device from the latest release:
+   - `app-arm64-v8a-release.apk` (Recommended for modern smartphones).
+   - `app-universal-release.apk` (Universal installer for all devices).
+2. **Install:** Open the downloaded APK on your Android phone and tap Install.
+3. **Grant Required Permissions:**
+   - **Usage Access:** Allows the app to detect foreground applications.
+   - **Display Over Other Apps:** Enables full-screen lock walls over restricted apps.
+   - **Accessibility Service:** Enables browser website filtering, anti-tamper protection, and remote lock execution.
+   - **Battery Optimization:** Disables background throttling for continuous protection.
+4. **Choose Mode:** Select **Self Mode** for personal productivity or **Family Mode** to pair Parent and Child devices using a 6-character code or QR scan.
 
 ---
 
-## Project Structure
+## # How to contribute
+We welcome contributions to ScreenHarmony Flex. Follow these steps to set up your local development environment:
 
-```
-ScreenHarmonyFlex/
-|-- app/
-|   |-- src/main/
-|   |   |-- java/com/prism/screenharmony/flex/
-|   |   |   |-- data/
-|   |   |   |   |-- BlockRepository.kt      # Reactive state storage for block rules
-|   |   |   |   `-- Models.kt               # BlockRule, TimeSlot, DayBitmask data models
-|   |   |   |-- service/
-|   |   |   |   |-- AppBlockerService.kt    # Usage Access monitoring foreground service
-|   |   |   |   |-- BootReceiver.kt         # Device reboot auto-start receiver
-|   |   |   |   `-- WebsiteAccessibilityService.kt # Browser URL inspection service
-|   |   |   |-- ui/
-|   |   |   |   |-- blocker/
-|   |   |   |   |   `-- BlockedActivity.kt  # Fullscreen lock wall activity
-|   |   |   |   |-- components/
-|   |   |   |   |   |-- CommonUI.kt         # Option cards, dialogs, async app icon loaders
-|   |   |   |   |   |-- PauseComponents.kt  # Delay sliders and typing challenge inputs
-|   |   |   |   |   `-- ScheduleComponents.kt # Visual timeline graph & time pickers
-|   |   |   |   |-- screens/
-|   |   |   |   |   |-- AppListScreen.kt    # Full installed application selector
-|   |   |   |   |   |-- BlocksPage.kt       # Active, paused, and disabled rule list
-|   |   |   |   |   `-- CreateBlockPage.kt  # Block creation and configuration flow
-|   |   |   |   `-- theme/
-|   |   |   |       |-- Color.kt            # 7 M3 palettes and AMOLED transformations
-|   |   |   |       |-- Theme.kt            # ThemeState provider and dynamic scheme builder
-|   |   |   |       `-- Type.kt             # Typography definitions
-|   |   |   |-- utils/
-|   |   |   |   |-- PermissionHelper.kt     # Permission status evaluation & intent dispatchers
-|   |   |   |   `-- TimeUtils.kt            # Delay formatting & slider conversion utilities
-|   |   |   `-- MainActivity.kt             # Navigation suite scaffold and main screens
-|   |   |-- res/                            # Drawables, mipmaps, strings, accessibility XML
-|   |   `-- AndroidManifest.xml             # Service, receiver, and activity declarations
-|   `-- build.gradle.kts                    # App module build configuration
-|-- version.properties                      # Isolated semantic version storage
-|-- bump-version.ps1                        # PowerShell script for automated semver bumping
-|-- bump-version.sh                         # Shell script for automated semver bumping
-|-- build.gradle.kts                        # Root project build configuration
-`-- settings.gradle.kts                     # Project settings and plugin repositories
-```
+1. **Clone the Repo:**
+   ```bash
+   git clone https://github.com/SubhamSathua/screen-harmony-flex.git
+   ```
+2. **Open in Android Studio:**
+   - Open Android Studio (Ladybug 2024.2+ or newer).
+   - Let Gradle sync project dependencies.
+3. **Set Up Firebase Config:**
+   - Copy `app/google-services.json.example` to `app/google-services.json`.
+   - Add your Firebase project credentials.
+4. **Build APK:**
+   ```bash
+   # Build Debug APK
+   .\gradlew.bat assembleDebug
+
+   # Build Signed Release APKs (Universal & ABI-split)
+   .\gradlew.bat assembleRelease
+   ```
 
 ---
 
-## Build & Installation
-
-### Prerequisites
-- Android Studio Ladybug (2024.2.1+) or newer
-- JDK 17 or JDK 21
-- Android SDK Platform 35 (API 35)
-
-### Build Debug APK
-Execute the Gradle wrapper from the root directory:
-
-```bash
-# Windows PowerShell / CMD
-.\gradlew.bat assembleDebug
-
-# macOS / Linux
-./gradlew assembleDebug
-```
-
-The generated APK will be located at:
-`app/build/outputs/apk/debug/app-debug.apk`
+## # Requirements
+- **Operating System:** Android 7.0 (API Level 24) or higher.
+- **Target SDK:** Android 15 / 16 (API Level 36).
+- **Architecture:** ARM64-v8a, ARMv7, x86_64, or x86.
+- **Development Tooling:** Android Studio Ladybug+, JDK 17 or JDK 21, Kotlin 2.0+.
 
 ---
 
-## Automated Version Management
-
-ScreenHarmony Flex uses an isolated `version.properties` file to update version codes and semantic versions without modifying `build.gradle.kts` files. This eliminates mandatory Gradle project syncs in Android Studio when updating versions.
-
-To increment or customize the version:
-
-```powershell
-# Interactive prompt (Major / Minor / Patch / Custom)
-.\bump-version.ps1
-
-# Direct increment
-.\bump-version.ps1 -Type patch
-.\bump-version.ps1 -Type minor
-.\bump-version.ps1 -Type major
-
-# Custom version bump
-.\bump-version.ps1 -Type custom -Version "1.4.0" -Code 15
-.\bump-version.ps1 "2.0.0"
-```
+## # Troubleshooting
+- **Lock Screen Not Appearing:** Ensure both "Usage Access" and "Display Over Other Apps" permissions are active in device settings.
+- **Website Blocking Inactive:** Verify that the "ScreenHarmony" Accessibility Service is enabled under Settings > Accessibility.
+- **Background Service Killed:** Disable aggressive battery optimization for ScreenHarmony in system battery settings.
+- **Family Sync Connection Failed:** Confirm that both Parent and Child devices have active internet access to reach Firebase.
 
 ---
 
-## License
+## # License & Legal
+This project is licensed under the **Apache License 2.0**.
 
-Copyright (c) 2026 ScreenHarmony Flex Project. All rights reserved.
-Licensed under the Apache License, Version 2.0.
+**Liability Protection:** The author provides this software "as is" without warranties. By using this software, you agree that the author is not liable for any damages, data loss, or system issues resulting from its use.
+
+**Modifications:** If you modify and distribute this software, you must:
+1. Retain all original copyright notices.
+2. Include a copy of the Apache License.
+3. Protect the original author from any liability claims arising from your modified version.
+
+---
+
+## # Privacy Policy
+- **On-Device Data Processing:** App usage history and browser navigation are inspected entirely in memory on your physical device.
+- **Zero Personal Data Collection:** No browsing history, personal files, passwords, or keystrokes are stored or transmitted.
+- **Anonymous Family Sync:** Device pairing uses random UUIDs and isolated family channels without requiring personal email or phone numbers.
+- **No Third-Party Advertising:** Zero ad SDKs, zero user tracking, and zero telemetry brokers.
+
+---
+
+## # Links
+- [Report an Issue](https://github.com/SubhamSathua/screen-harmony-flex/issues) - Report bugs and request new features.
+- [Security Policy](SECURITY.md) - Guidelines for reporting security vulnerabilities.
+- [Apache 2.0 License](LICENSE) - View the full license terms.
+
+---
+
+## # Contact
+**Author:** Subham Kumar Sathua
+**GitHub:** [@SubhamSathua](https://github.com/SubhamSathua)
+**Repository:** [screen-harmony-flex](https://github.com/SubhamSathua/screen-harmony-flex)
+
+---
+Copyright © 2026 Subham Kumar Sathua. Licensed under the Apache License 2.0.
