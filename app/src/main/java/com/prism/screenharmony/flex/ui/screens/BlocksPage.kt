@@ -303,7 +303,8 @@ fun BlockCardX(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (rule.isEnabled) {
-                if (isCurrentlyActive) MaterialTheme.colorScheme.surfaceContainer
+                if (isPausedActive) MaterialTheme.colorScheme.surfaceContainerHigh
+                else if (isCurrentlyActive) MaterialTheme.colorScheme.surfaceContainer
                 else MaterialTheme.colorScheme.surfaceContainerLow
             } else {
                 MaterialTheme.colorScheme.surfaceContainerLowest
@@ -314,8 +315,9 @@ fun BlockCardX(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     color = if (rule.isEnabled) {
-                        if (isCurrentlyActive) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.secondaryContainer
+                        if (isPausedActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                        else if (isCurrentlyActive) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surfaceContainerHighest
                     } else MaterialTheme.colorScheme.surfaceContainerHighest,
                     shape = CircleShape,
                     modifier = Modifier.size(44.dp)
@@ -363,16 +365,16 @@ fun BlockCardX(
                         } else if (isPausedActive) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Surface(
-                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
                                 shape = CircleShape
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Rounded.Pause, contentDescription = null, modifier = Modifier.size(12.dp))
+                                    Icon(Icons.Rounded.Pause, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text(formattedRemainingPill, style = MaterialTheme.typography.labelSmall)
+                                    Text(formattedRemainingPill, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -482,19 +484,20 @@ fun BlockCardX(
                 val durationMins = rule.pauseDurationMinutes ?: 15
                 Spacer(modifier = Modifier.height(10.dp))
                 Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             Icons.Rounded.PauseCircle,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(22.dp)
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -502,18 +505,22 @@ fun BlockCardX(
                                 text = "Paused for $durationMins min",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                color = MaterialTheme.colorScheme.primary
                             )
                             Text(
                                 text = formattedRemainingFull,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = { onPause(0) },
                             shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)
                         ) {
                             Text("Unpause", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)

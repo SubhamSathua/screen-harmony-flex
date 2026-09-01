@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,8 +36,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
-import com.prism.screenharmony.flex.data.BlockRule
+import com.prism.screenharmony.flex.data.*
 import com.prism.screenharmony.flex.family.*
+import com.prism.screenharmony.flex.ui.components.RemoteAppIcon
+import com.prism.screenharmony.flex.ui.components.ScheduleGraph
 import com.prism.screenharmony.flex.ui.viewmodels.PermissionState
 import kotlinx.coroutines.delay
 import org.json.JSONObject
@@ -1383,88 +1386,11 @@ private fun ChildBlocksTabContent(
         }
     }
 
-    // Read-Only Summary Dialog of the Parent Rule
+    // Read-Only Summary Bottom Sheet of the Parent Rule
     selectedSummaryRule?.let { rule ->
-        AlertDialog(
-            onDismissRequest = { selectedSummaryRule = null },
-            icon = { Icon(Icons.Rounded.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            title = {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(rule.name.ifBlank { "Parental Block" }, fontWeight = FontWeight.Bold)
-                    Text("Enforced by Parent • Read Only", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Blocked Apps
-                    if (rule.selectedApps.isNotEmpty()) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Blocked Apps (${rule.selectedApps.size}):", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    rule.selectedApps.forEach { pkg ->
-                                        Text("• $pkg", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Blocked Websites
-                    if (rule.selectedWebsites.isNotEmpty()) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Blocked Websites (${rule.selectedWebsites.size}):", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    rule.selectedWebsites.forEach { site ->
-                                        Text("• $site", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Schedules
-                    val schedule = rule.weeklySchedule
-                    if (schedule != null && schedule.slots.isNotEmpty()) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Active Schedule:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                            schedule.slots.forEach { slot ->
-                                val daysText = com.prism.screenharmony.flex.data.DayBitmask.toNames(slot.dayBitmask).joinToString(", ")
-                                Text("• $daysText (${String.format("%02d:%02d", slot.startMinute / 60, slot.startMinute % 60)} - ${String.format("%02d:%02d", slot.endMinute / 60, slot.endMinute % 60)})", style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    } else {
-                        Text("• Always Active (24/7)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-
-                    // Mode & Restriction Type
-                    val isStrict = rule.pauseConfig.type == com.prism.screenharmony.flex.data.PauseType.STRICT || rule.blockType == com.prism.screenharmony.flex.data.BlockType.STRICT
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Restriction Mode:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                        Text(if (isStrict) "Strict (Unpausable)" else "Standard (Pausable)", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = if (isStrict) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { selectedSummaryRule = null },
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Close")
-                }
-            }
+        ChildBlockSummaryBottomSheet(
+            rule = rule,
+            onDismiss = { selectedSummaryRule = null }
         )
     }
 
@@ -1555,6 +1481,348 @@ private fun StrictBadge() {
             Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
             Spacer(modifier = Modifier.width(4.dp))
             Text("Strict", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChildBlockSummaryBottomSheet(
+    rule: BlockRule,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
+    val pm = remember { context.packageManager }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Rounded.Shield,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = rule.name.ifBlank { "Parental Block" },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Enforced by Parent • Read Only",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 460.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // 1. Restriction Mode Card
+                item {
+                    val isStrict = rule.pauseConfig.type == PauseType.STRICT || rule.blockType == BlockType.STRICT
+                    val isDelay = rule.pauseConfig.type == PauseType.DELAY
+                    val isTypeText = rule.pauseConfig.type == PauseType.TYPE_TEXT
+                    val delaySec = rule.pauseConfig.extraValue ?: 10
+
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isStrict) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+                                else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        border = BorderStroke(
+                            1.dp,
+                            if (isStrict) MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = when {
+                                    isStrict -> Icons.Rounded.Lock
+                                    isDelay -> Icons.Rounded.Timer
+                                    isTypeText -> Icons.Rounded.TextFields
+                                    else -> Icons.Rounded.PauseCircle
+                                },
+                                contentDescription = null,
+                                tint = if (isStrict) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Restriction Mode: " + when {
+                                        isStrict -> "Strict (Unpausable)"
+                                        isDelay -> "Delay Countdown (${delaySec}s)"
+                                        isTypeText -> "Typing Challenge"
+                                        else -> "Standard (Pausable)"
+                                    },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isStrict) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = when {
+                                        isStrict -> "This restriction cannot be paused or bypassed by child."
+                                        isDelay -> "Pausing requires waiting through a ${delaySec}-second countdown."
+                                        isTypeText -> "Pausing requires completing a typing challenge."
+                                        else -> "Can be paused directly from parental dashboard."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 2. Blocked Apps Section
+                if (rule.selectedApps.isNotEmpty()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Blocked Apps (${rule.selectedApps.size})",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    rule.selectedApps.forEach { pkg ->
+                                        val appLabel = remember(pkg) {
+                                            try {
+                                                val info = pm.getApplicationInfo(pkg, 0)
+                                                pm.getApplicationLabel(info).toString()
+                                            } catch (_: Exception) {
+                                                pkg.substringAfterLast('.').replaceFirstChar { it.uppercase() }
+                                            }
+                                        }
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            RemoteAppIcon(
+                                                packageName = pkg,
+                                                appName = appLabel,
+                                                size = 36.dp,
+                                                shape = RoundedCornerShape(10.dp)
+                                            )
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = appLabel,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    text = pkg,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. Blocked Websites Section
+                if (rule.selectedWebsites.isNotEmpty()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Blocked Websites (${rule.selectedWebsites.size})",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    rule.selectedWebsites.forEach { site ->
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                                modifier = Modifier.size(36.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        Icons.Rounded.Language,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = site,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    text = "Web Intercept Active",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 4. Active Schedule Section (with exact Weekly Schedule graph and time written below)
+                item {
+                    val schedule = rule.weeklySchedule
+                    val hasSlots = schedule != null && schedule.slots.isNotEmpty()
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Active Schedule",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (hasSlots) {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    // Exact Weekly Schedule Graph!
+                                    ScheduleGraph(timeSlots = schedule!!.slots)
+
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+                                    // Time slots written clearly below
+                                    val formatter = java.time.format.DateTimeFormatter.ofPattern("hh:mm a")
+                                    schedule.slots.forEach { slot ->
+                                        val daysText = DayBitmask.toNames(slot.dayBitmask).joinToString(", ")
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = daysText,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                text = "${slot.startTime.format(formatter)} - ${slot.endTime.format(formatter)}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Schedule,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = "Always Active (24/7)",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "This restriction is enforced continuously throughout the week.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Close", fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.prism.screenharmony.flex.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -78,6 +79,9 @@ fun ScheduleGraph(timeSlots: List<TimeSlot>) {
 
         Spacer(modifier = Modifier.width(12.dp))
 
+        val gridLineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+        val columnBgColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.8f)
+
         Row(
             modifier = Modifier
                 .weight(1f)
@@ -94,13 +98,12 @@ fun ScheduleGraph(timeSlots: List<TimeSlot>) {
                             .weight(1f)
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(6.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                            .background(columnBgColor)
                     ) {
                         Canvas(modifier = Modifier.fillMaxSize()) {
-                            val color = Color.Gray.copy(alpha = 0.15f)
                             (1..3).forEach { i ->
                                 val y = size.height * (i * 0.25f)
-                                drawLine(color, Offset(0f, y), Offset(size.width, y), 1f)
+                                drawLine(gridLineColor, Offset(0f, y), Offset(size.width, y), 1f)
                             }
                         }
 
@@ -150,6 +153,7 @@ fun TimeSelectionCard(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
         modifier = modifier
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -159,7 +163,7 @@ fun TimeSelectionCard(
                 text = time.format(formatter),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.primary
             )
         }
     }
@@ -238,8 +242,8 @@ fun AddTimeDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
