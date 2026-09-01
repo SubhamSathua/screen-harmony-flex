@@ -1315,11 +1315,13 @@ private fun ChildBlocksTabContent(
                     )
                 }
                 items(pausedRules, key = { it.id }) { rule ->
-                    val remainingMillis = (rule.lastPausedAt ?: 0) + (rule.pauseDurationMinutes ?: 0) * 60 * 1000L - System.currentTimeMillis()
-                    val remainingMins = (remainingMillis / (60 * 1000L)).coerceAtLeast(0)
+                    val remainingMillis = ((rule.lastPausedAt ?: 0) + (rule.pauseDurationMinutes ?: 0) * 60 * 1000L - currentTimeMillis).coerceAtLeast(0L)
+                    val remainingMins = remainingMillis / (60 * 1000L)
+                    val remainingSecs = (remainingMillis % (60 * 1000L)) / 1000L
+                    val statusText = if (remainingMins > 0) "Paused (${remainingMins}m ${remainingSecs}s)" else "Paused (${remainingSecs}s)"
                     ChildRuleCard(
                         rule = rule,
-                        statusText = "Paused (${remainingMins}m)",
+                        statusText = statusText,
                         statusColor = MaterialTheme.colorScheme.secondary,
                         onClick = { selectedSummaryRule = rule },
                         actionContent = {

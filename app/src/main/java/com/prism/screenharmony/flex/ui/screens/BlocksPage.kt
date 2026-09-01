@@ -274,6 +274,26 @@ fun BlockCardX(
     val isDelay = rule.pauseConfig.type == PauseType.DELAY
     val delayDuration = rule.pauseConfig.extraValue ?: 10
 
+    var currentNow by remember(rule.lastPausedAt, rule.pauseDurationMinutes) { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(rule.lastPausedAt, rule.pauseDurationMinutes) {
+        if (rule.lastPausedAt != null && rule.pauseDurationMinutes != null) {
+            while (true) {
+                delay(1000)
+                currentNow = System.currentTimeMillis()
+            }
+        }
+    }
+
+    val remainingMillis = if (rule.lastPausedAt != null && rule.pauseDurationMinutes != null) {
+        ((rule.lastPausedAt + rule.pauseDurationMinutes * 60 * 1000L) - currentNow).coerceAtLeast(0L)
+    } else 0L
+
+    val isPausedActive = rule.isEnabled && rule.lastPausedAt != null && remainingMillis > 0L
+    val remainingMinutes = remainingMillis / (60 * 1000L)
+    val remainingSeconds = (remainingMillis % (60 * 1000L)) / 1000L
+    val formattedRemainingPill = if (remainingMinutes > 0) "${remainingMinutes}m" else "${remainingSeconds}s"
+    val formattedRemainingFull = if (remainingMinutes > 0) "${remainingMinutes}m ${remainingSeconds}s remaining" else "${remainingSeconds}s remaining"
+
     val now = LocalTime.now()
     val day = DayOfWeek.from(java.time.LocalDate.now())
     val isCurrentlyActive = rule.isEnabled && rule.isCurrentlyBlocked(now, day)
@@ -341,9 +361,7 @@ fun BlockCardX(
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
-                        } else if (rule.isPaused()) {
-                            val remainingMillis = (rule.lastPausedAt ?: 0) + (rule.pauseDurationMinutes ?: 0) * 60 * 1000L - System.currentTimeMillis()
-                            val remainingMins = (remainingMillis / (60 * 1000L)).coerceAtLeast(0)
+                        } else if (isPausedActive) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Surface(
                                 color = MaterialTheme.colorScheme.secondaryContainer,
@@ -355,7 +373,7 @@ fun BlockCardX(
                                 ) {
                                     Icon(Icons.Rounded.Pause, contentDescription = null, modifier = Modifier.size(12.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("${remainingMins}m", style = MaterialTheme.typography.labelSmall)
+                                    Text(formattedRemainingPill, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         }
@@ -461,10 +479,8 @@ fun BlockCardX(
                 }
             }
 
-            if (rule.isPaused()) {
+            if (isPausedActive) {
                 val durationMins = rule.pauseDurationMinutes ?: 15
-                val remainingMillis = (rule.lastPausedAt ?: 0) + durationMins * 60 * 1000L - System.currentTimeMillis()
-                val remainingMins = (remainingMillis / (60 * 1000L)).coerceAtLeast(0)
                 Spacer(modifier = Modifier.height(10.dp))
                 Surface(
                     color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
@@ -490,7 +506,7 @@ fun BlockCardX(
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                             Text(
-                                text = "$remainingMins min remaining",
+                                text = formattedRemainingFull,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                             )
@@ -510,7 +526,7 @@ fun BlockCardX(
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                if (!isStrict && rule.isEnabled && !rule.isPaused()) {
+                if (!isStrict && rule.isEnabled && !isPausedActive) {
                     FilledTonalButton(
                         onClick = {
                             if (isParentSide) {
