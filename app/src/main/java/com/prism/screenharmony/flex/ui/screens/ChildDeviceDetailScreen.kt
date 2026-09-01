@@ -37,6 +37,7 @@ import com.prism.screenharmony.flex.family.RemoteChildDevice
 import java.time.DayOfWeek
 import java.time.LocalTime
 import java.util.UUID
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -467,13 +468,29 @@ private fun ChildBlocksTabContent(
             }
         }
     } else {
+        var currentTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(1000)
+                currentTimeMillis = System.currentTimeMillis()
+            }
+        }
+
         val now = LocalTime.now()
         val day = DayOfWeek.from(java.time.LocalDate.now())
 
-        val activeRules = rules.filter { it.isEnabled && !it.isPaused() && it.isCurrentlyBlocked(now, day) }
-        val pausedRules = rules.filter { it.isEnabled && it.isPaused() }
-        val inactiveRules = rules.filter { it.isEnabled && !it.isPaused() && !it.isCurrentlyBlocked(now, day) }
-        val disabledRules = rules.filter { !it.isEnabled }
+        val activeRules = remember(rules, currentTimeMillis) {
+            rules.filter { it.isEnabled && !it.isPaused() && it.isCurrentlyBlocked(now, day) }
+        }
+        val pausedRules = remember(rules, currentTimeMillis) {
+            rules.filter { it.isEnabled && it.isPaused() }
+        }
+        val inactiveRules = remember(rules, currentTimeMillis) {
+            rules.filter { it.isEnabled && !it.isPaused() && !it.isCurrentlyBlocked(now, day) }
+        }
+        val disabledRules = remember(rules, currentTimeMillis) {
+            rules.filter { !it.isEnabled }
+        }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

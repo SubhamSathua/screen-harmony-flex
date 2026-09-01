@@ -183,7 +183,7 @@ data class BlockRule(
         val pausedAt = lastPausedAt ?: return false
         val duration = pauseDurationMinutes ?: return false
         val now = System.currentTimeMillis()
-        return now < pausedAt + (duration * 60 * 1000)
+        return now < pausedAt + (duration * 60 * 1000L)
     }
 
     fun isCurrentlyBlocked(now: LocalTime = LocalTime.now(), day: DayOfWeek = DayOfWeek.from(java.time.LocalDate.now())): Boolean {

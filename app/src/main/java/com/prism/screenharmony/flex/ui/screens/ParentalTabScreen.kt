@@ -38,6 +38,7 @@ import androidx.core.content.ContextCompat
 import com.prism.screenharmony.flex.data.BlockRule
 import com.prism.screenharmony.flex.family.*
 import com.prism.screenharmony.flex.ui.viewmodels.PermissionState
+import kotlinx.coroutines.delay
 import org.json.JSONObject
 import java.time.DayOfWeek
 import java.time.LocalTime
@@ -1237,12 +1238,27 @@ private fun ChildBlocksTabContent(
             }
         }
     } else {
+        var currentTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(1000)
+                currentTimeMillis = System.currentTimeMillis()
+                com.prism.screenharmony.flex.data.BlockRepository.cleanExpiredPauses()
+            }
+        }
+
         val now = LocalTime.now()
         val day = DayOfWeek.from(java.time.LocalDate.now())
 
-        val activeRules = rules.filter { it.isEnabled && !it.isPaused() && it.isCurrentlyBlocked(now, day) }
-        val pausedRules = rules.filter { it.isEnabled && it.isPaused() }
-        val inactiveRules = rules.filter { !it.isEnabled || (!it.isPaused() && !it.isCurrentlyBlocked(now, day)) }
+        val activeRules = remember(rules, currentTimeMillis) {
+            rules.filter { it.isEnabled && !it.isPaused() && it.isCurrentlyBlocked(now, day) }
+        }
+        val pausedRules = remember(rules, currentTimeMillis) {
+            rules.filter { it.isEnabled && it.isPaused() }
+        }
+        val inactiveRules = remember(rules, currentTimeMillis) {
+            rules.filter { !it.isEnabled || (!it.isPaused() && !it.isCurrentlyBlocked(now, day)) }
+        }
 
         LazyColumn(
             modifier = Modifier

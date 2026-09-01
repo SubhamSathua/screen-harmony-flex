@@ -444,20 +444,39 @@ object FamilySyncManager {
                                 }
 
                                 if (parsedRule != null) {
-                                    val existing = BlockRepository.rules.value.find { it.id == parsedRule.id }
-                                    val parentUnpaused = (parsedRule.unpausedAt ?: 0L) > (existing?.lastPausedAt ?: 0L)
+                                    val fbLastPausedAt = rSnap.child("lastPausedAt").getValue(Long::class.java)?.takeIf { it > 0 }
+                                    val fbPauseDurationMins = rSnap.child("pauseDurationMinutes").getValue(Long::class.java)?.toInt()?.takeIf { it > 0 }
+                                    val fbUnpausedAt = rSnap.child("unpausedAt").getValue(Long::class.java)?.takeIf { it > 0 }
+
+                                    val isFbUnpaused = (fbUnpausedAt ?: 0L) > (fbLastPausedAt ?: 0L)
+                                    val mergedRemoteRule = if (isFbUnpaused) {
+                                        parsedRule.copy(
+                                            lastPausedAt = null,
+                                            pauseDurationMinutes = null,
+                                            unpausedAt = fbUnpausedAt
+                                        )
+                                    } else {
+                                        parsedRule.copy(
+                                            lastPausedAt = fbLastPausedAt ?: parsedRule.lastPausedAt,
+                                            pauseDurationMinutes = fbPauseDurationMins ?: parsedRule.pauseDurationMinutes,
+                                            unpausedAt = fbUnpausedAt ?: parsedRule.unpausedAt
+                                        )
+                                    }
+
+                                    val existing = BlockRepository.rules.value.find { it.id == mergedRemoteRule.id }
+                                    val parentUnpaused = (mergedRemoteRule.unpausedAt ?: 0L) > (existing?.lastPausedAt ?: 0L)
 
                                     val finalRule = if (parentUnpaused) {
-                                        parsedRule.copy(lastPausedAt = null, pauseDurationMinutes = null)
-                                    } else if (parsedRule.isPaused()) {
-                                        parsedRule
+                                        mergedRemoteRule.copy(lastPausedAt = null, pauseDurationMinutes = null)
+                                    } else if (mergedRemoteRule.isPaused()) {
+                                        mergedRemoteRule
                                     } else if (existing != null && existing.isPaused()) {
-                                        parsedRule.copy(
+                                        mergedRemoteRule.copy(
                                             lastPausedAt = existing.lastPausedAt,
                                             pauseDurationMinutes = existing.pauseDurationMinutes
                                         )
                                     } else {
-                                        parsedRule
+                                        mergedRemoteRule
                                     }
                                     remoteRules.add(finalRule)
                                 }
@@ -936,7 +955,25 @@ object FamilySyncManager {
                         }
 
                         if (parsedRule != null) {
-                            list.add(parsedRule)
+                            val fbLastPausedAt = rSnap.child("lastPausedAt").getValue(Long::class.java)?.takeIf { it > 0 }
+                            val fbPauseDurationMins = rSnap.child("pauseDurationMinutes").getValue(Long::class.java)?.toInt()?.takeIf { it > 0 }
+                            val fbUnpausedAt = rSnap.child("unpausedAt").getValue(Long::class.java)?.takeIf { it > 0 }
+
+                            val isFbUnpaused = (fbUnpausedAt ?: 0L) > (fbLastPausedAt ?: 0L)
+                            val mergedRule = if (isFbUnpaused) {
+                                parsedRule.copy(
+                                    lastPausedAt = null,
+                                    pauseDurationMinutes = null,
+                                    unpausedAt = fbUnpausedAt
+                                )
+                            } else {
+                                parsedRule.copy(
+                                    lastPausedAt = fbLastPausedAt ?: parsedRule.lastPausedAt,
+                                    pauseDurationMinutes = fbPauseDurationMins ?: parsedRule.pauseDurationMinutes,
+                                    unpausedAt = fbUnpausedAt ?: parsedRule.unpausedAt
+                                )
+                            }
+                            list.add(mergedRule)
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Error parsing child rule", e)

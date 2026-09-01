@@ -158,6 +158,7 @@ object BlockRepository {
         val updated = current.map { rule ->
             if (rule.lastPausedAt != null && !rule.isPaused()) {
                 changed = true
+                com.prism.screenharmony.flex.family.FamilySyncManager.syncChildPauseToFirebase(rule.id, null, null)
                 rule.copy(lastPausedAt = null, pauseDurationMinutes = null)
             } else rule
         }

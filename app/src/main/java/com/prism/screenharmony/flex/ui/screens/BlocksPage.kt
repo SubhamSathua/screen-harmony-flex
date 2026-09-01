@@ -134,13 +134,30 @@ fun BlocksPage(
             }
         }
     } else {
+        var currentTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(1000)
+                currentTimeMillis = System.currentTimeMillis()
+                com.prism.screenharmony.flex.data.BlockRepository.cleanExpiredPauses()
+            }
+        }
+
         val now = LocalTime.now()
         val day = DayOfWeek.from(java.time.LocalDate.now())
 
-        val activeRules = rules.filter { it.isEnabled && !it.isPaused() && it.isCurrentlyBlocked(now, day) }
-        val pausedRules = rules.filter { it.isEnabled && it.isPaused() }
-        val inactiveRules = rules.filter { it.isEnabled && !it.isPaused() && !it.isCurrentlyBlocked(now, day) }
-        val disabledRules = rules.filter { !it.isEnabled }
+        val activeRules = remember(rules, currentTimeMillis) {
+            rules.filter { it.isEnabled && !it.isPaused() && it.isCurrentlyBlocked(now, day) }
+        }
+        val pausedRules = remember(rules, currentTimeMillis) {
+            rules.filter { it.isEnabled && it.isPaused() }
+        }
+        val inactiveRules = remember(rules, currentTimeMillis) {
+            rules.filter { it.isEnabled && !it.isPaused() && !it.isCurrentlyBlocked(now, day) }
+        }
+        val disabledRules = remember(rules, currentTimeMillis) {
+            rules.filter { !it.isEnabled }
+        }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
