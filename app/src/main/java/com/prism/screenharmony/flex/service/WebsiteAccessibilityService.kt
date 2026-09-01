@@ -139,33 +139,35 @@ class WebsiteAccessibilityService : AccessibilityService() {
         if (!isChild && !isStrict) return false
 
         val now = System.currentTimeMillis()
-        if (now - lastAntiTamperActionTimestamp < 600L) {
+        if (now - lastAntiTamperActionTimestamp < 500L) {
             return false
         }
 
         // --- Vector 1 & 4: Settings App Info, Accessibility Toggle & Row-Level Toggles (com.android.settings) ---
         if (packageName == "com.android.settings" || packageName.startsWith("com.android.settings")) {
-            // Case A: Row-Level Tap (Samsung / One UI / OEM direct switches on list items)
-            if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
-                val source = event.source
-                if (source != null) {
-                    val isRowTargetingOurApp = isNodeOrAncestorTargetingScreenHarmony(source)
-                    if (isRowTargetingOurApp) {
-                        triggerAntiTamperAction("ScreenHarmony permission modification is locked by Parental Controls")
-                        return true
-                    }
-                }
-            }
-
-            // Case B: Window/Activity State Changed (App Info screen or Accessibility Toggle sub-page)
+            // Case A: Window / Activity State Changed (App Info screen, Accessibility sub-page, etc.)
             if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
                 event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
             ) {
                 val rootNode = rootInActiveWindow
                 if (rootNode != null) {
-                    val isDangerousScreen = isScreenHarmonySettingsScreen(rootNode)
-                    if (isDangerousScreen) {
-                        triggerAntiTamperAction("ScreenHarmony settings and uninstall are protected by Parental Controls")
+                    val isDetail = isScreenHarmonyDetailPage(rootNode)
+                    rootNode.recycle()
+                    if (isDetail) {
+                        triggerAntiTamperAction("ScreenHarmony settings and permissions are protected by Parental Controls")
+                        return true
+                    }
+                }
+            }
+
+            // Case B: Row-Level Tap (Samsung / One UI / OEM direct switches on list items)
+            if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+                val source = event.source
+                if (source != null) {
+                    val isRowTargetingOurApp = isNodeOrAncestorTargetingScreenHarmony(source)
+                    source.recycle()
+                    if (isRowTargetingOurApp) {
+                        triggerAntiTamperAction("ScreenHarmony permission modification is locked by Parental Controls")
                         return true
                     }
                 }
@@ -181,6 +183,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
             val rootNode = rootInActiveWindow
             if (rootNode != null) {
                 val isOurUninstall = isUninstallDialogForOurApp(rootNode)
+                rootNode.recycle()
                 if (isOurUninstall) {
                     triggerAntiTamperAction("Uninstallation is protected by Parental Controls")
                     return true
@@ -196,9 +199,11 @@ class WebsiteAccessibilityService : AccessibilityService() {
                     val text = source.text?.toString()?.lowercase() ?: ""
                     val desc = source.contentDescription?.toString()?.lowercase() ?: ""
                     val isUninstallClick = text.contains("uninstall") || desc.contains("uninstall")
+                    source.recycle()
                     if (isUninstallClick) {
                         val rootNode = rootInActiveWindow
-                        val isOurAppPage = rootNode != null && isNodeTextContainsScreenHarmony(rootNode)
+                        val isOurAppPage = rootNode != null && isScreenHarmonyDetailPage(rootNode)
+                        rootNode?.recycle()
                         if (isOurAppPage) {
                             triggerAntiTamperAction("Uninstallation from Google Play is protected by Parental Controls")
                             return true
@@ -213,26 +218,43 @@ class WebsiteAccessibilityService : AccessibilityService() {
 
     private fun triggerAntiTamperAction(reason: String) {
         lastAntiTamperActionTimestamp = System.currentTimeMillis()
-        Log.w(TAG, "🚨 ANTI-TAMPER TRIGGERED: $reason. Executing GLOBAL_ACTION_BACK!")
-        performGlobalAction(GLOBAL_ACTION_BACK)
+        Log.w(TAG, "🚨 ANTI-TAMPER TRIGGERED: $reason. Executing GLOBAL_ACTION_HOME & Protection Wall!")
+        
+        // 1. Instantly exit Settings / Installer to Home screen
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        
+        // 2. Launch full-screen Protection Wall over Settings immediately
+        launchBlockWall(
+            context = this,
+            target = "Parental Protection",
+            isWebsite = false,
+            quote = reason,
+            delaySeconds = 0
+        )
+
+        // 3. Show Toast for instant user feedback
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             android.widget.Toast.makeText(
                 this,
                 "🔒 $reason",
-                android.widget.Toast.LENGTH_SHORT
+                android.widget.Toast.LENGTH_LONG
             ).show()
         }
     }
 
     private fun isNodeOrAncestorTargetingScreenHarmony(node: AccessibilityNodeInfo): Boolean {
         // Check current node
-        if (isNodeTextContainsScreenHarmony(node)) return true
+        val nodeTexts = mutableListOf<String>()
+        collectAllText(node, nodeTexts)
+        if (nodeTexts.any { isTextRelatesToOurApp(it) }) return true
 
         // Check parent container (up to 4 levels)
         var current: AccessibilityNodeInfo? = node.parent
         var depth = 0
         while (current != null && depth < 4) {
-            if (isNodeTextContainsScreenHarmony(current)) {
+            val parentTexts = mutableListOf<String>()
+            collectAllText(current, parentTexts)
+            if (parentTexts.any { isTextRelatesToOurApp(it) }) {
                 return true
             }
             current = current.parent
@@ -241,69 +263,71 @@ class WebsiteAccessibilityService : AccessibilityService() {
         return false
     }
 
-    private fun isNodeTextContainsScreenHarmony(node: AccessibilityNodeInfo?): Boolean {
-        if (node == null) return false
-        val text = node.text?.toString()?.lowercase() ?: ""
-        val desc = node.contentDescription?.toString()?.lowercase() ?: ""
-        val viewId = node.viewIdResourceName?.lowercase() ?: ""
+    private fun isScreenHarmonyDetailPage(root: AccessibilityNodeInfo): Boolean {
+        val texts = mutableListOf<String>()
+        collectAllText(root, texts)
+        val fullText = texts.joinToString(" ").lowercase()
 
-        if (text.contains("screenharmony") || text.contains("screen harmony") || text.contains("com.prism.screenharmony") ||
-            desc.contains("screenharmony") || desc.contains("screen harmony") || desc.contains("com.prism.screenharmony") ||
-            viewId.contains("com.prism.screenharmony")
-        ) {
-            return true
+        val mentionsOurApp = isTextRelatesToOurApp(fullText)
+        if (!mentionsOurApp) return false
+
+        // Common app names to detect when the user is in a general multi-app settings list
+        val commonApps = listOf(
+            "whatsapp", "chrome", "google", "youtube", "facebook", "instagram",
+            "telegram", "link to windows", "samsung", "system ui", "phone",
+            "messages", "drive", "photos", "maps", "gmail", "clock", "camera",
+            "calculator", "calendar", "files", "contacts", "bixby", "smartthings",
+            "device care", "finder", "game booster"
+        )
+        var otherAppCount = 0
+        for (app in commonApps) {
+            if (fullText.contains(app)) {
+                otherAppCount++
+            }
         }
+
+        // If multiple other apps are present, it's a general list (like Installed Apps list or Usage Access list)
+        if (otherAppCount >= 2) {
+            return false // Let user browse the list; we will catch row clicks instead
+        }
+
+        // If not a general list and mentions ScreenHarmony, it's ScreenHarmony's App Info or Permission detail sub-page
+        return true
+    }
+
+    private fun collectAllText(node: AccessibilityNodeInfo?, outList: MutableList<String>) {
+        if (node == null) return
+        val t = node.text?.toString()
+        if (!t.isNullOrBlank()) outList.add(t)
+        val d = node.contentDescription?.toString()
+        if (!d.isNullOrBlank()) outList.add(d)
 
         for (i in 0 until node.childCount) {
             val child = node.getChild(i)
-            if (child != null && isNodeTextContainsScreenHarmony(child)) {
-                return true
+            if (child != null) {
+                collectAllText(child, outList)
+                child.recycle()
             }
         }
-        return false
     }
 
-    private fun isScreenHarmonySettingsScreen(root: AccessibilityNodeInfo): Boolean {
-        // Must contain "ScreenHarmony" or our package name
-        if (!isNodeTextContainsScreenHarmony(root)) return false
-
-        // And must be an App Info / Manage App screen or Accessibility Toggle screen
-        return hasAppInfoOrPermissionIndicators(root)
-    }
-
-    private fun hasAppInfoOrPermissionIndicators(node: AccessibilityNodeInfo?): Boolean {
-        if (node == null) return false
-        val text = node.text?.toString()?.lowercase() ?: ""
-        val desc = node.contentDescription?.toString()?.lowercase() ?: ""
-
-        if (text.contains("uninstall") || text.contains("force stop") ||
-            text.contains("clear data") || text.contains("storage & cache") ||
-            text.contains("use screenharmony") || text.contains("allow screenharmony to have full control") ||
-            text.contains("screenharmony shortcut") || text.contains("turn off screenharmony") ||
-            desc.contains("uninstall") || desc.contains("force stop")
-        ) {
-            return true
-        }
-
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i)
-            if (child != null && hasAppInfoOrPermissionIndicators(child)) {
-                return true
-            }
-        }
-        return false
+    private fun isTextRelatesToOurApp(text: String): Boolean {
+        val lower = text.lowercase()
+        return lower.contains("screenharmony") ||
+               lower.contains("screen harmony") ||
+               lower.contains("com.prism.screenharmony")
     }
 
     private fun isUninstallDialogForOurApp(root: AccessibilityNodeInfo): Boolean {
-        if (!isNodeTextContainsScreenHarmony(root)) return false
-        val text = root.text?.toString()?.lowercase() ?: ""
-        val desc = root.contentDescription?.toString()?.lowercase() ?: ""
-        if (text.contains("uninstall") || desc.contains("uninstall") ||
-            text.contains("do you want to uninstall") || text.contains("delete app")
-        ) {
-            return true
-        }
-        return hasAppInfoOrPermissionIndicators(root)
+        val texts = mutableListOf<String>()
+        collectAllText(root, texts)
+        val fullText = texts.joinToString(" ").lowercase()
+        val mentionsOurApp = isTextRelatesToOurApp(fullText)
+        val mentionsUninstall = fullText.contains("uninstall") ||
+                               fullText.contains("delete") ||
+                               fullText.contains("remove") ||
+                               fullText.contains("do you want to uninstall")
+        return mentionsOurApp && mentionsUninstall
     }
 
     private val browserPackages = setOf(
