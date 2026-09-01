@@ -17,3 +17,5 @@ Dev-LAB/
 *.jks
 *.keystore
 keystore.properties
+app/google-services.json
+google-services.json

@@ -1,13 +1,13 @@
-{
+﻿{
   "project_info": {
-    "project_number": "635804110118",
-    "project_id": "screen-harmony-cloud",
-    "storage_bucket": "screen-harmony-cloud.firebasestorage.app"
+    "project_number": "123456789000",
+    "project_id": "screenharmony-flex-example",
+    "storage_bucket": "screenharmony-flex-example.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:635804110118:android:115e3d63bf2a552854c5e7",
+        "mobilesdk_app_id": "1:123456789000:android:abcdef1234567890abcdef",
         "android_client_info": {
           "package_name": "com.prism.screenharmony.flex"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDSRbAJKasAUnO8HbswqrphEcDyI7J98BM"
+          "current_key": "AIzaSyEXAMPLE_API_KEY_PLACEHOLDER_123"
         }
       ],
       "services": {
