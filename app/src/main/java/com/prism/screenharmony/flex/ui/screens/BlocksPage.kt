@@ -289,10 +289,9 @@ fun BlockCardX(
     } else 0L
 
     val isPausedActive = rule.isEnabled && rule.lastPausedAt != null && remainingMillis > 0L
-    val remainingMinutes = remainingMillis / (60 * 1000L)
-    val remainingSeconds = (remainingMillis % (60 * 1000L)) / 1000L
-    val formattedRemainingPill = if (remainingMinutes > 0) "${remainingMinutes}m" else "${remainingSeconds}s"
-    val formattedRemainingFull = if (remainingMinutes > 0) "${remainingMinutes}m ${remainingSeconds}s remaining" else "${remainingSeconds}s remaining"
+    val remainingMinutes = kotlin.math.ceil(remainingMillis / (60 * 1000f)).toInt().coerceAtLeast(1)
+    val formattedRemainingPill = "${remainingMinutes}m"
+    val formattedRemainingFull = "$remainingMinutes min remaining"
 
     val now = LocalTime.now()
     val day = DayOfWeek.from(java.time.LocalDate.now())
