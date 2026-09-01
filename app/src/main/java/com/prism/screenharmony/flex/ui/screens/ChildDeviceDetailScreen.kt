@@ -470,8 +470,9 @@ private fun ChildBlocksTabContent(
         val now = LocalTime.now()
         val day = DayOfWeek.from(java.time.LocalDate.now())
 
-        val activeRules = rules.filter { it.isCurrentlyBlocked(now, day) }
-        val pausedRules = rules.filter { it.isEnabled && !it.isCurrentlyBlocked(now, day) }
+        val activeRules = rules.filter { it.isEnabled && !it.isPaused() && it.isCurrentlyBlocked(now, day) }
+        val pausedRules = rules.filter { it.isEnabled && it.isPaused() }
+        val inactiveRules = rules.filter { it.isEnabled && !it.isPaused() && !it.isCurrentlyBlocked(now, day) }
         val disabledRules = rules.filter { !it.isEnabled }
 
         LazyColumn(
@@ -495,7 +496,8 @@ private fun ChildBlocksTabContent(
                         onToggle = { onToggleRule(rule, it) },
                         onClick = { onEditRule(rule) },
                         onDelete = { onDeleteRule(rule) },
-                        onPause = { duration -> onPauseRule(rule, duration) }
+                        onPause = { duration -> onPauseRule(rule, duration) },
+                        isParentSide = true
                     )
                 }
             }
@@ -516,7 +518,30 @@ private fun ChildBlocksTabContent(
                         onToggle = { onToggleRule(rule, it) },
                         onClick = { onEditRule(rule) },
                         onDelete = { onDeleteRule(rule) },
-                        onPause = { duration -> onPauseRule(rule, duration) }
+                        onPause = { duration -> onPauseRule(rule, duration) },
+                        isParentSide = true
+                    )
+                }
+            }
+
+            if (inactiveRules.isNotEmpty()) {
+                item {
+                    Text(
+                        "Block Inactive (${inactiveRules.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)
+                    )
+                }
+                items(inactiveRules, key = { it.id }) { rule ->
+                    BlockCardX(
+                        rule = rule,
+                        onToggle = { onToggleRule(rule, it) },
+                        onClick = { onEditRule(rule) },
+                        onDelete = { onDeleteRule(rule) },
+                        onPause = { duration -> onPauseRule(rule, duration) },
+                        isParentSide = true
                     )
                 }
             }
@@ -537,7 +562,8 @@ private fun ChildBlocksTabContent(
                         onToggle = { onToggleRule(rule, it) },
                         onClick = { onEditRule(rule) },
                         onDelete = { onDeleteRule(rule) },
-                        onPause = { duration -> onPauseRule(rule, duration) }
+                        onPause = { duration -> onPauseRule(rule, duration) },
+                        isParentSide = true
                     )
                 }
             }

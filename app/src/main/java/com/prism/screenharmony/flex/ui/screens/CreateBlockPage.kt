@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -548,6 +549,7 @@ fun WebsiteBottomSheet(selectedWebsites: Set<String>, onWebsitesChanged: (Set<St
 fun WeeklyScheduleBottomSheet(timeSlots: List<TimeSlot>, onTimeSlotsChanged: (List<TimeSlot>) -> Unit, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showAddDialog by remember { mutableStateOf(false) }
+    var editingSlotIndex by remember { mutableStateOf<Int?>(null) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -569,25 +571,73 @@ fun WeeklyScheduleBottomSheet(timeSlots: List<TimeSlot>, onTimeSlotsChanged: (Li
                 }
             }
             ScheduleGraph(timeSlots)
-            LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
-                items(timeSlots) { slot ->
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 240.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                itemsIndexed(timeSlots) { index, slot ->
                     val formatter = java.time.format.DateTimeFormatter.ofPattern("hh:mm a")
-                    ListItem(
-                        headlineContent = { Text(DayBitmask.toNames(slot.dayBitmask).joinToString(", ")) },
-                        supportingContent = {
-                            Text(
-                                text = "${slot.startTime.format(formatter)} - ${slot.endTime.format(formatter)}"
-                            )
-                        },
-                        trailingContent = { IconButton(onClick = { onTimeSlotsChanged(timeSlots - slot) }) { Icon(Icons.Rounded.Delete, contentDescription = "Delete") } }
-                    )
+                    Surface(
+                        onClick = { editingSlotIndex = index },
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = DayBitmask.toNames(slot.dayBitmask).joinToString(", "),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "${slot.startTime.format(formatter)} - ${slot.endTime.format(formatter)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            IconButton(onClick = { editingSlotIndex = index }) {
+                                Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = { onTimeSlotsChanged(timeSlots.filterIndexed { i, _ -> i != index }) }) {
+                                Icon(Icons.Rounded.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
                 }
             }
             Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Done") }
         }
     }
     if (showAddDialog) {
-        AddTimeDialog(onDismiss = { showAddDialog = false }, onAdd = { slot -> onTimeSlotsChanged(timeSlots + slot); showAddDialog = false })
+        AddTimeDialog(
+            onDismiss = { showAddDialog = false },
+            onSave = { newSlot ->
+                onTimeSlotsChanged(timeSlots + newSlot)
+                showAddDialog = false
+            }
+        )
+    }
+    editingSlotIndex?.let { idx ->
+        if (idx in timeSlots.indices) {
+            val slotToEdit = timeSlots[idx]
+            AddTimeDialog(
+                initialSlot = slotToEdit,
+                onDismiss = { editingSlotIndex = null },
+                onSave = { updatedSlot ->
+                    val updated = timeSlots.toMutableList().apply { this[idx] = updatedSlot }
+                    onTimeSlotsChanged(updated)
+                    editingSlotIndex = null
+                }
+            )
+        } else {
+            editingSlotIndex = null
+        }
     }
 }
 

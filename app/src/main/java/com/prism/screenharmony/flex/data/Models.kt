@@ -167,7 +167,8 @@ data class BlockRule(
     val wallConfig: WallConfig = WallConfig.StandardQuote(),
     val blockDurationSeconds: Int = 5,
     val lastPausedAt: Long? = null,
-    val pauseDurationMinutes: Int? = null
+    val pauseDurationMinutes: Int? = null,
+    val unpausedAt: Long? = null
 ) {
     val weeklySchedule: BlockCondition.WeeklySchedule?
         get() = conditions.filterIsInstance<BlockCondition.WeeklySchedule>().firstOrNull()

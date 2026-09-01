@@ -219,11 +219,19 @@ fun WeeklyScheduleCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTimeDialog(onDismiss: () -> Unit, onAdd: (TimeSlot) -> Unit) {
-    var selectedDays by remember { mutableStateOf(setOf("Mon", "Tue", "Wed", "Thu", "Fri")) }
+fun AddTimeDialog(
+    initialSlot: TimeSlot? = null,
+    onDismiss: () -> Unit,
+    onSave: (TimeSlot) -> Unit
+) {
+    var selectedDays by remember {
+        mutableStateOf(
+            initialSlot?.let { DayBitmask.toNames(it.dayBitmask).toSet() } ?: setOf("Mon", "Tue", "Wed", "Thu", "Fri")
+        )
+    }
     val days = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
-    var startTime by remember { mutableStateOf(LocalTime.of(9, 0)) }
-    var endTime by remember { mutableStateOf(LocalTime.of(17, 0)) }
+    var startTime by remember { mutableStateOf(initialSlot?.startTime ?: LocalTime.of(9, 0)) }
+    var endTime by remember { mutableStateOf(initialSlot?.endTime ?: LocalTime.of(17, 0)) }
     var showStartTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker by remember { mutableStateOf(false) }
 
@@ -237,7 +245,11 @@ fun AddTimeDialog(onDismiss: () -> Unit, onAdd: (TimeSlot) -> Unit) {
                 modifier = Modifier.padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                Text("Add Time Period", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    text = if (initialSlot != null) "Edit Time Period" else "Add Time Period",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Repeat on", style = MaterialTheme.typography.labelLarge)
@@ -276,8 +288,9 @@ fun AddTimeDialog(onDismiss: () -> Unit, onAdd: (TimeSlot) -> Unit) {
                     Button(
                         enabled = selectedDays.isNotEmpty(),
                         onClick = {
-                            onAdd(
+                            onSave(
                                 TimeSlot(
+                                    id = initialSlot?.id ?: java.util.UUID.randomUUID().toString(),
                                     dayBitmask = DayBitmask.fromNames(selectedDays),
                                     startMinute = startTime.hour * 60 + startTime.minute,
                                     endMinute = endTime.hour * 60 + endTime.minute
@@ -285,7 +298,7 @@ fun AddTimeDialog(onDismiss: () -> Unit, onAdd: (TimeSlot) -> Unit) {
                             )
                         }
                     ) {
-                        Text("Add")
+                        Text(if (initialSlot != null) "Save" else "Add")
                     }
                 }
             }

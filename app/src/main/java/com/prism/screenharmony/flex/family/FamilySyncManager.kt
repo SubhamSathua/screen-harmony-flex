@@ -46,6 +46,8 @@ object FamilySyncManager {
     private var rulesListener: ValueEventListener? = null
     private var devicesListener: ValueEventListener? = null
     private var unlinkRequestListener: ValueEventListener? = null
+    private var appContext: Context? = null
+    private var cachedDeviceId: String? = null
 
     fun dismissDenialAlert() {
         _oneTimeDenialAlert.value = false
@@ -53,6 +55,10 @@ object FamilySyncManager {
 
     fun initialize(context: Context) {
         try {
+            val appCtx = context.applicationContext
+            appContext = appCtx
+            cachedDeviceId = getDeviceId(appCtx)
+
             // 1. Load saved local family profile immediately so UI state is instant on startup
             loadLocalProfile(context)
 
@@ -438,7 +444,22 @@ object FamilySyncManager {
                                 }
 
                                 if (parsedRule != null) {
-                                    remoteRules.add(parsedRule)
+                                    val existing = BlockRepository.rules.value.find { it.id == parsedRule.id }
+                                    val parentUnpaused = (parsedRule.unpausedAt ?: 0L) > (existing?.lastPausedAt ?: 0L)
+
+                                    val finalRule = if (parentUnpaused) {
+                                        parsedRule.copy(lastPausedAt = null, pauseDurationMinutes = null)
+                                    } else if (parsedRule.isPaused()) {
+                                        parsedRule
+                                    } else if (existing != null && existing.isPaused()) {
+                                        parsedRule.copy(
+                                            lastPausedAt = existing.lastPausedAt,
+                                            pauseDurationMinutes = existing.pauseDurationMinutes
+                                        )
+                                    } else {
+                                        parsedRule
+                                    }
+                                    remoteRules.add(finalRule)
                                 }
                             } catch (e: Exception) {
                                 Log.e(TAG, "Error parsing remote rule", e)
@@ -597,6 +618,32 @@ object FamilySyncManager {
                 "isNotificationGranted" to com.prism.screenharmony.flex.utils.PermissionHelper.isNotificationGranted(context)
             )
             db.getReference("families/${profile.familyId}/devices/$deviceId/permissions").updateChildren(permissionsMap)
+        }
+    }
+
+    fun updateLocalPushedRules(rules: List<BlockRule>) {
+        val currentPushed = _childPushedRules.value
+        if (currentPushed.isNotEmpty()) {
+            val updated = currentPushed.map { pushed ->
+                rules.find { it.id == pushed.id } ?: pushed
+            }
+            _childPushedRules.value = updated
+        }
+    }
+
+    fun syncChildPauseToFirebase(ruleId: String, lastPausedAt: Long?, durationMinutes: Int?) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.CHILD || profile.familyId.isBlank()) return@ensureAuth
+            val devId = cachedDeviceId ?: appContext?.let { getDeviceId(it) } ?: return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+            val updates = mapOf(
+                "lastPausedAt" to (lastPausedAt ?: 0L),
+                "pauseDurationMinutes" to (durationMinutes ?: 0),
+                "unpausedAt" to (if (lastPausedAt == null) System.currentTimeMillis() else 0L),
+                "updatedAt" to ServerValue.TIMESTAMP
+            )
+            db.getReference("families/${profile.familyId}/devices/$devId/rules/$ruleId").updateChildren(updates)
         }
     }
 
@@ -805,6 +852,9 @@ object FamilySyncManager {
                 "name" to rule.name,
                 "isEnabled" to rule.isEnabled,
                 "blockDurationSeconds" to rule.blockDurationSeconds,
+                "lastPausedAt" to (rule.lastPausedAt ?: 0L),
+                "pauseDurationMinutes" to (rule.pauseDurationMinutes ?: 0),
+                "unpausedAt" to (rule.unpausedAt ?: 0L),
                 "selectedApps" to rule.selectedApps.toList(),
                 "selectedWebsites" to rule.selectedWebsites.toList(),
                 "ruleJson" to ruleJson,
@@ -824,12 +874,14 @@ object FamilySyncManager {
         val updated = if (durationMinutes > 0) {
             rule.copy(
                 lastPausedAt = System.currentTimeMillis(),
-                pauseDurationMinutes = durationMinutes
+                pauseDurationMinutes = durationMinutes,
+                unpausedAt = null
             )
         } else {
             rule.copy(
                 lastPausedAt = null,
-                pauseDurationMinutes = null
+                pauseDurationMinutes = null,
+                unpausedAt = System.currentTimeMillis()
             )
         }
         pushRuleToChild(childDeviceId, updated)

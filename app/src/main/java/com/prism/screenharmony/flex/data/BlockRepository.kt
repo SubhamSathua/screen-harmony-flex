@@ -164,6 +164,7 @@ object BlockRepository {
         if (changed) {
             _rules.value = updated
             saveToDisk(updated)
+            com.prism.screenharmony.flex.family.FamilySyncManager.updateLocalPushedRules(updated)
             com.prism.screenharmony.flex.service.AppBlockerService.resetInterceptState()
             Log.i(TAG, "cleanExpiredPauses: Expired paused blocks reactivated and intercept reset")
         }
@@ -172,11 +173,24 @@ object BlockRepository {
     fun addOrUpdateRule(rule: BlockRule) {
         Log.i(TAG, "addOrUpdateRule: '${rule.name}' with ${rule.selectedApps.size} apps, ${rule.selectedWebsites.size} websites")
         val current = _rules.value
-        val exists = current.any { it.id == rule.id }
-        val updated = if (exists) {
-            current.map { if (it.id == rule.id) rule else it }
+        val existing = current.find { it.id == rule.id }
+        val parentUnpaused = (rule.unpausedAt ?: 0L) > (existing?.lastPausedAt ?: 0L)
+        val ruleToSave = if (parentUnpaused) {
+            rule.copy(lastPausedAt = null, pauseDurationMinutes = null)
+        } else if (rule.isPaused()) {
+            rule
+        } else if (existing != null && existing.isPaused()) {
+            rule.copy(
+                lastPausedAt = existing.lastPausedAt,
+                pauseDurationMinutes = existing.pauseDurationMinutes
+            )
         } else {
-            current + rule
+            rule
+        }
+        val updated = if (existing != null) {
+            current.map { if (it.id == rule.id) ruleToSave else it }
+        } else {
+            current + ruleToSave
         }
         _rules.value = updated
         saveToDisk(updated)
@@ -200,27 +214,33 @@ object BlockRepository {
 
     fun pauseRule(ruleId: String, durationMinutes: Int) {
         Log.i(TAG, "pauseRule: id=$ruleId for ${durationMinutes}m")
+        val now = System.currentTimeMillis()
         val updated = _rules.value.map {
             if (it.id == ruleId) {
                 it.copy(
-                    lastPausedAt = System.currentTimeMillis(),
-                    pauseDurationMinutes = durationMinutes
+                    lastPausedAt = now,
+                    pauseDurationMinutes = durationMinutes,
+                    unpausedAt = null
                 )
             } else it
         }
         _rules.value = updated
         saveToDisk(updated)
+        com.prism.screenharmony.flex.family.FamilySyncManager.updateLocalPushedRules(updated)
+        com.prism.screenharmony.flex.family.FamilySyncManager.syncChildPauseToFirebase(ruleId, now, durationMinutes)
     }
 
     fun unpauseRule(ruleId: String) {
         Log.i(TAG, "unpauseRule: id=$ruleId")
         val updated = _rules.value.map {
             if (it.id == ruleId) {
-                it.copy(lastPausedAt = null, pauseDurationMinutes = null)
+                it.copy(lastPausedAt = null, pauseDurationMinutes = null, unpausedAt = System.currentTimeMillis())
             } else it
         }
         _rules.value = updated
         saveToDisk(updated)
+        com.prism.screenharmony.flex.family.FamilySyncManager.updateLocalPushedRules(updated)
+        com.prism.screenharmony.flex.family.FamilySyncManager.syncChildPauseToFirebase(ruleId, null, null)
     }
 
     // ==========================================
@@ -255,6 +275,7 @@ object BlockRepository {
                 put("blockDurationSeconds", rule.blockDurationSeconds)
                 put("lastPausedAt", rule.lastPausedAt ?: JSONObject.NULL)
                 put("pauseDurationMinutes", rule.pauseDurationMinutes ?: JSONObject.NULL)
+                put("unpausedAt", rule.unpausedAt ?: JSONObject.NULL)
 
                 // Apps
                 val appsArray = JSONArray()
@@ -331,6 +352,7 @@ object BlockRepository {
             val blockDurationSeconds = obj.optInt("blockDurationSeconds", 5)
             val lastPausedAt = if (obj.isNull("lastPausedAt")) null else obj.getLong("lastPausedAt")
             val pauseDurationMinutes = if (obj.isNull("pauseDurationMinutes")) null else obj.getInt("pauseDurationMinutes")
+            val unpausedAt = if (obj.isNull("unpausedAt")) null else obj.getLong("unpausedAt")
 
             // Apps
             val selectedApps = mutableSetOf<String>()
@@ -426,7 +448,8 @@ object BlockRepository {
                     blockDurationSeconds = blockDurationSeconds,
                     wallConfig = wallConfig,
                     lastPausedAt = lastPausedAt,
-                    pauseDurationMinutes = pauseDurationMinutes
+                    pauseDurationMinutes = pauseDurationMinutes,
+                    unpausedAt = unpausedAt
                 )
             )
         }
