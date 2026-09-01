@@ -145,18 +145,27 @@ class WebsiteAccessibilityService : AccessibilityService() {
 
         // --- Vector 1 & 4: Settings App Info, Accessibility Toggle & Row-Level Toggles (com.android.settings) ---
         if (packageName == "com.android.settings" || packageName.startsWith("com.android.settings")) {
-            // Case A: Window / Activity State Changed (App Info screen, Accessibility sub-page, etc.)
-            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-                event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-            ) {
-                val rootNode = rootInActiveWindow
-                if (rootNode != null) {
+            val rootNode = rootInActiveWindow
+            if (rootNode != null) {
+                // 1. Auto-Heal: If ScreenHarmony switch is detected in any list or page and is currently OFF, click it ON!
+                val healed = autoHealAndEnforceSettingsSwitches(rootNode)
+                if (healed) {
+                    rootNode.recycle()
+                    return true
+                }
+
+                // 2. Check if this is ScreenHarmony's App Info or detail page
+                if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                    event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                ) {
                     val isDetail = isScreenHarmonyDetailPage(rootNode)
                     rootNode.recycle()
                     if (isDetail) {
                         triggerAntiTamperAction("ScreenHarmony settings and permissions are protected by Parental Controls")
                         return true
                     }
+                } else {
+                    rootNode.recycle()
                 }
             }
 
@@ -165,11 +174,18 @@ class WebsiteAccessibilityService : AccessibilityService() {
                 val source = event.source
                 if (source != null) {
                     val isRowTargetingOurApp = isNodeOrAncestorTargetingScreenHarmony(source)
-                    source.recycle()
                     if (isRowTargetingOurApp) {
+                        // If user tapped switch to turn OFF, immediately toggle it back ON
+                        val switchNode = findSwitchNode(source)
+                        if (switchNode != null && !switchNode.isChecked) {
+                            Log.i(TAG, "🔧 Reversing tamper: clicking switch back ON via Accessibility!")
+                            switchNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        }
+                        source.recycle()
                         triggerAntiTamperAction("ScreenHarmony permission modification is locked by Parental Controls")
                         return true
                     }
+                    source.recycle()
                 }
             }
         }
@@ -261,6 +277,72 @@ class WebsiteAccessibilityService : AccessibilityService() {
             depth++
         }
         return false
+    }
+
+    private fun autoHealAndEnforceSettingsSwitches(rootNode: AccessibilityNodeInfo): Boolean {
+        val ourAppNodes = mutableListOf<AccessibilityNodeInfo>()
+        findNodesRelatingToOurApp(rootNode, ourAppNodes)
+
+        for (node in ourAppNodes) {
+            val switchNode = findSwitchNode(node)
+            if (switchNode != null) {
+                if (!switchNode.isChecked) {
+                    Log.i(TAG, "🔧 AUTO-HEALING: ScreenHarmony switch was OFF. Automatically toggling ON via Accessibility!")
+                    switchNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    triggerAntiTamperAction("ScreenHarmony permission automatically restored by Parental Controls")
+                    node.recycle()
+                    return true
+                }
+            }
+            node.recycle()
+        }
+        return false
+    }
+
+    private fun findNodesRelatingToOurApp(node: AccessibilityNodeInfo?, outList: MutableList<AccessibilityNodeInfo>) {
+        if (node == null) return
+        val text = node.text?.toString() ?: ""
+        val desc = node.contentDescription?.toString() ?: ""
+        if (isTextRelatesToOurApp(text) || isTextRelatesToOurApp(desc)) {
+            outList.add(AccessibilityNodeInfo.obtain(node))
+            return
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i)
+            if (child != null) {
+                findNodesRelatingToOurApp(child, outList)
+                child.recycle()
+            }
+        }
+    }
+
+    private fun findSwitchNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isCheckable ||
+            node.className?.toString()?.contains("Switch", ignoreCase = true) == true ||
+            node.className?.toString()?.contains("CompoundButton", ignoreCase = true) == true
+        ) {
+            return node
+        }
+        // Also inspect parent's siblings if this is a text or icon within a row
+        val parent = node.parent
+        if (parent != null) {
+            for (i in 0 until parent.childCount) {
+                val sibling = parent.getChild(i)
+                if (sibling != null) {
+                    if (sibling.isCheckable ||
+                        sibling.className?.toString()?.contains("Switch", ignoreCase = true) == true ||
+                        sibling.className?.toString()?.contains("CompoundButton", ignoreCase = true) == true
+                    ) {
+                        parent.recycle()
+                        return sibling
+                    }
+                    sibling.recycle()
+                }
+            }
+            parent.recycle()
+        }
+        return null
     }
 
     private fun isScreenHarmonyDetailPage(root: AccessibilityNodeInfo): Boolean {
