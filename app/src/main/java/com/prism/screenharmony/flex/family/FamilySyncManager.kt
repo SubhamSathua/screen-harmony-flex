@@ -46,6 +46,7 @@ object FamilySyncManager {
     private var rulesListener: ValueEventListener? = null
     private var devicesListener: ValueEventListener? = null
     private var unlinkRequestListener: ValueEventListener? = null
+    private var commandsListener: ValueEventListener? = null
     private var appContext: Context? = null
     private var cachedDeviceId: String? = null
 
@@ -555,7 +556,37 @@ object FamilySyncManager {
                     override fun onCancelled(error: DatabaseError) {}
                 })
 
-                // 5. Child telemetry loop (Heartbeat, battery, screen time, active app, installed apps)
+                // 5. Listen for Remote Lock Commands from Parent
+                commandsListener?.let { db.getReference("families/${profile.familyId}/devices/$deviceId/commands").removeEventListener(it) }
+                val cmdListener = object : ValueEventListener {
+                    private var lastExecutedLock = 0L
+
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        val lockNow = snapshot.child("lockNow").getValue(Boolean::class.java) ?: false
+                        val lockRequestedAt = snapshot.child("lockRequestedAt").getValue(Long::class.java) ?: 0L
+
+                        if (lockNow && lockRequestedAt > lastExecutedLock) {
+                            lastExecutedLock = lockRequestedAt
+                            val locked = com.prism.screenharmony.flex.service.WebsiteAccessibilityService.lockDevice()
+                            Log.i(TAG, "🔒 Remote Lock command received: lockNow=true, executedViaAccessibility=$locked")
+                            if (!locked) {
+                                com.prism.screenharmony.flex.service.WebsiteAccessibilityService.launchBlockWall(
+                                    context = context,
+                                    target = "Device Locked by Parent",
+                                    isWebsite = false,
+                                    quote = "Your parent has remotely locked this device.",
+                                    delaySeconds = 0
+                                )
+                            }
+                        }
+                    }
+
+                    override fun onCancelled(error: DatabaseError) {}
+                }
+                commandsListener = cmdListener
+                db.getReference("families/${profile.familyId}/devices/$deviceId/commands").addValueEventListener(cmdListener)
+
+                // 6. Child telemetry loop (Heartbeat, battery, screen time, active app, installed apps)
                 scope.launch {
                     // Sync installed apps immediately on startup
                     syncChildInstalledApps(context)
@@ -1085,6 +1116,31 @@ object FamilySyncManager {
         val profile = _familyProfile.value
         if (profile.familyId.isBlank()) return
         database?.getReference("families/${profile.familyId}/devices/$childDeviceId/installedApps")?.removeEventListener(listener)
+    }
+
+    fun toggleRemoteLock(childDeviceId: String, lock: Boolean, onComplete: ((Boolean) -> Unit)? = null) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) {
+                onComplete?.invoke(false)
+                return@ensureAuth
+            }
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+            val updates = mapOf<String, Any>(
+                "lockNow" to lock,
+                "lockRequestedAt" to System.currentTimeMillis()
+            )
+            db.getReference("families/${profile.familyId}/devices/$childDeviceId/commands")
+                .updateChildren(updates)
+                .addOnSuccessListener {
+                    Log.i(TAG, "Remote lock command pushed to child $childDeviceId: $lock")
+                    onComplete?.invoke(true)
+                }
+                .addOnFailureListener {
+                    Log.e(TAG, "Failed to push remote lock command to child $childDeviceId", it)
+                    onComplete?.invoke(false)
+                }
+        }
     }
 
     fun unlinkFamily(context: Context) {

@@ -20,6 +20,44 @@ class WebsiteAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "ScreenHarmony_Accessibility"
+        private var instance: WebsiteAccessibilityService? = null
+
+        fun lockDevice(): Boolean {
+            val service = instance
+            if (service == null) {
+                Log.w(TAG, "lockDevice: WebsiteAccessibilityService instance is null (not enabled or not connected)")
+                return false
+            }
+            return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                val success = service.performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+                Log.i(TAG, "lockDevice: GLOBAL_ACTION_LOCK_SCREEN performed = $success")
+                success
+            } else {
+                service.performGlobalAction(GLOBAL_ACTION_HOME)
+            }
+        }
+
+        fun isAccessibilityActive(): Boolean = instance != null
+
+        fun launchBlockWall(
+            context: android.content.Context,
+            target: String,
+            isWebsite: Boolean = false,
+            quote: String? = null,
+            delaySeconds: Int = 0
+        ) {
+            val intent = Intent(context, BlockedActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                putExtra("TARGET", target)
+                putExtra("IS_WEBSITE", isWebsite)
+                putExtra("QUOTE", quote)
+                putExtra("DELAY_SECONDS", delaySeconds)
+            }
+            context.startActivity(intent)
+        }
     }
 
     // Common browser URL bar IDs
@@ -34,6 +72,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
         Log.i(TAG, "WebsiteAccessibilityService connected & active")
     }
 
@@ -260,6 +299,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        if (instance == this) instance = null
         super.onDestroy()
         Log.w(TAG, "WebsiteAccessibilityService destroyed")
         serviceScope.cancel()

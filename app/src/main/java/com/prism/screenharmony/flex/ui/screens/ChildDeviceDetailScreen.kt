@@ -844,26 +844,92 @@ private fun ControlsTabContent(
             }
         }
 
-        // 4. Remote Instant Lock Switch
+        // 4. Remote Instant Lock Switch with Accessibility Health Warning
         item {
+            val isAccessibilityMissing = !device.permissions.isAccessibilityGranted
+
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
+                Column(
                     modifier = Modifier.padding(18.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Lock Child Device", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Instantly locks the screen on child device", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (device.isLocked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        if (device.isLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                                        contentDescription = null,
+                                        tint = if (device.isLocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Lock Child Device", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text(
+                                    if (device.isLocked) "Device is locked remotely via Accessibility"
+                                    else "Instantly locks the screen on child device",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Switch(
+                            checked = device.isLocked,
+                            onCheckedChange = onToggleLock
+                        )
                     }
-                    Switch(
-                        checked = device.isLocked,
-                        onCheckedChange = onToggleLock
-                    )
+
+                    // Yellow Warning if Accessibility Permission is Missing on Child Device
+                    if (isAccessibilityMissing) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFFFF8E1),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB300).copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Warning,
+                                    contentDescription = null,
+                                    tint = Color(0xFFE65100),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Accessibility Permission Missing",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFE65100)
+                                    )
+                                    Text(
+                                        text = "Child device needs Accessibility Service enabled to execute the remote lock screen action.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF5D4037)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
