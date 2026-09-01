@@ -557,22 +557,28 @@ object FamilySyncManager {
                 })
 
                 // 5. Listen for Remote Lock Commands from Parent
-                commandsListener?.let { db.getReference("families/${profile.familyId}/devices/$deviceId/commands").removeEventListener(it) }
+                commandsListener?.let { db.getReference("families/${profile.familyId}/devices/$deviceId/commands/lockRequestedAt").removeEventListener(it) }
                 val cmdListener = object : ValueEventListener {
                     private var lastExecutedLock = 0L
 
                     override fun onDataChange(snapshot: DataSnapshot) {
-                        val lockNow = snapshot.child("lockNow").getValue(Boolean::class.java) ?: false
-                        val lockRequestedAt = snapshot.child("lockRequestedAt").getValue(Long::class.java) ?: 0L
+                        val lockRequestedAt = snapshot.getValue(Long::class.java) ?: return
+                        val prefs = getPrefs(context)
+                        val lastSeenLock = prefs.getLong("last_executed_remote_lock", 0L)
 
-                        if (lockNow && lockRequestedAt > lastExecutedLock) {
+                        if (lockRequestedAt > lastExecutedLock && lockRequestedAt > lastSeenLock) {
                             lastExecutedLock = lockRequestedAt
+                            prefs.edit().putLong("last_executed_remote_lock", lockRequestedAt).apply()
+
+                            Log.i(TAG, "🚨 Remote Lock command received from parent (timestamp=$lockRequestedAt)!")
                             val locked = com.prism.screenharmony.flex.service.WebsiteAccessibilityService.lockDevice()
-                            Log.i(TAG, "🔒 Remote Lock command received: lockNow=true, executedViaAccessibility=$locked")
+                            Log.i(TAG, "🔒 Remote Lock execution result via AccessibilityService: $locked")
+
                             if (!locked) {
+                                Log.w(TAG, "Accessibility lock failed or instance unavailable. Falling back to Block Wall overlay...")
                                 com.prism.screenharmony.flex.service.WebsiteAccessibilityService.launchBlockWall(
                                     context = context,
-                                    target = "Device Locked by Parent",
+                                    target = "Remote Device Lock",
                                     isWebsite = false,
                                     quote = "Your parent has remotely locked this device.",
                                     delaySeconds = 0
@@ -581,10 +587,12 @@ object FamilySyncManager {
                         }
                     }
 
-                    override fun onCancelled(error: DatabaseError) {}
+                    override fun onCancelled(error: DatabaseError) {
+                        Log.e(TAG, "Remote lock listener cancelled", error.toException())
+                    }
                 }
                 commandsListener = cmdListener
-                db.getReference("families/${profile.familyId}/devices/$deviceId/commands").addValueEventListener(cmdListener)
+                db.getReference("families/${profile.familyId}/devices/$deviceId/commands/lockRequestedAt").addValueEventListener(cmdListener)
 
                 // 6. Child telemetry loop (Heartbeat, battery, screen time, active app, installed apps)
                 scope.launch {
@@ -1118,7 +1126,7 @@ object FamilySyncManager {
         database?.getReference("families/${profile.familyId}/devices/$childDeviceId/installedApps")?.removeEventListener(listener)
     }
 
-    fun toggleRemoteLock(childDeviceId: String, lock: Boolean, onComplete: ((Boolean) -> Unit)? = null) {
+    fun lockChildDevice(childDeviceId: String, onComplete: ((Boolean) -> Unit)? = null) {
         ensureAuth {
             val profile = _familyProfile.value
             if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) {
@@ -1126,14 +1134,11 @@ object FamilySyncManager {
                 return@ensureAuth
             }
             val db = database ?: FirebaseDatabase.getInstance().also { database = it }
-            val updates = mapOf<String, Any>(
-                "lockNow" to lock,
-                "lockRequestedAt" to System.currentTimeMillis()
-            )
-            db.getReference("families/${profile.familyId}/devices/$childDeviceId/commands")
-                .updateChildren(updates)
+            val timestamp = System.currentTimeMillis()
+            db.getReference("families/${profile.familyId}/devices/$childDeviceId/commands/lockRequestedAt")
+                .setValue(timestamp)
                 .addOnSuccessListener {
-                    Log.i(TAG, "Remote lock command pushed to child $childDeviceId: $lock")
+                    Log.i(TAG, "🔒 Remote lock command pushed to child $childDeviceId: timestamp=$timestamp")
                     onComplete?.invoke(true)
                 }
                 .addOnFailureListener {

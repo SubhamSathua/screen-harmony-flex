@@ -70,10 +70,16 @@ class WebsiteAccessibilityService : AccessibilityService() {
         "com.brave.browser" to "com.brave.browser:id/url_bar"
     )
 
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
+        Log.i(TAG, "WebsiteAccessibilityService onCreate (instance registered)")
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        Log.i(TAG, "WebsiteAccessibilityService connected & active")
+        Log.i(TAG, "WebsiteAccessibilityService connected & active (instance registered)")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {

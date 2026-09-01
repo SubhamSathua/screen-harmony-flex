@@ -38,6 +38,7 @@ import java.time.DayOfWeek
 import java.time.LocalTime
 import java.util.UUID
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -309,9 +310,14 @@ fun ChildDeviceDetailScreen(
                         )
                         2 -> ControlsTabContent(
                             device = device,
-                            onToggleLock = { lock ->
-                                FamilySyncManager.toggleRemoteLock(device.deviceId, lock)
-                                Toast.makeText(context, if (lock) "Device locked" else "Device unlocked", Toast.LENGTH_SHORT).show()
+                            onLockDevice = {
+                                FamilySyncManager.lockChildDevice(device.deviceId) { success ->
+                                    Toast.makeText(
+                                        context,
+                                        if (success) "Lock command sent to ${device.displayName}" else "Failed to send lock command",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             },
                             onOpenRemoveDialog = { showRemoveDialog = true }
                         )
@@ -712,7 +718,7 @@ private fun AnalysisTabContent(
 @Composable
 private fun ControlsTabContent(
     device: RemoteChildDevice,
-    onToggleLock: (Boolean) -> Unit,
+    onLockDevice: () -> Unit,
     onOpenRemoveDialog: () -> Unit
 ) {
     LazyColumn(
@@ -844,9 +850,11 @@ private fun ControlsTabContent(
             }
         }
 
-        // 4. Remote Instant Lock Switch with Accessibility Health Warning
+        // 4. Remote Instant Lock Button Card with Accessibility Health Warning
         item {
             val isAccessibilityMissing = !device.permissions.isAccessibilityGranted
+            var isLockingInProgress by remember { mutableStateOf(false) }
+            val coroutineScope = rememberCoroutineScope()
 
             Card(
                 shape = RoundedCornerShape(20.dp),
@@ -855,7 +863,7 @@ private fun ControlsTabContent(
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -865,15 +873,15 @@ private fun ControlsTabContent(
                         Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 shape = CircleShape,
-                                color = if (device.isLocked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
-                                modifier = Modifier.size(40.dp)
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(42.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        if (device.isLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                                        Icons.Rounded.Lock,
                                         contentDescription = null,
-                                        tint = if (device.isLocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
                                     )
                                 }
                             }
@@ -881,18 +889,47 @@ private fun ControlsTabContent(
                             Column {
                                 Text("Lock Child Device", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text(
-                                    if (device.isLocked) "Device is locked remotely via Accessibility"
-                                    else "Instantly locks the screen on child device",
+                                    "Instantly turns off and locks child phone screen",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
 
-                        Switch(
-                            checked = device.isLocked,
-                            onCheckedChange = onToggleLock
-                        )
+                        Button(
+                            onClick = {
+                                isLockingInProgress = true
+                                onLockDevice()
+                                coroutineScope.launch {
+                                    delay(1200L)
+                                    isLockingInProgress = false
+                                }
+                            },
+                            enabled = !isLockingInProgress,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (isLockingInProgress) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                    Text("Locking...", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Icon(Icons.Rounded.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Text("Lock Now", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
 
                     // Yellow Warning if Accessibility Permission is Missing on Child Device
