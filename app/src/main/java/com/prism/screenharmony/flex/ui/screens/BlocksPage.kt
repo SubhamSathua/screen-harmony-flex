@@ -461,7 +461,7 @@ fun BlockCardX(
                 }
             }
 
-            if (isParentSide && rule.isPaused()) {
+            if (rule.isPaused()) {
                 val durationMins = rule.pauseDurationMinutes ?: 15
                 val remainingMillis = (rule.lastPausedAt ?: 0) + durationMins * 60 * 1000L - System.currentTimeMillis()
                 val remainingMins = (remainingMillis / (60 * 1000L)).coerceAtLeast(0)
@@ -484,7 +484,7 @@ fun BlockCardX(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Child has paused for $durationMins min",
+                                text = "Paused for $durationMins min",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -510,12 +510,10 @@ fun BlockCardX(
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                if (!isStrict && rule.isEnabled) {
+                if (!isStrict && rule.isEnabled && !rule.isPaused()) {
                     FilledTonalButton(
                         onClick = {
-                            if (rule.isPaused()) {
-                                onPause(0)
-                            } else if (isParentSide) {
+                            if (isParentSide) {
                                 showParentPauseDialog = true
                             } else {
                                 showDelayPauseDialog = true
@@ -524,10 +522,10 @@ fun BlockCardX(
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                     ) {
-                        Icon(if (rule.isPaused()) Icons.Rounded.PlayArrow else Icons.Rounded.Pause, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Rounded.Pause, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (rule.isPaused()) "Unpause" else "Pause",
+                            text = "Pause",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
