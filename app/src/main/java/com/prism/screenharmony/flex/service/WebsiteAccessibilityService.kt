@@ -82,9 +82,16 @@ class WebsiteAccessibilityService : AccessibilityService() {
         Log.i(TAG, "WebsiteAccessibilityService connected & active (instance registered)")
     }
 
+    private var lastAntiTamperActionTimestamp = 0L
+
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         val packageName = event.packageName?.toString() ?: return
         if (packageName == this.packageName) return
+
+        // 0. Anti-Tamper & Anti-Uninstall Engine (Child Protection & Strict Mode)
+        if (handleAntiTamperProtection(event, packageName)) {
+            return
+        }
 
         // 1. Check if this is an app that needs to be blocked
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -122,51 +129,181 @@ class WebsiteAccessibilityService : AccessibilityService() {
                 checkAndBlockWebsite(packageName)
             }
         }
+    }
 
-        // 3. Strict Mode Anti-Bypass Guard
-        if (BlockRepository.hasActiveStrictBlock()) {
-            if (packageName == "com.android.settings" ||
-                packageName == "com.google.android.packageinstaller" ||
-                packageName == "com.android.packageinstaller"
+    private fun handleAntiTamperProtection(event: AccessibilityEvent, packageName: String): Boolean {
+        // Active when role is CHILD or when Strict Block is active on self device
+        val isChild = com.prism.screenharmony.flex.family.FamilySyncManager.familyProfile.value.role == 
+                      com.prism.screenharmony.flex.family.FamilyRole.CHILD
+        val isStrict = BlockRepository.hasActiveStrictBlock()
+        if (!isChild && !isStrict) return false
+
+        val now = System.currentTimeMillis()
+        if (now - lastAntiTamperActionTimestamp < 600L) {
+            return false
+        }
+
+        // --- Vector 1 & 4: Settings App Info, Accessibility Toggle & Row-Level Toggles (com.android.settings) ---
+        if (packageName == "com.android.settings" || packageName.startsWith("com.android.settings")) {
+            // Case A: Row-Level Tap (Samsung / One UI / OEM direct switches on list items)
+            if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+                val source = event.source
+                if (source != null) {
+                    val isRowTargetingOurApp = isNodeOrAncestorTargetingScreenHarmony(source)
+                    if (isRowTargetingOurApp) {
+                        triggerAntiTamperAction("ScreenHarmony permission modification is locked by Parental Controls")
+                        return true
+                    }
+                }
+            }
+
+            // Case B: Window/Activity State Changed (App Info screen or Accessibility Toggle sub-page)
+            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
             ) {
                 val rootNode = rootInActiveWindow
-                if (rootNode != null && isTargetingScreenHarmony(rootNode)) {
-                    Log.w(TAG, "🚨 STRICT MODE GUARD: Intercepted attempt to modify ScreenHarmony in Settings!")
-                    performGlobalAction(GLOBAL_ACTION_HOME)
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        android.widget.Toast.makeText(
-                            this,
-                            "Strict Mode Active: App modifications and uninstallation are locked during focus session.",
-                            android.widget.Toast.LENGTH_LONG
-                        ).show()
+                if (rootNode != null) {
+                    val isDangerousScreen = isScreenHarmonySettingsScreen(rootNode)
+                    if (isDangerousScreen) {
+                        triggerAntiTamperAction("ScreenHarmony settings and uninstall are protected by Parental Controls")
+                        return true
                     }
-                    rootNode.recycle()
-                    return
                 }
-                rootNode?.recycle()
             }
+        }
+
+        // --- Vector 2: System Package Installer (Uninstall Confirmation Dialogs) ---
+        if (packageName.contains("packageinstaller") ||
+            packageName == "com.google.android.packageinstaller" ||
+            packageName == "com.android.packageinstaller" ||
+            packageName == "com.samsung.android.packageinstaller"
+        ) {
+            val rootNode = rootInActiveWindow
+            if (rootNode != null) {
+                val isOurUninstall = isUninstallDialogForOurApp(rootNode)
+                if (isOurUninstall) {
+                    triggerAntiTamperAction("Uninstallation is protected by Parental Controls")
+                    return true
+                }
+            }
+        }
+
+        // --- Vector 3: Google Play Store (com.android.vending) Uninstall Button ---
+        if (packageName == "com.android.vending") {
+            if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+                val source = event.source
+                if (source != null) {
+                    val text = source.text?.toString()?.lowercase() ?: ""
+                    val desc = source.contentDescription?.toString()?.lowercase() ?: ""
+                    val isUninstallClick = text.contains("uninstall") || desc.contains("uninstall")
+                    if (isUninstallClick) {
+                        val rootNode = rootInActiveWindow
+                        val isOurAppPage = rootNode != null && isNodeTextContainsScreenHarmony(rootNode)
+                        if (isOurAppPage) {
+                            triggerAntiTamperAction("Uninstallation from Google Play is protected by Parental Controls")
+                            return true
+                        }
+                    }
+                }
+            }
+        }
+
+        return false
+    }
+
+    private fun triggerAntiTamperAction(reason: String) {
+        lastAntiTamperActionTimestamp = System.currentTimeMillis()
+        Log.w(TAG, "🚨 ANTI-TAMPER TRIGGERED: $reason. Executing GLOBAL_ACTION_BACK!")
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(
+                this,
+                "🔒 $reason",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
-    private fun isTargetingScreenHarmony(node: AccessibilityNodeInfo?): Boolean {
+    private fun isNodeOrAncestorTargetingScreenHarmony(node: AccessibilityNodeInfo): Boolean {
+        // Check current node
+        if (isNodeTextContainsScreenHarmony(node)) return true
+
+        // Check parent container (up to 4 levels)
+        var current: AccessibilityNodeInfo? = node.parent
+        var depth = 0
+        while (current != null && depth < 4) {
+            if (isNodeTextContainsScreenHarmony(current)) {
+                return true
+            }
+            current = current.parent
+            depth++
+        }
+        return false
+    }
+
+    private fun isNodeTextContainsScreenHarmony(node: AccessibilityNodeInfo?): Boolean {
         if (node == null) return false
         val text = node.text?.toString()?.lowercase() ?: ""
         val desc = node.contentDescription?.toString()?.lowercase() ?: ""
-        if (text.contains("screenharmony") || desc.contains("screenharmony") ||
-            text.contains("screen harmony") || desc.contains("screen harmony") ||
-            text.contains("com.prism.screenharmony")
+        val viewId = node.viewIdResourceName?.lowercase() ?: ""
+
+        if (text.contains("screenharmony") || text.contains("screen harmony") || text.contains("com.prism.screenharmony") ||
+            desc.contains("screenharmony") || desc.contains("screen harmony") || desc.contains("com.prism.screenharmony") ||
+            viewId.contains("com.prism.screenharmony")
         ) {
             return true
         }
+
         for (i in 0 until node.childCount) {
             val child = node.getChild(i)
-            if (isTargetingScreenHarmony(child)) {
-                child?.recycle()
+            if (child != null && isNodeTextContainsScreenHarmony(child)) {
                 return true
             }
-            child?.recycle()
         }
         return false
+    }
+
+    private fun isScreenHarmonySettingsScreen(root: AccessibilityNodeInfo): Boolean {
+        // Must contain "ScreenHarmony" or our package name
+        if (!isNodeTextContainsScreenHarmony(root)) return false
+
+        // And must be an App Info / Manage App screen or Accessibility Toggle screen
+        return hasAppInfoOrPermissionIndicators(root)
+    }
+
+    private fun hasAppInfoOrPermissionIndicators(node: AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+        val text = node.text?.toString()?.lowercase() ?: ""
+        val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+
+        if (text.contains("uninstall") || text.contains("force stop") ||
+            text.contains("clear data") || text.contains("storage & cache") ||
+            text.contains("use screenharmony") || text.contains("allow screenharmony to have full control") ||
+            text.contains("screenharmony shortcut") || text.contains("turn off screenharmony") ||
+            desc.contains("uninstall") || desc.contains("force stop")
+        ) {
+            return true
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i)
+            if (child != null && hasAppInfoOrPermissionIndicators(child)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun isUninstallDialogForOurApp(root: AccessibilityNodeInfo): Boolean {
+        if (!isNodeTextContainsScreenHarmony(root)) return false
+        val text = root.text?.toString()?.lowercase() ?: ""
+        val desc = root.contentDescription?.toString()?.lowercase() ?: ""
+        if (text.contains("uninstall") || desc.contains("uninstall") ||
+            text.contains("do you want to uninstall") || text.contains("delete app")
+        ) {
+            return true
+        }
+        return hasAppInfoOrPermissionIndicators(root)
     }
 
     private val browserPackages = setOf(
