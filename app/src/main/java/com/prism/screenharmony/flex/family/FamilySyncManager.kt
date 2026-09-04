@@ -502,6 +502,9 @@ object FamilySyncManager {
                         for (rule in remoteRules) {
                             BlockRepository.addOrUpdateRule(rule)
                         }
+
+                        // CRITICAL: Immediately evaluate schedule and start/stop AppBlockerService on Child
+                        com.prism.screenharmony.flex.service.BlockScheduleManager.reschedule(context)
                     }
 
                     override fun onCancelled(error: DatabaseError) {}
