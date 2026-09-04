@@ -35,6 +35,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.prism.screenharmony.flex.data.*
 import com.prism.screenharmony.flex.family.*
@@ -54,21 +56,29 @@ fun ParentalTabScreen(
     onNavigateToParentalSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    var hasPromptedNotificationInSession by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         FamilySyncManager.initialize(context)
         FamilyNotificationHelper.createNotificationChannel(context)
     }
 
-    // Request Notification Permission for API 33+
+    // Request Notification Permission for API 33+ (Once per session latch)
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-        onResult = { /* Handled */ }
+        onResult = { hasPromptedNotificationInSession = true }
     )
 
     LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasPromptedNotificationInSession) {
+            val areNotificationsActive = NotificationManagerCompat.from(context).areNotificationsEnabled()
+            val hasRuntimePermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!areNotificationsActive && !hasRuntimePermission) {
+                hasPromptedNotificationInSession = true
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }

@@ -79,6 +79,14 @@ object PermissionHelper {
      * Checks if notifications are enabled.
      */
     fun isNotificationGranted(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val hasRuntime = ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            val isEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+            return hasRuntime || isEnabled
+        }
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
         return notificationManager?.areNotificationsEnabled() ?: true
     }
