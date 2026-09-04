@@ -2,6 +2,7 @@ package com.prism.screenharmony.flex.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,8 +17,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.prism.screenharmony.flex.R
+import com.prism.screenharmony.flex.diagnostics.DiagnosticsUnlockManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +41,41 @@ fun AboutScreen(
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+
+    val isAlwaysUnlocked = DiagnosticsUnlockManager.isAlwaysUnlocked()
+    var isUnlocked by remember { mutableStateOf(DiagnosticsUnlockManager.isLogsUnlocked(context)) }
+    var tapCount by remember { mutableIntStateOf(0) }
+    var lastTapTime by remember { mutableLongStateOf(0L) }
+
+    fun handleLogoClick() {
+        val now = System.currentTimeMillis()
+        if (isAlwaysUnlocked) {
+            Toast.makeText(context, "Alpha Build: Diagnostics Logs are enabled by default.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (isUnlocked) {
+            Toast.makeText(context, "Diagnostics Logs & Developer Mode are active.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (now - lastTapTime > 3500) {
+            tapCount = 0
+        }
+        lastTapTime = now
+        tapCount++
+        val remaining = 7 - tapCount
+        if (remaining in 1..3) {
+            Toast.makeText(
+                context,
+                "You are $remaining step${if (remaining > 1) "s" else ""} away from unlocking Diagnostics Logs.",
+                Toast.LENGTH_SHORT
+            ).show()
+        } else if (tapCount >= 7) {
+            DiagnosticsUnlockManager.setLogsUnlocked(context, true)
+            isUnlocked = true
+            tapCount = 0
+            Toast.makeText(context, "🎉 Diagnostics Logs & Developer Mode unlocked!", Toast.LENGTH_LONG).show()
+        }
+    }
 
     val versionName = remember {
         try {
@@ -96,10 +132,11 @@ fun AboutScreen(
                         modifier = Modifier
                             .size(88.dp)
                             .clip(RoundedCornerShape(22.dp))
+                            .clickable { handleLogoClick() }
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "ScreenHarmony Flex",
+                        text = if (isAlwaysUnlocked) "ScreenHarmony (Alpha)" else "ScreenHarmony Flex",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -299,14 +336,16 @@ fun AboutScreen(
                         onClick = onOpenPrivacyPolicy
                     )
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f), modifier = Modifier.padding(horizontal = 12.dp))
+                    if (isUnlocked || isAlwaysUnlocked) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f), modifier = Modifier.padding(horizontal = 12.dp))
 
-                    NavigationItemRow(
-                        icon = Icons.Rounded.Terminal,
-                        title = "Diagnostics & System Logs",
-                        subtitle = "View in-memory engine and network events",
-                        onClick = onOpenDiagnosticsLogs
-                    )
+                        NavigationItemRow(
+                            icon = Icons.Rounded.Terminal,
+                            title = "Diagnostics & System Logs",
+                            subtitle = if (isAlwaysUnlocked) "Active (Alpha build)" else "Developer Mode Unlocked",
+                            onClick = onOpenDiagnosticsLogs
+                        )
+                    }
                 }
             }
 

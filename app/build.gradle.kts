@@ -58,6 +58,24 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    flavorDimensions += "channel"
+    productFlavors {
+        create("prod") {
+            dimension = "channel"
+            buildConfigField("boolean", "IS_ALPHA", "false")
+            buildConfigField("boolean", "LOGS_ENABLED_DEFAULT", "false")
+            manifestPlaceholders["appLabel"] = "ScreenHarmony Flex"
+        }
+        create("alpha") {
+            dimension = "channel"
+            applicationIdSuffix = ".alpha"
+            versionNameSuffix = "-alpha"
+            buildConfigField("boolean", "IS_ALPHA", "true")
+            buildConfigField("boolean", "LOGS_ENABLED_DEFAULT", "true")
+            manifestPlaceholders["appLabel"] = "ScreenHarmony (Alpha)"
+        }
+    }
+
     splits {
         abi {
             isEnable = true

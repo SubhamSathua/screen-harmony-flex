@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import com.prism.screenharmony.flex.data.AppLockManager
+import com.prism.screenharmony.flex.diagnostics.DiagnosticsUnlockManager
 import com.prism.screenharmony.flex.data.LockTimeout
 import com.prism.screenharmony.flex.family.*
 import com.prism.screenharmony.flex.ui.screens.lock.AppLockVerifyDialog
@@ -821,17 +822,20 @@ fun SettingsTabScreen(
 
                 ItemDivider()
 
-                GroupedItemRow(
-                    icon = Icons.Rounded.Terminal,
-                    title = "System Logs & Diagnostics",
-                    subtitle = "Real-time network sync, engine telemetry & debugging",
-                    onClick = onOpenDiagnosticsLogs
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                val isLogsUnlocked = DiagnosticsUnlockManager.isLogsUnlocked(context)
+                if (isLogsUnlocked || DiagnosticsUnlockManager.isAlwaysUnlocked()) {
+                    GroupedItemRow(
+                        icon = Icons.Rounded.Terminal,
+                        title = "System Logs & Diagnostics",
+                        subtitle = if (DiagnosticsUnlockManager.isAlwaysUnlocked()) "Active (Alpha build)" else "Developer Mode Unlocked",
+                        onClick = onOpenDiagnosticsLogs
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 

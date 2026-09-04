@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.prism.screenharmony.flex.diagnostics.AppLogger
+import com.prism.screenharmony.flex.diagnostics.DiagnosticsUnlockManager
 import com.prism.screenharmony.flex.diagnostics.LogCategory
 import com.prism.screenharmony.flex.diagnostics.LogEntry
 import com.prism.screenharmony.flex.diagnostics.LogLevel
@@ -173,6 +174,17 @@ fun DiagnosticsLogScreen(
                     }
                     IconButton(onClick = ::exportAndShareLogs) {
                         Icon(Icons.Rounded.Share, contentDescription = "Download / Share Logs")
+                    }
+                    if (!DiagnosticsUnlockManager.isAlwaysUnlocked()) {
+                        IconButton(
+                            onClick = {
+                                DiagnosticsUnlockManager.setLogsUnlocked(context, false)
+                                Toast.makeText(context, "Diagnostics Logs locked", Toast.LENGTH_SHORT).show()
+                                onBack()
+                            }
+                        ) {
+                            Icon(Icons.Rounded.Lock, contentDescription = "Lock Diagnostics")
+                        }
                     }
                     IconButton(onClick = { showClearDialog = true }) {
                         Icon(Icons.Rounded.DeleteOutline, contentDescription = "Clear Logs", tint = MaterialTheme.colorScheme.error)
