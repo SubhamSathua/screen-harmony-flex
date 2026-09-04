@@ -91,6 +91,16 @@ fun PermissionWarningBanner(
                     isGranted = permissionState.isBatteryIgnored,
                     onGrant = { PermissionHelper.openBatteryOptimizationSettings(context) }
                 )
+
+                // 4. MIUI Background Pop-up (MIUI / HyperOS only)
+                if (permissionState.isMiuiDevice) {
+                    PermissionRow(
+                        title = "4. MIUI Pop-up window permission",
+                        description = "Enable 'Display pop-up windows while running in the background'",
+                        isGranted = permissionState.isMiuiPopupGranted,
+                        onGrant = { PermissionHelper.openMiuiOtherPermissions(context) }
+                    )
+                }
             }
         }
     }

@@ -188,8 +188,84 @@ object PermissionHelper {
         context.startActivity(intent)
     }
 
+    /**
+     * Checks if the device runs Xiaomi MIUI or HyperOS.
+     */
+    fun isMiui(): Boolean {
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        val brand = Build.BRAND.lowercase()
+        if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco") ||
+            brand.contains("xiaomi") || brand.contains("redmi") || brand.contains("poco")
+        ) {
+            return true
+        }
+        return try {
+            val propertyClass = Class.forName("android.os.SystemProperties")
+            val getMethod = propertyClass.getMethod("get", String::class.java)
+            val miuiVersion = getMethod.invoke(null, "ro.miui.ui.version.name") as? String
+            miuiVersion != null && miuiVersion.isNotBlank()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Checks if MIUI / HyperOS "Display pop-up windows while running in the background" is granted.
+     * Op 10021 is OP_BACKGROUND_START_ACTIVITY in MIUI AppOps.
+     */
+    fun isMiuiBackgroundPopupGranted(context: Context): Boolean {
+        if (!isMiui()) return true
+        val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager ?: return true
+        return try {
+            val checkOpNoThrowMethod = AppOpsManager::class.java.getMethod(
+                "checkOpNoThrow",
+                Int::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType,
+                String::class.java
+            )
+            val mode = checkOpNoThrowMethod.invoke(appOps, 10021, Process.myUid(), context.packageName) as Int
+            mode == AppOpsManager.MODE_ALLOWED
+        } catch (e: Exception) {
+            true
+        }
+    }
+
+    /**
+     * Directly opens MIUI "Other permissions" (PermissionsEditorActivity) so the user
+     * can enable "Display pop-up windows while running in the background".
+     */
+    fun openMiuiOtherPermissions(context: Context) {
+        try {
+            val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity")
+                putExtra("extra_pkgname", context.packageName)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e1: Exception) {
+            try {
+                val intent2 = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                    setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.AppPermissionsEditorActivity")
+                    putExtra("extra_pkgname", context.packageName)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent2)
+            } catch (e2: Exception) {
+                try {
+                    val intent3 = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                        putExtra("extra_pkgname", context.packageName)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent3)
+                } catch (e3: Exception) {
+                    openAppSettings(context)
+                }
+            }
+        }
+    }
+
     fun getAllPermissions(context: Context): List<PermissionItem> {
-        return listOf(
+        val list = mutableListOf(
             PermissionItem(
                 id = "usage",
                 name = "Usage Access",
@@ -221,7 +297,23 @@ object PermissionHelper {
                 isGranted = isExactAlarmGranted(context),
                 isCrucialForBackground = true,
                 onGrant = { openExactAlarmSettings(it) }
-            ),
+            )
+        )
+
+        if (isMiui()) {
+            list.add(
+                PermissionItem(
+                    id = "miui_popup",
+                    name = "MIUI Pop-up Windows",
+                    description = "Required on MIUI / HyperOS to allow lock screen popups from background (Other permissions)",
+                    isGranted = isMiuiBackgroundPopupGranted(context),
+                    isCrucialForBackground = true,
+                    onGrant = { openMiuiOtherPermissions(it) }
+                )
+            )
+        }
+
+        list.add(
             PermissionItem(
                 id = "accessibility",
                 name = "Accessibility Service",
@@ -229,7 +321,10 @@ object PermissionHelper {
                 isGranted = isAccessibilityGranted(context),
                 isCrucialForBackground = false,
                 onGrant = { openAccessibilitySettings(it) }
-            ),
+            )
+        )
+
+        list.add(
             PermissionItem(
                 id = "notifications",
                 name = "Notifications",
@@ -239,5 +334,7 @@ object PermissionHelper {
                 onGrant = { openNotificationSettings(it) }
             )
         )
+
+        return list
     }
 }

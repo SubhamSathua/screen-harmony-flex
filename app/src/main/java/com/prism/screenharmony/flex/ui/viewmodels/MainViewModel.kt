@@ -41,11 +41,16 @@ data class PermissionState(
     val isOverlayGranted: Boolean = true,
     val isBatteryIgnored: Boolean = true,
     val isExactAlarmGranted: Boolean = true,
-    val isAccessibilityGranted: Boolean = false
+    val isAccessibilityGranted: Boolean = false,
+    val isMiuiDevice: Boolean = false,
+    val isMiuiPopupGranted: Boolean = true
 ) {
-    val hasCrucialPermissions: Boolean get() = isUsageGranted && isOverlayGranted && isBatteryIgnored
-    val areBase4PermissionsGranted: Boolean get() = isUsageGranted && isOverlayGranted && isBatteryIgnored && isExactAlarmGranted
-    val areAll5PermissionsGranted: Boolean get() = areBase4PermissionsGranted && isAccessibilityGranted
+    val hasCrucialPermissions: Boolean 
+        get() = isUsageGranted && isOverlayGranted && isBatteryIgnored && (!isMiuiDevice || isMiuiPopupGranted)
+    val areBase4PermissionsGranted: Boolean 
+        get() = isUsageGranted && isOverlayGranted && isBatteryIgnored && isExactAlarmGranted && (!isMiuiDevice || isMiuiPopupGranted)
+    val areAll5PermissionsGranted: Boolean 
+        get() = areBase4PermissionsGranted && isAccessibilityGranted
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -166,13 +171,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val battery = PermissionHelper.isBatteryOptimizationIgnored(context)
             val exactAlarm = PermissionHelper.isExactAlarmGranted(context)
             val accessibility = PermissionHelper.isAccessibilityGranted(context)
+            val isMiui = PermissionHelper.isMiui()
+            val miuiPopup = PermissionHelper.isMiuiBackgroundPopupGranted(context)
             withContext(Dispatchers.Main) {
                 _permissionState.value = PermissionState(
                     isUsageGranted = usage,
                     isOverlayGranted = overlay,
                     isBatteryIgnored = battery,
                     isExactAlarmGranted = exactAlarm,
-                    isAccessibilityGranted = accessibility
+                    isAccessibilityGranted = accessibility,
+                    isMiuiDevice = isMiui,
+                    isMiuiPopupGranted = miuiPopup
                 )
             }
         }
