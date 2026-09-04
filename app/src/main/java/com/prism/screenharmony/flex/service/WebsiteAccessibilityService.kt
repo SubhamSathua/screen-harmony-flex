@@ -9,6 +9,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.prism.screenharmony.flex.data.BlockRepository
 import com.prism.screenharmony.flex.data.PauseType
 import com.prism.screenharmony.flex.data.WallConfig
+import com.prism.screenharmony.flex.diagnostics.AppLogger
+import com.prism.screenharmony.flex.diagnostics.LogCategory
 import com.prism.screenharmony.flex.ui.blocker.BlockedActivity
 import kotlinx.coroutines.*
 
@@ -26,11 +28,13 @@ class WebsiteAccessibilityService : AccessibilityService() {
             val service = instance
             if (service == null) {
                 Log.w(TAG, "lockDevice: WebsiteAccessibilityService instance is null (not enabled or not connected)")
+                AppLogger.w(LogCategory.ACCESSIBILITY, TAG, "lockDevice failed: service instance is null")
                 return false
             }
             return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                 val success = service.performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
                 Log.i(TAG, "lockDevice: GLOBAL_ACTION_LOCK_SCREEN performed = $success")
+                AppLogger.i(LogCategory.SECURITY, TAG, "Remote lock executed (GLOBAL_ACTION_LOCK_SCREEN: $success)")
                 success
             } else {
                 service.performGlobalAction(GLOBAL_ACTION_HOME)

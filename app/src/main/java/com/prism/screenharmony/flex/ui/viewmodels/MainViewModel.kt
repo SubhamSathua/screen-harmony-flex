@@ -32,7 +32,8 @@ enum class ScreenState {
     CREATE_OR_EDIT_BLOCK,
     SELECT_APPS,
     APP_LOCK_SETUP,
-    RECOVERY_SETTINGS
+    RECOVERY_SETTINGS,
+    DIAGNOSTICS_LOGS
 }
 
 data class PermissionState(
@@ -83,6 +84,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearParentalHighlight() {
         _highlightParentalControls.value = false
+    }
+
+    fun navigateToDiagnosticsLogs() {
+        _currentScreenState.value = ScreenState.DIAGNOSTICS_LOGS
     }
 
     private val _editingRule = MutableStateFlow(BlockRule())
@@ -230,6 +235,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun handleBack(): Boolean {
         return when (_currentScreenState.value) {
+            ScreenState.DIAGNOSTICS_LOGS -> {
+                _currentScreenState.value = ScreenState.MAIN_TABS
+                true
+            }
             ScreenState.APP_LOCK_SETUP -> {
                 _currentScreenState.value = ScreenState.MAIN_TABS
                 true

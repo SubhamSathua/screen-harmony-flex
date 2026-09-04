@@ -14,6 +14,8 @@ import com.prism.screenharmony.flex.R
 import com.prism.screenharmony.flex.data.BlockRepository
 import com.prism.screenharmony.flex.data.PauseType
 import com.prism.screenharmony.flex.data.WallConfig
+import com.prism.screenharmony.flex.diagnostics.AppLogger
+import com.prism.screenharmony.flex.diagnostics.LogCategory
 import com.prism.screenharmony.flex.ui.blocker.BlockedActivity
 import com.prism.screenharmony.flex.utils.PermissionHelper
 import kotlinx.coroutines.*
@@ -52,8 +54,10 @@ class AppBlockerService : Service() {
                     context.startService(intent)
                 }
                 Log.d(TAG, "AppBlockerService start requested")
+                AppLogger.i(LogCategory.BLOCKER, TAG, "AppBlockerService started")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start AppBlockerService", e)
+                AppLogger.e(LogCategory.BLOCKER, TAG, "Failed to start AppBlockerService", e)
             }
         }
 
@@ -66,8 +70,10 @@ class AppBlockerService : Service() {
                 context.stopService(intent)
                 isRunning.set(false)
                 Log.d(TAG, "AppBlockerService stop requested (idle state)")
+                AppLogger.i(LogCategory.BLOCKER, TAG, "AppBlockerService stopped (0% background drain)")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to stop AppBlockerService", e)
+                AppLogger.e(LogCategory.BLOCKER, TAG, "Failed to stop AppBlockerService", e)
             }
         }
     }

@@ -124,6 +124,11 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
     }
 
     when (currentScreenState) {
+        ScreenState.DIAGNOSTICS_LOGS -> {
+            com.prism.screenharmony.flex.ui.screens.DiagnosticsLogScreen(
+                onBack = { viewModel.handleBack() }
+            )
+        }
         ScreenState.APP_LOCK_SETUP -> {
             AppLockSetupScreen(
                 onComplete = { viewModel.onAppLockSetupComplete() },
@@ -275,7 +280,8 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                             highlightParentalControls = highlightParentalControls,
                             onHighlightParentalControlsFinished = { viewModel.clearParentalHighlight() },
                             onOpenAppLockSetup = { viewModel.openAppLockSetup() },
-                            onOpenRecoverySettings = { viewModel.openRecoverySettings() }
+                            onOpenRecoverySettings = { viewModel.openRecoverySettings() },
+                            onOpenDiagnosticsLogs = { viewModel.navigateToDiagnosticsLogs() }
                         )
                     }
                 }

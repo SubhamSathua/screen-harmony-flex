@@ -12,6 +12,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
 import com.prism.screenharmony.flex.data.BlockRepository
 import com.prism.screenharmony.flex.data.BlockRule
+import com.prism.screenharmony.flex.diagnostics.AppLogger
+import com.prism.screenharmony.flex.diagnostics.LogCategory
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -503,11 +505,15 @@ object FamilySyncManager {
                             BlockRepository.addOrUpdateRule(rule)
                         }
 
+                        AppLogger.sync(TAG, "Child synchronized ${remoteRules.size} remote rules from cloud")
+
                         // CRITICAL: Immediately evaluate schedule and start/stop AppBlockerService on Child
                         com.prism.screenharmony.flex.service.BlockScheduleManager.reschedule(context)
                     }
 
-                    override fun onCancelled(error: DatabaseError) {}
+                    override fun onCancelled(error: DatabaseError) {
+                        AppLogger.e(LogCategory.NETWORK, TAG, "Firebase rules sync cancelled: ${error.message}")
+                    }
                 }
                 rulesListener = ruleListListener
                 db.getReference("families/${profile.familyId}/devices/$deviceId/rules").addValueEventListener(ruleListListener)

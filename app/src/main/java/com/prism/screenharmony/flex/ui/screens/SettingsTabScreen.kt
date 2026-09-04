@@ -52,6 +52,7 @@ fun SettingsTabScreen(
     onHighlightParentalControlsFinished: () -> Unit = {},
     onOpenAppLockSetup: () -> Unit = {},
     onOpenRecoverySettings: () -> Unit = {},
+    onOpenDiagnosticsLogs: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val themeState = LocalThemeState.current
@@ -741,6 +742,22 @@ fun SettingsTabScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+
+                ItemDivider()
+
+                GroupedItemRow(
+                    icon = Icons.Rounded.Terminal,
+                    title = "System Logs & Diagnostics",
+                    subtitle = "Real-time network sync, engine telemetry & debugging"
+                ) {
+                    FilledTonalButton(
+                        onClick = onOpenDiagnosticsLogs,
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text("View Logs", fontSize = 12.sp)
+                    }
                 }
             }
 
