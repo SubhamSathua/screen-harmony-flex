@@ -119,7 +119,7 @@ class BlockedActivity : ComponentActivity() {
             Log.e(TAG, "Error starting home intent", e)
         }
         com.prism.screenharmony.flex.service.AppBlockerService.resetInterceptState()
-        finishAndRemoveTask()
+        finish()
     }
 
     override fun onDestroy() {

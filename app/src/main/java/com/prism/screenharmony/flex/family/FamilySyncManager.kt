@@ -51,6 +51,9 @@ object FamilySyncManager {
     private var commandsListener: ValueEventListener? = null
     private var appContext: Context? = null
     private var cachedDeviceId: String? = null
+    private var cachedPrefs: SharedPreferences? = null
+    private var telemetryJob: Job? = null
+    private var lastInstalledAppsSyncTimestamp = 0L
 
     fun dismissDenialAlert() {
         _oneTimeDenialAlert.value = false
@@ -106,19 +109,22 @@ object FamilySyncManager {
     }
 
     private fun getPrefs(context: Context): SharedPreferences {
-        return try {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-            EncryptedSharedPreferences.create(
-                context,
-                PREFS_NAME,
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
-        } catch (e: Exception) {
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        cachedPrefs?.let { return it }
+        return synchronized(this) {
+            cachedPrefs ?: try {
+                val masterKey = MasterKey.Builder(context.applicationContext)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+                EncryptedSharedPreferences.create(
+                    context.applicationContext,
+                    PREFS_NAME,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                ).also { cachedPrefs = it }
+            } catch (e: Exception) {
+                context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).also { cachedPrefs = it }
+            }
         }
     }
 
@@ -604,16 +610,17 @@ object FamilySyncManager {
                 db.getReference("families/${profile.familyId}/devices/$deviceId/commands/lockRequestedAt").addValueEventListener(cmdListener)
 
                 // 6. Child telemetry loop (Heartbeat, battery, screen time, active app, installed apps)
-                scope.launch {
-                    // Sync installed apps immediately on startup
+                telemetryJob?.cancel()
+                telemetryJob = scope.launch {
+                    // Sync installed apps on startup with throttle
                     syncChildInstalledApps(context)
 
                     var loopCount = 0
                     while (isActive) {
                         try {
                             pushChildTelemetry(context)
-                            // Sync full installed app list every 3 minutes (4 * 45s)
-                            if (loopCount % 4 == 0) {
+                            // Sync full installed app list every 10 minutes (13 * 45s)
+                            if (loopCount % 13 == 0) {
                                 syncChildInstalledApps(context)
                             }
                         } catch (e: Exception) {
@@ -626,7 +633,8 @@ object FamilySyncManager {
             }
 
             FamilyRole.STANDALONE -> {
-                // No active sync
+                telemetryJob?.cancel()
+                telemetryJob = null
             }
         }
         }
@@ -1054,7 +1062,13 @@ object FamilySyncManager {
     // Child Installed Apps Synchronization (Text string metadata only - 0 images)
     // =========================================================
 
-    fun syncChildInstalledApps(context: Context) {
+    fun syncChildInstalledApps(context: Context, force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastInstalledAppsSyncTimestamp < 180_000L) {
+            return // Skip if synced in the last 3 minutes
+        }
+        lastInstalledAppsSyncTimestamp = now
+
         ensureAuth {
             val profile = _familyProfile.value
             if (profile.role != FamilyRole.CHILD || profile.familyId.isBlank()) return@ensureAuth

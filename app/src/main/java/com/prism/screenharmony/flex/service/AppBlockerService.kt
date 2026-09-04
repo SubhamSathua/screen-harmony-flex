@@ -116,21 +116,28 @@ class AppBlockerService : Service() {
         BlockScheduleManager.reschedule(this)
     }
 
+    private var monitoringJob: Job? = null
+
     override fun onDestroy() {
         super.onDestroy()
         Log.w(TAG, "AppBlockerService onDestroy.")
         isRunning.set(false)
+        monitoringJob?.cancel()
         serviceScope.cancel()
     }
 
     private fun startAppMonitoringLoop() {
+        if (monitoringJob?.isActive == true) {
+            return // Already actively monitoring, prevent duplicated loops!
+        }
+
         val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
         if (usm == null) {
             Log.e(TAG, "UsageStatsManager service is NULL on this device")
             return
         }
 
-        serviceScope.launch {
+        monitoringJob = serviceScope.launch {
             Log.i(TAG, "Starting optimized Usage Access monitoring loop (IO Dispatcher)")
 
             while (isActive) {

@@ -63,27 +63,6 @@ fun ParentalTabScreen(
         FamilyNotificationHelper.createNotificationChannel(context)
     }
 
-    // Request Notification Permission for API 33+ (Once per session latch)
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { hasPromptedNotificationInSession = true }
-    )
-
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasPromptedNotificationInSession) {
-            val areNotificationsActive = NotificationManagerCompat.from(context).areNotificationsEnabled()
-            val hasRuntimePermission = ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-
-            if (!areNotificationsActive && !hasRuntimePermission) {
-                hasPromptedNotificationInSession = true
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-    }
-
     val familyProfile by FamilySyncManager.familyProfile.collectAsState()
     val connectedDevices by FamilySyncManager.connectedDevices.collectAsState()
     val childRules by FamilySyncManager.childPushedRules.collectAsState()
