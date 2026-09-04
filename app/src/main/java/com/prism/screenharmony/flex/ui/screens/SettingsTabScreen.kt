@@ -782,15 +782,14 @@ fun SettingsTabScreen(
                 GroupedItemRow(
                     icon = Icons.Rounded.Info,
                     title = "About ScreenHarmony Flex",
-                    subtitle = "v$versionName • Subham Kumar Sathua • FOSS"
+                    subtitle = "v$versionName • Subham Kumar Sathua • FOSS",
+                    onClick = onOpenAbout
                 ) {
-                    FilledTonalButton(
-                        onClick = onOpenAbout,
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text("View", fontSize = 12.sp)
-                    }
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 ItemDivider()
@@ -798,15 +797,14 @@ fun SettingsTabScreen(
                 GroupedItemRow(
                     icon = Icons.Rounded.Policy,
                     title = "Privacy Policy",
-                    subtitle = "Zero telemetry tracking, local-first permissions"
+                    subtitle = "Zero telemetry tracking, local-first permissions",
+                    onClick = onOpenPrivacyPolicy
                 ) {
-                    FilledTonalButton(
-                        onClick = onOpenPrivacyPolicy,
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text("Read", fontSize = 12.sp)
-                    }
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 ItemDivider()
@@ -826,15 +824,14 @@ fun SettingsTabScreen(
                 GroupedItemRow(
                     icon = Icons.Rounded.Terminal,
                     title = "System Logs & Diagnostics",
-                    subtitle = "Real-time network sync, engine telemetry & debugging"
+                    subtitle = "Real-time network sync, engine telemetry & debugging",
+                    onClick = onOpenDiagnosticsLogs
                 ) {
-                    FilledTonalButton(
-                        onClick = onOpenDiagnosticsLogs,
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text("View Logs", fontSize = 12.sp)
-                    }
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
