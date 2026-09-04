@@ -188,8 +188,8 @@ fun ChildAppListScreen(
                 }
 
                 // Category Presets Filter Chips
-                val categories = remember {
-                    listOf("All", "Social", "Media", "Games", "Shopping", "Browser")
+                val categories = remember(tempSelectedApps.size) {
+                    listOf("All", "Selected (${tempSelectedApps.size})", "Social", "Media", "Games", "Shopping", "Browser")
                 }
                 var selectedCategory by remember { mutableStateOf("All") }
 
@@ -198,10 +198,14 @@ fun ChildAppListScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(categories) { cat ->
-                        val isSelected = selectedCategory == cat
+                        val isSelected = if (cat.startsWith("Selected")) {
+                            selectedCategory.startsWith("Selected")
+                        } else {
+                            selectedCategory == cat
+                        }
                         FilterChip(
                             selected = isSelected,
-                            onClick = { selectedCategory = cat },
+                            onClick = { selectedCategory = if (cat.startsWith("Selected")) "Selected" else cat },
                             label = { Text(cat, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                             shape = RoundedCornerShape(12.dp),
                             leadingIcon = if (isSelected) {
@@ -236,7 +240,7 @@ fun ChildAppListScreen(
                 } else {
                     val filteredApps = installedApps.filter { app ->
                         val matchesSearch = itMatchesSearch(app, searchQuery)
-                        val matchesCategory = itMatchesCategory(app, selectedCategory)
+                        val matchesCategory = itMatchesCategory(app, selectedCategory, tempSelectedApps)
                         matchesSearch && matchesCategory
                     }
 
@@ -409,8 +413,9 @@ private fun itMatchesSearch(app: ChildAppInfo, query: String): Boolean {
     return app.name.lowercase().contains(q) || app.packageName.lowercase().contains(q)
 }
 
-private fun itMatchesCategory(app: ChildAppInfo, category: String): Boolean {
+private fun itMatchesCategory(app: ChildAppInfo, category: String, selectedApps: Set<String>): Boolean {
     if (category == "All") return true
+    if (category.startsWith("Selected")) return selectedApps.contains(app.packageName)
     val p = app.packageName.lowercase()
     val n = app.name.lowercase()
     return when (category) {

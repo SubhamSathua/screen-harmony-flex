@@ -33,7 +33,9 @@ enum class ScreenState {
     SELECT_APPS,
     APP_LOCK_SETUP,
     RECOVERY_SETTINGS,
-    DIAGNOSTICS_LOGS
+    DIAGNOSTICS_LOGS,
+    ABOUT,
+    PRIVACY_POLICY
 }
 
 data class PermissionState(
@@ -94,6 +96,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun navigateToDiagnosticsLogs() {
         _currentScreenState.value = ScreenState.DIAGNOSTICS_LOGS
+    }
+
+    fun navigateToAbout() {
+        _currentScreenState.value = ScreenState.ABOUT
+    }
+
+    fun navigateToPrivacyPolicy() {
+        _currentScreenState.value = ScreenState.PRIVACY_POLICY
     }
 
     private val _editingRule = MutableStateFlow(BlockRule())
@@ -250,6 +260,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun handleBack(): Boolean {
         return when (_currentScreenState.value) {
+            ScreenState.ABOUT -> {
+                _currentScreenState.value = ScreenState.MAIN_TABS
+                true
+            }
+            ScreenState.PRIVACY_POLICY -> {
+                _currentScreenState.value = ScreenState.MAIN_TABS
+                true
+            }
             ScreenState.DIAGNOSTICS_LOGS -> {
                 _currentScreenState.value = ScreenState.MAIN_TABS
                 true

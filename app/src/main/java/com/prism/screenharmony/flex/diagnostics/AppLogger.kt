@@ -1,4 +1,4 @@
-﻿package com.prism.screenharmony.flex.diagnostics
+package com.prism.screenharmony.flex.diagnostics
 
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,8 +43,8 @@ data class LogEntry(
     fun toExportString(): String {
         val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
         val dt = sdf.format(Date(timestamp))
-        val det = if (details != null) "\n  └─ Details: " else ""
-        return "[] [] [] []: "
+        val det = if (details != null) "\n  └─ Details: $details" else ""
+        return "[$dt] [${level.label}] [${category.label}] [$tag]: $message$det"
     }
 }
 
@@ -82,11 +82,11 @@ object AppLogger {
 
         // Also output to standard Android Logcat
         when (level) {
-            LogLevel.INFO -> Log.i(tag, "[] ")
-            LogLevel.WARN -> Log.w(tag, "[] ")
-            LogLevel.ERROR -> Log.e(tag, "[]  ")
-            LogLevel.NETWORK -> Log.d(tag, "[NET] ")
-            LogLevel.SYNC -> Log.d(tag, "[SYNC] ")
+            LogLevel.INFO -> Log.i(tag, "[${category.label}] $message")
+            LogLevel.WARN -> Log.w(tag, "[${category.label}] $message")
+            LogLevel.ERROR -> Log.e(tag, "[${category.label}] $message ${details ?: ""}")
+            LogLevel.NETWORK -> Log.d(tag, "[NET] $message")
+            LogLevel.SYNC -> Log.d(tag, "[SYNC] $message")
         }
     }
 
@@ -118,9 +118,12 @@ object AppLogger {
         }
     }
 
+    fun exportLogs(logsToExport: List<LogEntry>): String {
+        if (logsToExport.isEmpty()) return "No logs recorded for selected criteria."
+        return logsToExport.reversed().joinToString("\n") { it.toExportString() }
+    }
+
     fun exportAll(): String {
-        val currentLogs = _logs.value
-        if (currentLogs.isEmpty()) return "No logs recorded."
-        return currentLogs.reversed().joinToString("\n") { it.toExportString() }
+        return exportLogs(_logs.value)
     }
 }

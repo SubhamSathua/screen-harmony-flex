@@ -124,6 +124,18 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
     }
 
     when (currentScreenState) {
+        ScreenState.ABOUT -> {
+            com.prism.screenharmony.flex.ui.screens.AboutScreen(
+                onBack = { viewModel.handleBack() },
+                onOpenPrivacyPolicy = { viewModel.navigateToPrivacyPolicy() },
+                onOpenDiagnosticsLogs = { viewModel.navigateToDiagnosticsLogs() }
+            )
+        }
+        ScreenState.PRIVACY_POLICY -> {
+            com.prism.screenharmony.flex.ui.screens.PrivacyPolicyScreen(
+                onBack = { viewModel.handleBack() }
+            )
+        }
         ScreenState.DIAGNOSTICS_LOGS -> {
             com.prism.screenharmony.flex.ui.screens.DiagnosticsLogScreen(
                 onBack = { viewModel.handleBack() }
@@ -281,7 +293,9 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                             onHighlightParentalControlsFinished = { viewModel.clearParentalHighlight() },
                             onOpenAppLockSetup = { viewModel.openAppLockSetup() },
                             onOpenRecoverySettings = { viewModel.openRecoverySettings() },
-                            onOpenDiagnosticsLogs = { viewModel.navigateToDiagnosticsLogs() }
+                            onOpenDiagnosticsLogs = { viewModel.navigateToDiagnosticsLogs() },
+                            onOpenAbout = { viewModel.navigateToAbout() },
+                            onOpenPrivacyPolicy = { viewModel.navigateToPrivacyPolicy() }
                         )
                     }
                 }

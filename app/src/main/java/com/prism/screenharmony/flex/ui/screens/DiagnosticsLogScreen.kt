@@ -1,14 +1,20 @@
-﻿package com.prism.screenharmony.flex.ui.screens
+package com.prism.screenharmony.flex.ui.screens
 
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,18 +46,78 @@ fun DiagnosticsLogScreen(
     val allLogs by AppLogger.logs.collectAsState()
 
     var selectedCategory by remember { mutableStateOf(LogCategory.ALL) }
+    var selectedMinutes by remember { mutableStateOf<Int?>(null) } // null = All
     var searchQuery by remember { mutableStateOf("") }
     var showClearDialog by remember { mutableStateOf(false) }
 
-    val filteredLogs = remember(allLogs, selectedCategory, searchQuery) {
+    val timeOptions = remember {
+        listOf(
+            "All" to null,
+            "1m" to 1,
+            "2m" to 2,
+            "3m" to 3,
+            "5m" to 5,
+            "7m" to 7,
+            "10m" to 10,
+            "20m" to 20,
+            "30m" to 30
+        )
+    }
+
+    val filteredLogs = remember(allLogs, selectedCategory, selectedMinutes, searchQuery) {
+        val now = System.currentTimeMillis()
+        val cutoff = if (selectedMinutes != null) now - (selectedMinutes!! * 60 * 1000L) else 0L
+
         allLogs.filter { entry ->
+            val matchesTime = entry.timestamp >= cutoff
             val matchesCategory = (selectedCategory == LogCategory.ALL || entry.category == selectedCategory)
             val matchesSearch = if (searchQuery.isBlank()) true else {
                 entry.message.contains(searchQuery, ignoreCase = true) ||
                 entry.tag.contains(searchQuery, ignoreCase = true) ||
                 (entry.details?.contains(searchQuery, ignoreCase = true) == true)
             }
-            matchesCategory && matchesSearch
+            matchesTime && matchesCategory && matchesSearch
+        }
+    }
+
+    fun copyCurrentLogs() {
+        val textToExport = AppLogger.exportLogs(filteredLogs)
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        clipboard?.setPrimaryClip(ClipData.newPlainText("ScreenHarmony Logs", textToExport))
+        val timeLabel = if (selectedMinutes != null) " (last ${selectedMinutes}m)" else ""
+        Toast.makeText(context, "Copied ${filteredLogs.size} logs$timeLabel to clipboard", Toast.LENGTH_SHORT).show()
+    }
+
+    fun exportAndShareLogs() {
+        if (filteredLogs.isEmpty()) {
+            Toast.makeText(context, "No logs to export", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val logsDir = File(context.cacheDir, "logs").apply { mkdirs() }
+            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val fileSuffix = if (selectedMinutes != null) "_last_${selectedMinutes}m" else ""
+            val logFile = File(logsDir, "screenharmony_diagnostics_${timeStamp}${fileSuffix}.txt")
+            logFile.writeText(AppLogger.exportLogs(filteredLogs))
+
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                logFile
+            )
+
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "ScreenHarmony Flex Diagnostics Log")
+                putExtra(Intent.EXTRA_TEXT, "Exported ScreenHarmony Diagnostics (${filteredLogs.size} entries)")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val chooser = Intent.createChooser(shareIntent, "Save or Share Diagnostics Log")
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Export error: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -59,7 +125,7 @@ fun DiagnosticsLogScreen(
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
             title = { Text("Clear Diagnostics Logs?", fontWeight = FontWeight.Bold) },
-            text = { Text("This will erase all telemetry and sync logs currently buffered in memory.") },
+            text = { Text("This will erase all telemetry, blocker, and sync logs currently buffered in memory.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -85,12 +151,12 @@ fun DiagnosticsLogScreen(
                 title = {
                     Column {
                         Text(
-                            text = "System Diagnostics & Logs",
+                            text = "Diagnostics & Logs",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = " events captured",
+                            text = "${filteredLogs.size} of ${allLogs.size} events",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -102,15 +168,11 @@ fun DiagnosticsLogScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            val text = AppLogger.exportAll()
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                            clipboard?.setPrimaryClip(ClipData.newPlainText("ScreenHarmony Logs", text))
-                            Toast.makeText(context, "All logs copied to clipboard!", Toast.LENGTH_SHORT).show()
-                        }
-                    ) {
-                        Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy All")
+                    IconButton(onClick = ::copyCurrentLogs) {
+                        Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy Logs")
+                    }
+                    IconButton(onClick = ::exportAndShareLogs) {
+                        Icon(Icons.Rounded.Share, contentDescription = "Download / Share Logs")
                     }
                     IconButton(onClick = { showClearDialog = true }) {
                         Icon(Icons.Rounded.DeleteOutline, contentDescription = "Clear Logs", tint = MaterialTheme.colorScheme.error)
@@ -130,7 +192,7 @@ fun DiagnosticsLogScreen(
                 onValueChange = { searchQuery = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 placeholder = { Text("Search logs, tags, errors...", fontSize = 14.sp) },
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
                 trailingIcon = {
@@ -143,6 +205,45 @@ fun DiagnosticsLogScreen(
                 shape = RoundedCornerShape(16.dp),
                 singleLine = true
             )
+
+            // Time Window Presets (last 1m, 2m, 3m, 5m, 7m, 10m, 20m, 30m, All)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Rounded.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Time Range:",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(end = 8.dp)
+                ) {
+                    items(timeOptions) { (label, mins) ->
+                        val isSelected = selectedMinutes == mins
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedMinutes = mins },
+                            label = { Text(label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(30.dp)
+                        )
+                    }
+                }
+            }
 
             // Category Filter Row
             ScrollableTabRow(
@@ -158,7 +259,7 @@ fun DiagnosticsLogScreen(
                         selected = isSelected,
                         onClick = { selectedCategory = cat },
                         label = { Text(cat.label, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                        modifier = Modifier.padding(end = 8.dp, bottom = 8.dp),
+                        modifier = Modifier.padding(end = 8.dp, bottom = 4.dp),
                         shape = RoundedCornerShape(12.dp)
                     )
                 }
@@ -181,7 +282,7 @@ fun DiagnosticsLogScreen(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "No log records found",
+                            text = "No log records found for selection",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant

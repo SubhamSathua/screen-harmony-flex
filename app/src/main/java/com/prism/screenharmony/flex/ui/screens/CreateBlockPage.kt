@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -686,51 +688,44 @@ fun PauseOptionsBottomSheet(
             else -> {
                 Column(
                     modifier = Modifier
+                        .fillMaxWidth()
                         .padding(horizontal = 24.dp)
                         .padding(bottom = 32.dp)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("Pause Options", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        item {
-                            OptionCardX(
-                                title = "Strict",
-                                description = "No Pausing allowed (Recommended)",
-                                icon = Icons.Rounded.Lock,
-                                isSelected = currentConfig.type == PauseType.STRICT,
-                                onClick = { onConfigSelected(PauseConfig(type = PauseType.STRICT)); onDismiss() }
-                            )
-                        }
-                        item {
-                            OptionCardX(
-                                title = "Delay",
-                                description = "Wait duration before unlocking (${formatDelay(currentConfig.extraValue ?: 10)})",
-                                icon = Icons.Rounded.Timer,
-                                isSelected = currentConfig.type == PauseType.DELAY,
-                                onClick = { viewState = "DELAY" }
-                            )
-                        }
-                        item {
-                            OptionCardX(
-                                title = "Type random text",
-                                description = "Requires typing randomly generated text challenge",
-                                icon = Icons.Rounded.TextFields,
-                                isSelected = currentConfig.type == PauseType.TYPE_TEXT,
-                                onClick = { viewState = "TYPE_TEXT" }
-                            )
-                        }
-                        item {
-                            OptionCardX(
-                                title = "Pausable",
-                                description = "Can be turned OFF easily without delay",
-                                icon = Icons.Rounded.PauseCircle,
-                                isSelected = currentConfig.type == PauseType.PAUSABLE,
-                                onClick = { onConfigSelected(PauseConfig(type = PauseType.PAUSABLE)); onDismiss() }
-                            )
-                        }
-                    }
+                    OptionCardX(
+                        title = "Strict",
+                        description = "No Pausing allowed (Recommended)",
+                        icon = Icons.Rounded.Lock,
+                        isSelected = currentConfig.type == PauseType.STRICT,
+                        onClick = { onConfigSelected(PauseConfig(type = PauseType.STRICT)); onDismiss() }
+                    )
+                    OptionCardX(
+                        title = "Delay",
+                        description = "Wait duration before unlocking (${formatDelay(currentConfig.extraValue ?: 10)})",
+                        icon = Icons.Rounded.Timer,
+                        isSelected = currentConfig.type == PauseType.DELAY,
+                        onClick = { viewState = "DELAY" }
+                    )
+                    OptionCardX(
+                        title = "Type random text",
+                        description = "Requires typing randomly generated text challenge",
+                        icon = Icons.Rounded.TextFields,
+                        isSelected = currentConfig.type == PauseType.TYPE_TEXT,
+                        onClick = { viewState = "TYPE_TEXT" }
+                    )
+                    OptionCardX(
+                        title = "Pausable",
+                        description = "Can be turned OFF easily without delay",
+                        icon = Icons.Rounded.PauseCircle,
+                        isSelected = currentConfig.type == PauseType.PAUSABLE,
+                        onClick = { onConfigSelected(PauseConfig(type = PauseType.PAUSABLE)); onDismiss() }
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
                         Text("Cancel")

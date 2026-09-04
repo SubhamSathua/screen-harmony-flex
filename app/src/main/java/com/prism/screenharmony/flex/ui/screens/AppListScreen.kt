@@ -195,7 +195,7 @@ fun AppListScreen(
 
                 // Category Presets Filter Chips
                 val categories = remember {
-                    listOf("All", "Social", "Media", "Games", "Shopping", "Browser")
+                    listOf("All", "Selected", "Social", "Media", "Games", "Shopping", "Browser")
                 }
                 var selectedCategory by remember { mutableStateOf("All") }
 
@@ -205,10 +205,11 @@ fun AppListScreen(
                 ) {
                     items(categories) { cat ->
                         val isSelected = selectedCategory == cat
+                        val labelText = if (cat == "Selected") "Selected (${tempSelectedApps.size})" else cat
                         FilterChip(
                             selected = isSelected,
                             onClick = { selectedCategory = cat },
-                            label = { Text(cat, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            label = { Text(labelText, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                             shape = RoundedCornerShape(12.dp),
                             leadingIcon = if (isSelected) {
                                 { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
@@ -224,7 +225,7 @@ fun AppListScreen(
                 } else {
                     val filteredApps = apps.filter { app ->
                         val matchesSearch = itMatchesSearch(app, searchQuery)
-                        val matchesCategory = itMatchesCategory(app, selectedCategory)
+                        val matchesCategory = itMatchesCategory(app, selectedCategory, tempSelectedApps)
                         matchesSearch && matchesCategory
                     }
 
@@ -377,7 +378,10 @@ private fun itMatchesSearch(app: AppInfo, query: String): Boolean {
             app.packageName.contains(query, ignoreCase = true)
 }
 
-private fun itMatchesCategory(app: AppInfo, category: String): Boolean {
+private fun itMatchesCategory(app: AppInfo, category: String, selectedApps: Set<String>): Boolean {
+    if (category == "Selected") {
+        return selectedApps.contains(app.packageName)
+    }
     val pkg = app.packageName.lowercase()
     val name = app.name.lowercase()
     return when (category) {

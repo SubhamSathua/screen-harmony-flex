@@ -54,6 +54,8 @@ fun SettingsTabScreen(
     onOpenAppLockSetup: () -> Unit = {},
     onOpenRecoverySettings: () -> Unit = {},
     onOpenDiagnosticsLogs: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
+    onOpenPrivacyPolicy: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val themeState = LocalThemeState.current
@@ -772,11 +774,43 @@ fun SettingsTabScreen(
             }
 
             // =========================================================
-            // 5. ABOUT & SYNC
+            // 5. ABOUT & LEGAL
             // =========================================================
-            SectionHeader(title = "About & Sync")
+            SectionHeader(title = "About & Legal")
 
             GroupedContainer {
+                GroupedItemRow(
+                    icon = Icons.Rounded.Info,
+                    title = "About ScreenHarmony Flex",
+                    subtitle = "v$versionName • Subham Kumar Sathua • FOSS"
+                ) {
+                    FilledTonalButton(
+                        onClick = onOpenAbout,
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text("View", fontSize = 12.sp)
+                    }
+                }
+
+                ItemDivider()
+
+                GroupedItemRow(
+                    icon = Icons.Rounded.Policy,
+                    title = "Privacy Policy",
+                    subtitle = "Zero telemetry tracking, local-first permissions"
+                ) {
+                    FilledTonalButton(
+                        onClick = onOpenPrivacyPolicy,
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text("Read", fontSize = 12.sp)
+                    }
+                }
+
+                ItemDivider()
+
                 GroupedItemRow(
                     icon = Icons.Rounded.CloudQueue,
                     title = "Sync Protocol",
@@ -785,20 +819,6 @@ fun SettingsTabScreen(
                     Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.padding(4.dp)) {
                         Text("FREE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                     }
-                }
-
-                ItemDivider()
-
-                GroupedItemRow(
-                    icon = Icons.Rounded.Info,
-                    title = "App Version",
-                    subtitle = "ScreenHarmony Flex v$versionName"
-                ) {
-                    Text(
-                        text = "v$versionName",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
 
                 ItemDivider()
