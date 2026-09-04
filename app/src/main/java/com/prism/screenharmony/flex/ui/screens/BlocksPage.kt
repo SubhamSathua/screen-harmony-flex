@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.prism.screenharmony.flex.data.BlockRule
+import com.prism.screenharmony.flex.data.BlockType
 import com.prism.screenharmony.flex.data.PauseType
 import com.prism.screenharmony.flex.ui.components.ConditionBadge
 import kotlinx.coroutines.delay
@@ -143,17 +144,18 @@ fun BlocksPage(
             }
         }
 
-        val now = LocalTime.now()
-        val day = DayOfWeek.from(java.time.LocalDate.now())
-
         val activeRules = remember(rules, currentTimeMillis) {
-            rules.filter { it.isEnabled && !it.isPaused() && it.isCurrentlyBlocked(now, day) }
+            val currentLocalTime = LocalTime.now()
+            val currentDay = DayOfWeek.from(java.time.LocalDate.now())
+            rules.filter { it.isEnabled && !it.isPaused() && it.isCurrentlyBlocked(currentLocalTime, currentDay) }
         }
         val pausedRules = remember(rules, currentTimeMillis) {
             rules.filter { it.isEnabled && it.isPaused() }
         }
         val inactiveRules = remember(rules, currentTimeMillis) {
-            rules.filter { it.isEnabled && !it.isPaused() && !it.isCurrentlyBlocked(now, day) }
+            val currentLocalTime = LocalTime.now()
+            val currentDay = DayOfWeek.from(java.time.LocalDate.now())
+            rules.filter { it.isEnabled && !it.isPaused() && !it.isCurrentlyBlocked(currentLocalTime, currentDay) }
         }
         val disabledRules = remember(rules, currentTimeMillis) {
             rules.filter { !it.isEnabled }
@@ -270,7 +272,7 @@ fun BlockCardX(
     var pendingToggleValue by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
 
-    val isStrict = rule.pauseConfig.type == PauseType.STRICT
+    val isStrict = rule.pauseConfig.type == PauseType.STRICT || rule.blockType == BlockType.STRICT
     val isDelay = rule.pauseConfig.type == PauseType.DELAY
     val delayDuration = rule.pauseConfig.extraValue ?: 10
 
@@ -295,10 +297,15 @@ fun BlockCardX(
 
     val now = LocalTime.now()
     val day = DayOfWeek.from(java.time.LocalDate.now())
-    val isCurrentlyActive = rule.isEnabled && rule.isCurrentlyBlocked(now, day)
+    val isCurrentlyActive = rule.isEnabled && !rule.isPaused() && rule.isCurrentlyBlocked(now, day)
+
+    // Strict lock rule:
+    // For Parent side: Parent always has authority to edit, pause, delete, or toggle.
+    // For Self-Block: Strict lock applies ONLY when currently active. When inactive, self-blocks can be edited, deleted, or toggled.
+    val isStrictLocked = !isParentSide && isStrict && isCurrentlyActive
 
     Card(
-        onClick = if (isStrict) { {} } else onClick,
+        onClick = if (isStrictLocked) { {} } else onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
@@ -403,7 +410,7 @@ fun BlockCardX(
                             text = { Text("Edit", fontWeight = FontWeight.Medium) },
                             onClick = { showMenu = false; onClick() },
                             leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
-                            enabled = !isStrict,
+                            enabled = !isStrictLocked,
                             modifier = Modifier.clip(RoundedCornerShape(14.dp))
                         )
                         DropdownMenuItem(
@@ -419,11 +426,11 @@ fun BlockCardX(
                                 }
                             },
                             leadingIcon = { Icon(if (rule.isPaused()) Icons.Rounded.PlayArrow else Icons.Rounded.Pause, contentDescription = null) },
-                            enabled = !isStrict && rule.isEnabled && (isCurrentlyActive || rule.isPaused()),
+                            enabled = if (isParentSide) (rule.isEnabled && (isCurrentlyActive || rule.isPaused())) else (!isStrict && rule.isEnabled && (isCurrentlyActive || rule.isPaused())),
                             modifier = Modifier.clip(RoundedCornerShape(14.dp))
                         )
                         DropdownMenuItem(
-                            text = { Text("Delete", fontWeight = FontWeight.Medium, color = if (!isStrict) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)) },
+                            text = { Text("Delete", fontWeight = FontWeight.Medium, color = if (!isStrictLocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)) },
                             onClick = {
                                 showMenu = false
                                 if (isParentSide) {
@@ -434,8 +441,8 @@ fun BlockCardX(
                                     showSimpleDeleteConfirm = true
                                 }
                             },
-                            leadingIcon = { Icon(Icons.Rounded.Delete, contentDescription = null, tint = if (!isStrict) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)) },
-                            enabled = !isStrict,
+                            leadingIcon = { Icon(Icons.Rounded.Delete, contentDescription = null, tint = if (!isStrictLocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)) },
+                            enabled = !isStrictLocked,
                             modifier = Modifier.clip(RoundedCornerShape(14.dp))
                         )
                     }
@@ -444,23 +451,65 @@ fun BlockCardX(
 
             if (isStrict) {
                 Spacer(modifier = Modifier.height(10.dp))
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                if (isParentSide) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Strict Mode: Editing, pausing, and deleting are disabled",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Strict Parent Rule: Unpausable by child. As parent, you can edit, pause, or delete.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                } else if (isCurrentlyActive) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Strict Mode Active: Editing, pausing, disabling, and deleting are locked.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                } else {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Rounded.LockOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Strict Mode Inactive: Off-schedule. You can edit, disable, or delete while inactive.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }
@@ -532,7 +581,13 @@ fun BlockCardX(
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                if (!isStrict && rule.isEnabled && !isPausedActive) {
+                val canShowPauseButton = if (isParentSide) {
+                    rule.isEnabled && !isPausedActive
+                } else {
+                    !isStrict && rule.isEnabled && !isPausedActive && isCurrentlyActive
+                }
+
+                if (canShowPauseButton) {
                     FilledTonalButton(
                         onClick = {
                             if (isParentSide) {
@@ -558,7 +613,7 @@ fun BlockCardX(
                 }
                 Switch(
                     checked = rule.isEnabled,
-                    enabled = !isStrict,
+                    enabled = !isStrictLocked,
                     onCheckedChange = { newState ->
                         if (!isParentSide && !newState && isDelay && rule.isEnabled) {
                             pendingToggleValue = false
@@ -575,6 +630,7 @@ fun BlockCardX(
     if (showParentPauseDialog) {
         SimplePauseDurationDialog(
             ruleName = rule.name,
+            isStrict = isStrict,
             onConfirm = { selectedDuration ->
                 onPause(selectedDuration)
                 showParentPauseDialog = false
@@ -638,6 +694,7 @@ fun BlockCardX(
 @Composable
 fun SimplePauseDurationDialog(
     ruleName: String,
+    isStrict: Boolean = false,
     onConfirm: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -655,14 +712,42 @@ fun SimplePauseDurationDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Rounded.HourglassTop, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        title = { Text("Pause Block") },
+        icon = { 
+            Icon(
+                if (isStrict) Icons.Rounded.WarningAmber else Icons.Rounded.HourglassTop, 
+                contentDescription = null, 
+                tint = if (isStrict) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+            ) 
+        },
+        title = { Text(if (isStrict) "Pause Strict Restriction?" else "Pause Block") },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                if (isStrict) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Warning: This restriction is Strict on child device. Pausing it will temporarily grant access to blocked apps.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
                 Text(
                     text = "Select pause duration for \"${ruleName.ifEmpty { "Block Rule" }}\":",
                     style = MaterialTheme.typography.bodyMedium,

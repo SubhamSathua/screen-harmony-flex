@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -691,7 +692,7 @@ fun SettingsTabScreen(
 
                     // MIUI Background Pop-up (MIUI / HyperOS only)
                     GroupedItemRow(
-                        icon = Icons.AutoMirrored.Rounded.Launch,
+                        icon = Icons.AutoMirrored.Rounded.OpenInNew,
                         title = "MIUI Pop-up window permission",
                         subtitle = if (permissionState.isMiuiPopupGranted) "Active • Popups allowed from background" else "Crucial for MIUI/HyperOS • Other permissions"
                     ) {
@@ -738,6 +739,33 @@ fun SettingsTabScreen(
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                         ) {
                             Text("Enable", fontSize = 12.sp)
+                        }
+                    }
+                }
+
+                ItemDivider()
+
+                // 6. Notifications
+                GroupedItemRow(
+                    icon = Icons.Rounded.Notifications,
+                    title = "Notifications",
+                    subtitle = if (permissionState.isNotificationGranted) "Active • Keeps blocker service alive" else "Recommended • Needed for persistent foreground service"
+                ) {
+                    if (permissionState.isNotificationGranted) {
+                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                            Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Active", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                        }
+                    } else {
+                        FilledTonalButton(
+                            onClick = { PermissionHelper.openNotificationSettings(context) },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text("Grant", fontSize = 12.sp)
                         }
                     }
                 }

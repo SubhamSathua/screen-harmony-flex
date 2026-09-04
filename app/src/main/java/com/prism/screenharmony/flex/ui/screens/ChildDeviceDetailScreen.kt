@@ -482,17 +482,18 @@ private fun ChildBlocksTabContent(
             }
         }
 
-        val now = LocalTime.now()
-        val day = DayOfWeek.from(java.time.LocalDate.now())
-
         val activeRules = remember(rules, currentTimeMillis) {
-            rules.filter { it.isEnabled && !it.isPaused() && it.isCurrentlyBlocked(now, day) }
+            val currentLocalTime = LocalTime.now()
+            val currentDay = DayOfWeek.from(java.time.LocalDate.now())
+            rules.filter { it.isEnabled && !it.isPaused() && it.isCurrentlyBlocked(currentLocalTime, currentDay) }
         }
         val pausedRules = remember(rules, currentTimeMillis) {
             rules.filter { it.isEnabled && it.isPaused() }
         }
         val inactiveRules = remember(rules, currentTimeMillis) {
-            rules.filter { it.isEnabled && !it.isPaused() && !it.isCurrentlyBlocked(now, day) }
+            val currentLocalTime = LocalTime.now()
+            val currentDay = DayOfWeek.from(java.time.LocalDate.now())
+            rules.filter { it.isEnabled && !it.isPaused() && !it.isCurrentlyBlocked(currentLocalTime, currentDay) }
         }
         val disabledRules = remember(rules, currentTimeMillis) {
             rules.filter { !it.isEnabled }

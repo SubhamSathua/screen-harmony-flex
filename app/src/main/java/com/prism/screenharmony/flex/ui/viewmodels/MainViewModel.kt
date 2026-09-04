@@ -42,6 +42,7 @@ data class PermissionState(
     val isBatteryIgnored: Boolean = true,
     val isExactAlarmGranted: Boolean = true,
     val isAccessibilityGranted: Boolean = false,
+    val isNotificationGranted: Boolean = true,
     val isMiuiDevice: Boolean = false,
     val isMiuiPopupGranted: Boolean = true
 ) {
@@ -50,7 +51,7 @@ data class PermissionState(
     val areBase4PermissionsGranted: Boolean 
         get() = isUsageGranted && isOverlayGranted && isBatteryIgnored && isExactAlarmGranted && (!isMiuiDevice || isMiuiPopupGranted)
     val areAll5PermissionsGranted: Boolean 
-        get() = areBase4PermissionsGranted && isAccessibilityGranted
+        get() = areBase4PermissionsGranted && isAccessibilityGranted && isNotificationGranted
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -171,6 +172,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val battery = PermissionHelper.isBatteryOptimizationIgnored(context)
             val exactAlarm = PermissionHelper.isExactAlarmGranted(context)
             val accessibility = PermissionHelper.isAccessibilityGranted(context)
+            val notification = PermissionHelper.isNotificationGranted(context)
             val isMiui = PermissionHelper.isMiui()
             val miuiPopup = PermissionHelper.isMiuiBackgroundPopupGranted(context)
             withContext(Dispatchers.Main) {
@@ -180,6 +182,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     isBatteryIgnored = battery,
                     isExactAlarmGranted = exactAlarm,
                     isAccessibilityGranted = accessibility,
+                    isNotificationGranted = notification,
                     isMiuiDevice = isMiui,
                     isMiuiPopupGranted = miuiPopup
                 )
@@ -197,7 +200,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openEditRule(rule: BlockRule) {
-        if (rule.pauseConfig.type == com.prism.screenharmony.flex.data.PauseType.STRICT) return
+        val now = java.time.LocalTime.now()
+        val day = java.time.DayOfWeek.from(java.time.LocalDate.now())
+        val isStrictActive = (rule.pauseConfig.type == com.prism.screenharmony.flex.data.PauseType.STRICT || rule.blockType == com.prism.screenharmony.flex.data.BlockType.STRICT) && rule.isEnabled && !rule.isPaused() && rule.isCurrentlyBlocked(now, day)
+        if (isStrictActive) return
         _editingRule.value = rule
         _currentScreenState.value = ScreenState.CREATE_OR_EDIT_BLOCK
     }
