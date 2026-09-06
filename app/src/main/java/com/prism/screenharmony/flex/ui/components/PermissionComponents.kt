@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.prism.screenharmony.flex.ui.viewmodels.PermissionState
+import com.prism.screenharmony.flex.utils.MiuiOptimizationHelper
 import com.prism.screenharmony.flex.utils.PermissionHelper
 
 @Composable
@@ -63,7 +64,7 @@ fun PermissionWarningBanner(
                 }
 
                 Text(
-                    text = "To block apps seamlessly while you use other apps, grant the following permissions:",
+                    text = "To block apps and wake up reliably in the background, grant the following permissions:",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.9f)
                 )
@@ -79,7 +80,7 @@ fun PermissionWarningBanner(
                 // 2. Display Over Other Apps (Overlay)
                 PermissionRow(
                     title = "2. Display Over Other Apps",
-                    description = "Shows lock wall over Chrome & apps",
+                    description = "Shows lock wall over blocked apps",
                     isGranted = permissionState.isOverlayGranted,
                     onGrant = { PermissionHelper.openOverlaySettings(context) }
                 )
@@ -92,13 +93,28 @@ fun PermissionWarningBanner(
                     onGrant = { PermissionHelper.openBatteryOptimizationSettings(context) }
                 )
 
-                // 4. MIUI Background Pop-up (MIUI / HyperOS only)
+                // 4. Exact Alarms
+                PermissionRow(
+                    title = "4. Alarms & Reminders",
+                    description = "Watchdog timer to wake blocker app",
+                    isGranted = permissionState.isExactAlarmGranted,
+                    onGrant = { PermissionHelper.openExactAlarmSettings(context) }
+                )
+
+                // 5. MIUI Autostart & Pop-up (MIUI / HyperOS only)
                 if (permissionState.isMiuiDevice) {
                     PermissionRow(
-                        title = "4. MIUI Pop-up window permission",
-                        description = "Enable 'Display pop-up windows while running in the background'",
+                        title = "5. MIUI Autostart",
+                        description = "Enable to allow instant wake up",
+                        isGranted = false,
+                        buttonLabel = "Open",
+                        onGrant = { MiuiOptimizationHelper.openMiuiAutostartSettings(context) }
+                    )
+                    PermissionRow(
+                        title = "6. MIUI Pop-up Windows",
+                        description = "Enable 'Display pop-up windows while in background'",
                         isGranted = permissionState.isMiuiPopupGranted,
-                        onGrant = { PermissionHelper.openMiuiOtherPermissions(context) }
+                        onGrant = { MiuiOptimizationHelper.openMiuiOtherPermissions(context) }
                     )
                 }
             }
@@ -111,6 +127,7 @@ private fun PermissionRow(
     title: String,
     description: String,
     isGranted: Boolean,
+    buttonLabel: String = "Grant",
     onGrant: () -> Unit
 ) {
     Row(
@@ -148,7 +165,7 @@ private fun PermissionRow(
                 ),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
             ) {
-                Text("Grant", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(buttonLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

@@ -58,7 +58,8 @@ data class RemoteChildDevice(
     val unlinkRequested: Boolean = false,
     val unlinkRequestedAt: Long = 0L,
     val unlinkReason: String = "",
-    val permissions: ChildPermissionsState = ChildPermissionsState()
+    val permissions: ChildPermissionsState = ChildPermissionsState(),
+    val fcmToken: String = ""
 ) {
     val displayName: String
         get() = customName.ifBlank { deviceName }

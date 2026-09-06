@@ -379,6 +379,8 @@ object FamilySyncManager {
                                 isNotificationGranted = permSnap.child("isNotificationGranted").getValue(Boolean::class.java) ?: false
                             )
 
+                            val fcmToken = infoSnap.child("fcmToken").getValue(String::class.java) ?: ""
+
                             devices.add(
                                 RemoteChildDevice(
                                     deviceId = deviceId,
@@ -397,7 +399,8 @@ object FamilySyncManager {
                                     unlinkRequested = unlinkRequested,
                                     unlinkRequestedAt = unlinkRequestedAt,
                                     unlinkReason = unlinkReason,
-                                    permissions = childPermissions
+                                    permissions = childPermissions,
+                                    fcmToken = fcmToken
                                 )
                             )
                         }
@@ -414,6 +417,17 @@ object FamilySyncManager {
 
             FamilyRole.CHILD -> {
                 val deviceId = getDeviceId(context)
+
+                // Fetch and register FCM token for instant wake-up
+                try {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                        if (!token.isNullOrBlank()) {
+                            registerFcmToken(context, token)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not fetch FCM token on startup: ${e.message}")
+                }
 
                 // 1. Listen for remote rules pushed by Parent
                 rulesListener?.let { db.getReference("families/${profile.familyId}/devices/$deviceId/rules").removeEventListener(it) }
@@ -1149,6 +1163,24 @@ object FamilySyncManager {
         database?.getReference("families/${profile.familyId}/devices/$childDeviceId/installedApps")?.removeEventListener(listener)
     }
 
+    fun registerFcmToken(context: Context, token: String) {
+        if (token.isBlank()) return
+        val prefs = getPrefs(context)
+        prefs.edit().putString("cached_fcm_token", token).apply()
+
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role == FamilyRole.CHILD && profile.familyId.isNotBlank()) {
+                val deviceId = getDeviceId(context)
+                val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+                db.getReference("families/${profile.familyId}/devices/$deviceId/info/fcmToken").setValue(token)
+                    .addOnSuccessListener {
+                        Log.i(TAG, "Uploaded FCM token to cloud successfully: ${token.take(10)}...")
+                    }
+            }
+        }
+    }
+
     fun lockChildDevice(childDeviceId: String, onComplete: ((Boolean) -> Unit)? = null) {
         ensureAuth {
             val profile = _familyProfile.value
@@ -1162,6 +1194,15 @@ object FamilySyncManager {
                 .setValue(timestamp)
                 .addOnSuccessListener {
                     Log.i(TAG, "🔒 Remote lock command pushed to child $childDeviceId: timestamp=$timestamp")
+
+                    // Also dispatch silent FCM high-priority push if token is known
+                    val targetChild = _connectedDevices.value.find { it.deviceId == childDeviceId }
+                    if (targetChild != null && targetChild.fcmToken.isNotBlank()) {
+                        scope.launch {
+                            FcmPushHelper.sendSilentPush(targetChild.fcmToken, "LOCK_NOW")
+                        }
+                    }
+
                     onComplete?.invoke(true)
                 }
                 .addOnFailureListener {

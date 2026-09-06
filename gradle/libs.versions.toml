@@ -41,6 +41,7 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-database = { group = "com.google.firebase", name = "firebase-database" }
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
 
 # QR & Camera
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }

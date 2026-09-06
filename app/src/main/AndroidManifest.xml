@@ -82,6 +82,15 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <!-- Engine 3: High-Priority FCM Wake-Up Service (WhatsApp-Style Silent Wake) -->
+        <service
+            android:name=".service.ScreenHarmonyMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- Auto-resume and reschedule on reboot, package update, and time changes -->
         <receiver
             android:name=".service.BootReceiver"

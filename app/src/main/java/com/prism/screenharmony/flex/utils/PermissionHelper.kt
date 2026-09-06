@@ -303,6 +303,26 @@ object PermissionHelper {
         if (isMiui()) {
             list.add(
                 PermissionItem(
+                    id = "miui_autostart",
+                    name = "MIUI Autostart",
+                    description = "Required on MIUI / HyperOS to wake up and receive instant lock commands",
+                    isGranted = false,
+                    isCrucialForBackground = true,
+                    onGrant = { MiuiOptimizationHelper.openMiuiAutostartSettings(it) }
+                )
+            )
+            list.add(
+                PermissionItem(
+                    id = "miui_battery",
+                    name = "MIUI Battery Saver",
+                    description = "Set to 'No restrictions' so MIUI does not kill background tasks",
+                    isGranted = false,
+                    isCrucialForBackground = true,
+                    onGrant = { MiuiOptimizationHelper.openMiuiBatterySaverSettings(it) }
+                )
+            )
+            list.add(
+                PermissionItem(
                     id = "miui_popup",
                     name = "MIUI Pop-up Windows",
                     description = "Required on MIUI / HyperOS to allow lock screen popups from background (Other permissions)",

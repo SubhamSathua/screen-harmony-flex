@@ -123,10 +123,11 @@ dependencies {
     // Security & Encryption
     implementation(libs.androidx.security.crypto)
 
-    // Firebase (100% Free Spark Plan Realtime Database & Auth)
+    // Firebase (100% Free Spark Plan Realtime Database, Auth & FCM Push)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.database)
     implementation(libs.firebase.auth)
+    implementation(libs.firebase.messaging)
 
     // QR Code Generation & Scanning (100% On-Device & Free)
     implementation(libs.zxing.core)

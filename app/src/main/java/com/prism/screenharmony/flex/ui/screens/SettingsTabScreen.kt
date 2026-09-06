@@ -42,6 +42,7 @@ import com.prism.screenharmony.flex.ui.theme.AppThemeMode
 import com.prism.screenharmony.flex.ui.theme.LocalThemeState
 import com.prism.screenharmony.flex.ui.viewmodels.PermissionState
 import com.prism.screenharmony.flex.utils.BiometricHelper
+import com.prism.screenharmony.flex.utils.MiuiOptimizationHelper
 import com.prism.screenharmony.flex.utils.PermissionHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -669,10 +670,15 @@ fun SettingsTabScreen(
                 GroupedItemRow(
                     icon = Icons.Rounded.Alarm,
                     title = "Alarms & Reminders",
-                    subtitle = if (permissionState.isExactAlarmGranted) "Active • Wakes up blocker reliably" else "Crucial • Resumes blocking after device kill"
+                    subtitle = if (permissionState.isExactAlarmGranted) "Active • Tap to open & verify alarms permission" else "Crucial • Resumes blocking after device kill",
+                    onClick = { PermissionHelper.openExactAlarmSettings(context) }
                 ) {
                     if (permissionState.isExactAlarmGranted) {
-                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.clickable { PermissionHelper.openExactAlarmSettings(context) }
+                        ) {
                             Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -693,14 +699,55 @@ fun SettingsTabScreen(
                 if (permissionState.isMiuiDevice) {
                     ItemDivider()
 
+                    // MIUI Autostart
+                    GroupedItemRow(
+                        icon = Icons.Rounded.PowerSettingsNew,
+                        title = "MIUI Autostart",
+                        subtitle = "Enable Autostart so child device instantly receives lock / wake commands",
+                        onClick = { MiuiOptimizationHelper.openMiuiAutostartSettings(context) }
+                    ) {
+                        FilledTonalButton(
+                            onClick = { MiuiOptimizationHelper.openMiuiAutostartSettings(context) },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text("Open", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    ItemDivider()
+
+                    // MIUI Battery Saver (No Restrictions)
+                    GroupedItemRow(
+                        icon = Icons.Rounded.BatterySaver,
+                        title = "MIUI Battery Saver",
+                        subtitle = "Set to 'No restrictions' so MIUI never freezes background tasks",
+                        onClick = { MiuiOptimizationHelper.openMiuiBatterySaverSettings(context) }
+                    ) {
+                        FilledTonalButton(
+                            onClick = { MiuiOptimizationHelper.openMiuiBatterySaverSettings(context) },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text("Configure", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    ItemDivider()
+
                     // MIUI Background Pop-up (MIUI / HyperOS only)
                     GroupedItemRow(
                         icon = Icons.AutoMirrored.Rounded.OpenInNew,
                         title = "MIUI Pop-up window permission",
-                        subtitle = if (permissionState.isMiuiPopupGranted) "Active • Popups allowed from background" else "Crucial for MIUI/HyperOS • Other permissions"
+                        subtitle = if (permissionState.isMiuiPopupGranted) "Active • Popups allowed from background" else "Crucial for MIUI/HyperOS • Other permissions",
+                        onClick = { MiuiOptimizationHelper.openMiuiOtherPermissions(context) }
                     ) {
                         if (permissionState.isMiuiPopupGranted) {
-                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.clickable { MiuiOptimizationHelper.openMiuiOtherPermissions(context) }
+                            ) {
                                 Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -709,7 +756,7 @@ fun SettingsTabScreen(
                             }
                         } else {
                             Button(
-                                onClick = { PermissionHelper.openMiuiOtherPermissions(context) },
+                                onClick = { MiuiOptimizationHelper.openMiuiOtherPermissions(context) },
                                 shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                             ) {
