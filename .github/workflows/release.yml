@@ -69,12 +69,13 @@ jobs:
           CLEAN_VER="${TAG#v}"
 
           # Determine Pre-Release status
-          # Pre-release if user checked input OR tag/version has -alpha, -beta, -rc, -preview, etc.
           IS_PRERELEASE="false"
           if [ "${{ github.event.inputs.is_prerelease }}" = "true" ]; then
             IS_PRERELEASE="true"
-          elif echo "$TAG" | grep -Ei -- "-(alpha|beta|rc|preview|dev|snapshot)" > /dev/null; then
+          elif [[ "$TAG" =~ -(alpha|beta|rc|preview|dev|snapshot) ]]; then
             IS_PRERELEASE="true"
+          else
+            IS_PRERELEASE="false"
           fi
 
           IS_DRAFT="false"
@@ -221,7 +222,7 @@ jobs:
 
       - name: Build Release APKs & Bundles
         run: |
-          ./gradlew assembleProdRelease assembleAlphaRelease bundleProdRelease --stacktrace
+          ./gradlew assembleProdRelease assembleAlphaRelease bundleProdRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx3072m -XX:+UseG1GC" --stacktrace
 
       - name: Prepare Artifacts for Release
         id: prepare_files

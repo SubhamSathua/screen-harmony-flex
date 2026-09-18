@@ -17,6 +17,7 @@ jobs:
   build-and-test:
     name: Build & Test Android App
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Repository
@@ -95,11 +96,8 @@ jobs:
       - name: Grant Execute Permission to Gradle Wrapper
         run: chmod +x gradlew
 
-      - name: Run Unit Tests
-        run: ./gradlew testProdDebugUnitTest testAlphaDebugUnitTest --stacktrace
-
-      - name: Assemble Debug APKs
-        run: ./gradlew assembleProdDebug assembleAlphaDebug --stacktrace
+      - name: Run Tests and Assemble Debug APKs
+        run: ./gradlew testProdDebugUnitTest testAlphaDebugUnitTest assembleProdDebug assembleAlphaDebug --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx3072m -XX:+UseG1GC" --stacktrace
 
       - name: Upload Debug APK Artifacts
         uses: actions/upload-artifact@v4
