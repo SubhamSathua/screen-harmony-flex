@@ -49,6 +49,7 @@ object FamilySyncManager {
     private var devicesListener: ValueEventListener? = null
     private var unlinkRequestListener: ValueEventListener? = null
     private var commandsListener: ValueEventListener? = null
+    private var wakeUpListener: ValueEventListener? = null
     private var appContext: Context? = null
     private var cachedDeviceId: String? = null
     private var cachedPrefs: SharedPreferences? = null
@@ -622,6 +623,31 @@ object FamilySyncManager {
                 }
                 commandsListener = cmdListener
                 db.getReference("families/${profile.familyId}/devices/$deviceId/commands/lockRequestedAt").addValueEventListener(cmdListener)
+
+                // 5b. Listen for Remote Wake Up Commands from Parent
+                wakeUpListener?.let { db.getReference("families/${profile.familyId}/devices/$deviceId/commands/wakeUpRequestedAt").removeEventListener(it) }
+                val wListener = object : ValueEventListener {
+                    private var lastHandledWakeUp = 0L
+
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        val wakeUpRequestedAt = snapshot.getValue(Long::class.java) ?: return
+                        val prefs = getPrefs(context)
+                        val lastSeenWakeUp = prefs.getLong("last_handled_wake_up", 0L)
+
+                        if (wakeUpRequestedAt > lastHandledWakeUp && wakeUpRequestedAt > lastSeenWakeUp) {
+                            lastHandledWakeUp = wakeUpRequestedAt
+                            prefs.edit().putLong("last_handled_wake_up", wakeUpRequestedAt).apply()
+                            Log.i(TAG, "⚡ Remote Wake-Up command received from parent (timestamp=$wakeUpRequestedAt)!")
+                            handleWakeUpSignal(context, wakeUpRequestedAt)
+                        }
+                    }
+
+                    override fun onCancelled(error: DatabaseError) {
+                        Log.e(TAG, "Remote wake up listener cancelled", error.toException())
+                    }
+                }
+                wakeUpListener = wListener
+                db.getReference("families/${profile.familyId}/devices/$deviceId/commands/wakeUpRequestedAt").addValueEventListener(wListener)
 
                 // 6. Child telemetry loop (Heartbeat, battery, screen time, active app, installed apps)
                 telemetryJob?.cancel()
@@ -1209,6 +1235,137 @@ object FamilySyncManager {
                     Log.e(TAG, "Failed to push remote lock command to child $childDeviceId", it)
                     onComplete?.invoke(false)
                 }
+        }
+    }
+
+    fun wakeUpChildDevice(childDeviceId: String, onResult: (Boolean, String) -> Unit) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) {
+                onResult(false, "No active family connection in Parent mode.")
+                return@ensureAuth
+            }
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+            val timestamp = System.currentTimeMillis()
+            val targetChild = _connectedDevices.value.find { it.deviceId == childDeviceId }
+            val childName = targetChild?.displayName ?: "Child device"
+
+            // 1. Push Wake-Up command to Firebase RTDB
+            val updates = mapOf<String, Any>(
+                "wakeUpRequestedAt" to timestamp
+            )
+            db.getReference("families/${profile.familyId}/devices/$childDeviceId/commands").updateChildren(updates)
+                .addOnSuccessListener {
+                    Log.i(TAG, "⚡ Wake-up command pushed to child $childDeviceId in RTDB (timestamp=$timestamp)")
+
+                    // 2. Dispatch silent high-priority FCM data push if token is available
+                    if (targetChild != null && targetChild.fcmToken.isNotBlank()) {
+                        scope.launch {
+                            FcmPushHelper.sendSilentPush(
+                                targetChild.fcmToken,
+                                "WAKEUP",
+                                mapOf("timestamp" to timestamp.toString())
+                            )
+                        }
+                    }
+
+                    // 3. Listen for Child ACK or lastSeen update with timeout
+                    var hasResponded = false
+                    val ackRef = db.getReference("families/${profile.familyId}/devices/$childDeviceId/commands/wakeUpAck")
+                    val infoRef = db.getReference("families/${profile.familyId}/devices/$childDeviceId/info/lastSeen")
+
+                    var ackListener: ValueEventListener? = null
+                    var infoListener: ValueEventListener? = null
+
+                    fun cleanup() {
+                        ackListener?.let { ackRef.removeEventListener(it) }
+                        infoListener?.let { infoRef.removeEventListener(it) }
+                    }
+
+                    val timeoutJob = scope.launch {
+                        delay(8000L) // 8 second timeout
+                        if (!hasResponded) {
+                            hasResponded = true
+                            cleanup()
+                            onResult(
+                                false,
+                                "Could not wake up $childName.\n\nThe device may be powered off, out of network connectivity, or restricted by aggressive OS power saving (Doze mode)."
+                            )
+                        }
+                    }
+
+                    val onWokenUp = {
+                        if (!hasResponded) {
+                            hasResponded = true
+                            timeoutJob.cancel()
+                            cleanup()
+                            // Force refresh local parent state
+                            appContext?.let { startRoleSync(it) }
+                            onResult(true, "$childName woke up & is now online!")
+                        }
+                    }
+
+                    ackListener = object : ValueEventListener {
+                        override fun onDataChange(snapshot: DataSnapshot) {
+                            val ackTime = snapshot.getValue(Long::class.java) ?: 0L
+                            if (ackTime >= timestamp - 1000L) {
+                                onWokenUp()
+                            }
+                        }
+                        override fun onCancelled(error: DatabaseError) {}
+                    }
+                    ackRef.addValueEventListener(ackListener)
+
+                    infoListener = object : ValueEventListener {
+                        override fun onDataChange(snapshot: DataSnapshot) {
+                            val lastSeen = snapshot.getValue(Long::class.java) ?: 0L
+                            if (lastSeen >= timestamp - 1000L) {
+                                onWokenUp()
+                            }
+                        }
+                        override fun onCancelled(error: DatabaseError) {}
+                    }
+                    infoRef.addValueEventListener(infoListener)
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Failed to push wake-up command to child $childDeviceId", e)
+                    onResult(false, "Failed to dispatch wake-up command: ${e.message}")
+                }
+        }
+    }
+
+    fun handleWakeUpSignal(context: Context, timestamp: Long = System.currentTimeMillis()) {
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.CHILD || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+            val deviceId = getDeviceId(context)
+
+            // 1. Immediately send telemetry + ACK so Parent gets instant "Woke up / Online" signal
+            pushChildTelemetry(context)
+            db.getReference("families/${profile.familyId}/devices/$deviceId/commands/wakeUpAck")
+                .setValue(ServerValue.TIMESTAMP)
+
+            Log.i(TAG, "⚡ Child device processed wake-up signal: ACK dispatched and telemetry pushed.")
+
+            // 2. Perform internal background maintenance tasks to keep the app alive and running:
+            try {
+                com.prism.screenharmony.flex.service.AppBlockerService.start(context)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not start AppBlockerService on wake-up: ${e.message}")
+            }
+
+            try {
+                com.prism.screenharmony.flex.service.BlockScheduleManager.reschedule(context)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not reschedule blocks on wake-up: ${e.message}")
+            }
+
+            try {
+                com.prism.screenharmony.flex.service.WatchdogAlarmReceiver.scheduleNext(context)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not schedule watchdog alarm on wake-up: ${e.message}")
+            }
         }
     }
 

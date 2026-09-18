@@ -583,7 +583,12 @@ fun ParentalTabScreen(
     deviceForPermissionsCard?.let { device ->
         ChildPermissionsCardDialog(
             device = device,
-            onDismiss = { deviceForPermissionsCard = null }
+            onDismiss = { deviceForPermissionsCard = null },
+            onWakeUp = {
+                FamilySyncManager.wakeUpChildDevice(device.deviceId) { success, msg ->
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                }
+            }
         )
     }
 }
@@ -814,6 +819,8 @@ private fun ChildDeviceCard(
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
+    var isWakingUp by remember { mutableStateOf(false) }
+    var wakeUpAlertMessage by remember { mutableStateOf<String?>(null) }
 
     Card(
         shape = RoundedCornerShape(24.dp),
@@ -894,6 +901,32 @@ private fun ChildDeviceCard(
                             shadowElevation = 8.dp,
                             modifier = Modifier.padding(4.dp)
                         ) {
+                            if (!device.isOnline) {
+                                DropdownMenuItem(
+                                    text = { Text("Wake Up Device", fontWeight = FontWeight.Medium) },
+                                    leadingIcon = {
+                                        if (isWakingUp) {
+                                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                        } else {
+                                            Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    },
+                                    enabled = !isWakingUp,
+                                    onClick = {
+                                        showMenu = false
+                                        isWakingUp = true
+                                        FamilySyncManager.wakeUpChildDevice(device.deviceId) { success, msg ->
+                                            isWakingUp = false
+                                            if (success) {
+                                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                wakeUpAlertMessage = msg
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.clip(RoundedCornerShape(14.dp))
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text("Rename Device", fontWeight = FontWeight.Medium) },
                                 leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
@@ -1007,6 +1040,48 @@ private fun ChildDeviceCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+
+                    // Wake-Up Circular Button (Only shown if Child is Offline)
+                    if (!device.isOnline) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    isWakingUp = true
+                                    FamilySyncManager.wakeUpChildDevice(device.deviceId) { success, msg ->
+                                        isWakingUp = false
+                                        if (success) {
+                                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            wakeUpAlertMessage = msg
+                                        }
+                                    }
+                                },
+                                enabled = !isWakingUp,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                if (isWakingUp) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Rounded.PlayArrow,
+                                        contentDescription = "Wake Up Device",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+
                     Icon(
                         Icons.Rounded.ChevronRight,
                         contentDescription = "Details",
@@ -1027,6 +1102,23 @@ private fun ChildDeviceCard(
                 Text("Configure Device")
             }
         }
+    }
+
+    // Wake Up Failure Alert Dialog
+    wakeUpAlertMessage?.let { alertMsg ->
+        AlertDialog(
+            onDismissRequest = { wakeUpAlertMessage = null },
+            icon = { Icon(Icons.Rounded.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Device Wake-Up Alert") },
+            text = {
+                Text(alertMsg, style = MaterialTheme.typography.bodyMedium)
+            },
+            confirmButton = {
+                Button(onClick = { wakeUpAlertMessage = null }, shape = RoundedCornerShape(12.dp)) {
+                    Text("Got it")
+                }
+            }
+        )
     }
 
     // Rename Dialog
@@ -2025,9 +2117,12 @@ private fun ChildControlsTabContent(
 @Composable
 fun ChildPermissionsCardDialog(
     device: RemoteChildDevice,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onWakeUp: (() -> Unit)? = null
 ) {
     val perms = device.permissions
+    var isWakingUp by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {
@@ -2039,11 +2134,49 @@ fun ChildPermissionsCardDialog(
             )
         },
         title = {
-            Text(
-                text = "${device.displayName} Permissions",
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${device.displayName} Permissions",
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                if (!device.isOnline && onWakeUp != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                isWakingUp = true
+                                onWakeUp()
+                            },
+                            enabled = !isWakingUp,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            if (isWakingUp) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Rounded.PlayArrow,
+                                    contentDescription = "Wake Up Device",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         },
         text = {
             Column(

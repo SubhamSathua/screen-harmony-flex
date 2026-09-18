@@ -55,6 +55,8 @@ fun ChildDeviceDetailScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var showRemoveDialog by remember { mutableStateOf(false) }
     var isPullRefreshing by remember { mutableStateOf(false) }
+    var isWakingUp by remember { mutableStateOf(false) }
+    var wakeUpAlertMessage by remember { mutableStateOf<String?>(null) }
 
     // Remote Block Rule Creation & Editing Flow
     var editingRule by remember { mutableStateOf<BlockRule?>(null) }
@@ -180,6 +182,32 @@ fun ChildDeviceDetailScreen(
                             shadowElevation = 8.dp,
                             modifier = Modifier.padding(4.dp)
                         ) {
+                            if (!device.isOnline) {
+                                DropdownMenuItem(
+                                    text = { Text("Wake Up Device", fontWeight = FontWeight.Medium) },
+                                    leadingIcon = {
+                                        if (isWakingUp) {
+                                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                        } else {
+                                            Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    },
+                                    enabled = !isWakingUp,
+                                    onClick = {
+                                        showMoreMenu = false
+                                        isWakingUp = true
+                                        FamilySyncManager.wakeUpChildDevice(device.deviceId) { success, msg ->
+                                            isWakingUp = false
+                                            if (success) {
+                                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                wakeUpAlertMessage = msg
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.clip(RoundedCornerShape(14.dp))
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text("Rename Device", fontWeight = FontWeight.Medium) },
                                 leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
@@ -310,6 +338,18 @@ fun ChildDeviceDetailScreen(
                         )
                         2 -> ControlsTabContent(
                             device = device,
+                            isWakingUp = isWakingUp,
+                            onWakeUpDevice = {
+                                isWakingUp = true
+                                FamilySyncManager.wakeUpChildDevice(device.deviceId) { success, msg ->
+                                    isWakingUp = false
+                                    if (success) {
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        wakeUpAlertMessage = msg
+                                    }
+                                }
+                            },
                             onLockDevice = {
                                 FamilySyncManager.lockChildDevice(device.deviceId) { success ->
                                     Toast.makeText(
@@ -422,6 +462,23 @@ fun ChildDeviceDetailScreen(
             dismissButton = {
                 TextButton(onClick = { showRemoveDialog = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Wake Up Failure Alert Dialog
+    wakeUpAlertMessage?.let { alertMsg ->
+        AlertDialog(
+            onDismissRequest = { wakeUpAlertMessage = null },
+            icon = { Icon(Icons.Rounded.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Device Wake-Up Alert") },
+            text = {
+                Text(alertMsg, style = MaterialTheme.typography.bodyMedium)
+            },
+            confirmButton = {
+                Button(onClick = { wakeUpAlertMessage = null }, shape = RoundedCornerShape(12.dp)) {
+                    Text("Got it")
                 }
             }
         )
@@ -719,6 +776,8 @@ private fun AnalysisTabContent(
 @Composable
 private fun ControlsTabContent(
     device: RemoteChildDevice,
+    isWakingUp: Boolean = false,
+    onWakeUpDevice: () -> Unit = {},
     onLockDevice: () -> Unit,
     onOpenRemoveDialog: () -> Unit
 ) {
@@ -728,6 +787,76 @@ private fun ControlsTabContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // 0. Offline Wake-Up Card (Only shown if Child is Offline)
+        if (!device.isOnline) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(18.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(42.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Rounded.SensorsOff,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Device is Offline", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "Tap start button to send wake-up signal",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(42.dp)
+                        ) {
+                            IconButton(
+                                onClick = onWakeUpDevice,
+                                enabled = !isWakingUp,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                if (isWakingUp) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Rounded.PlayArrow,
+                                        contentDescription = "Wake Up Device",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 1. Live Device Status Card (Top of Controls)
         item {
             Card(
@@ -818,17 +947,51 @@ private fun ControlsTabContent(
                             )
                         }
 
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (perms.areAllGranted) Color(0xFF1B5E20).copy(alpha = 0.15f) else if (perms.hasCrucialGranted) Color(0xFFF57F17).copy(alpha = 0.15f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                text = if (perms.areAllGranted) "All Active" else "${perms.totalCount - perms.grantedCount} Missing",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (perms.areAllGranted) Color(0xFF2E7D32) else if (perms.hasCrucialGranted) Color(0xFFE65100) else MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
+                            if (!device.isOnline) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    IconButton(
+                                        onClick = onWakeUpDevice,
+                                        enabled = !isWakingUp,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        if (isWakingUp) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                strokeWidth = 2.dp,
+                                                color = MaterialTheme.colorScheme.onPrimary
+                                            )
+                                        } else {
+                                            Icon(
+                                                Icons.Rounded.PlayArrow,
+                                                contentDescription = "Wake Up Device",
+                                                tint = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (perms.areAllGranted) Color(0xFF1B5E20).copy(alpha = 0.15f) else if (perms.hasCrucialGranted) Color(0xFFF57F17).copy(alpha = 0.15f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                            ) {
+                                Text(
+                                    text = if (perms.areAllGranted) "All Active" else "${perms.totalCount - perms.grantedCount} Missing",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (perms.areAllGranted) Color(0xFF2E7D32) else if (perms.hasCrucialGranted) Color(0xFFE65100) else MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
                         }
                     }
 

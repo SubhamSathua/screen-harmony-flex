@@ -69,8 +69,8 @@ class ScreenHarmonyMessagingService : FirebaseMessagingService() {
                 }
 
                 "PING", "WAKEUP" -> {
-                    Log.i(TAG, "📡 Heartbeat ping received from parent via FCM")
-                    FamilySyncManager.startRoleSync(applicationContext)
+                    Log.i(TAG, "📡 Heartbeat / Wake-Up signal received from parent via FCM")
+                    FamilySyncManager.handleWakeUpSignal(applicationContext)
                 }
 
                 else -> {
