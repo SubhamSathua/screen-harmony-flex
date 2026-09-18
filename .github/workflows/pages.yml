@@ -35,11 +35,18 @@ jobs:
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
 
+      - name: Prepare Site Structure (Root & /update paths)
+        run: |
+          mkdir -p _site/update
+          # Serve at root (/)
+          cp -r update/* _site/
+          # Also serve under (/update/) so https://subhamsathua.github.io/screen-harmony-flex/update/update.json works
+          cp -r update/* _site/update/
+
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Only package and deploy the /update directory as the Pages site root
-          path: './update'
+          path: '_site'
 
       - name: Deploy to GitHub Pages
         id: deployment
