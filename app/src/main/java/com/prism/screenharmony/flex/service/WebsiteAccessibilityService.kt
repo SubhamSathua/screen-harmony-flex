@@ -139,6 +139,78 @@ class WebsiteAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun isSettingsOrSecurityPackage(pkg: String): Boolean {
+        if (pkg == "com.android.settings" || pkg.startsWith("com.android.settings")) return true
+        if (pkg.contains(".settings.", ignoreCase = true) || pkg.endsWith(".settings", ignoreCase = true)) return true
+
+        // Xiaomi / Redmi / POCO (MIUI / HyperOS)
+        if (pkg.startsWith("com.miui.securitycenter") ||
+            pkg.startsWith("com.miui.securityadd") ||
+            pkg.startsWith("com.miui.cleanmaster") ||
+            pkg.startsWith("com.miui.appmanager") ||
+            pkg.startsWith("com.miui.permcenter") ||
+            pkg.startsWith("com.miui.permission") ||
+            pkg.startsWith("com.xiaomi.misettings")
+        ) return true
+
+        // Oppo / Realme / OnePlus (ColorOS / OxygenOS / Realme UI)
+        if (pkg.startsWith("com.coloros.safecenter") ||
+            pkg.startsWith("com.oplus.safecenter") ||
+            pkg.startsWith("com.coloros.securitypermission") ||
+            pkg.startsWith("com.oplus.securitypermission") ||
+            pkg.startsWith("com.coloros.oppoguardelf") ||
+            pkg.startsWith("com.oneplus.security") ||
+            pkg.startsWith("com.oplus.battery")
+        ) return true
+
+        // Vivo / iQOO (Funtouch OS / OriginOS)
+        if (pkg.startsWith("com.vivo.permissionmanager") ||
+            pkg.startsWith("com.iqoo.secure") ||
+            pkg.startsWith("com.vivo.abe") ||
+            pkg.startsWith("com.vivo.safecenter")
+        ) return true
+
+        // Huawei / Honor (EMUI / HarmonyOS / MagicOS)
+        if (pkg.startsWith("com.huawei.systemmanager") ||
+            pkg.startsWith("com.hihonor.systemmanager")
+        ) return true
+
+        // Transsion (Infinix / Tecno / Itel)
+        if (pkg.startsWith("com.transsion.phonemaster") ||
+            pkg.startsWith("com.transsion.mobilecloner")
+        ) return true
+
+        return pkg.contains("securitycenter", ignoreCase = true) ||
+                pkg.contains("safecenter", ignoreCase = true) ||
+                pkg.contains("permissionmanager", ignoreCase = true) ||
+                pkg.contains("systemmanager", ignoreCase = true)
+    }
+
+    private fun isPackageInstallerPackage(pkg: String): Boolean {
+        if (pkg.contains("packageinstaller", ignoreCase = true)) return true
+        if (pkg.contains("installer", ignoreCase = true) && (
+            pkg.contains("google") || pkg.contains("android") || pkg.contains("miui") ||
+            pkg.contains("coloros") || pkg.contains("oplus") || pkg.contains("vivo") ||
+            pkg.contains("huawei") || pkg.contains("samsung") || pkg.contains("transsion")
+        )) return true
+        if (pkg == "com.miui.cleanmaster" || pkg == "com.transsion.phonemaster") return true
+        return false
+    }
+
+    private fun isLauncherPackage(pkg: String): Boolean {
+        return pkg.contains("launcher", ignoreCase = true) ||
+                pkg.contains("home", ignoreCase = true) ||
+                pkg == "com.miui.home" ||
+                pkg == "com.sec.android.app.launcher" ||
+                pkg == "com.google.android.apps.nexuslauncher" ||
+                pkg == "com.oppo.launcher" ||
+                pkg == "com.bbk.launcher2" ||
+                pkg == "com.huawei.android.launcher" ||
+                pkg == "com.hihonor.android.launcher" ||
+                pkg == "com.transsion.hilauncher" ||
+                pkg == "com.transsion.xoslauncher"
+    }
+
     private fun handleAntiTamperProtection(event: AccessibilityEvent, packageName: String): Boolean {
         try {
             // Active when role is CHILD or when Strict Block is active on self device
@@ -152,9 +224,16 @@ class WebsiteAccessibilityService : AccessibilityService() {
                 return false
             }
 
-            // --- Vector 1 & 4: Settings App Info, Accessibility Toggle & Row-Level Toggles (com.android.settings) ---
-            if (packageName == "com.android.settings" || packageName.startsWith("com.android.settings")) {
-                val rootNode = rootInActiveWindow
+            val rootNode = rootInActiveWindow
+
+            // Global Vector: If ANY dialog on the screen is attempting to uninstall, clear data, or disable ScreenHarmony
+            if (rootNode != null && isUninstallOrDestructiveDialogForOurApp(rootNode)) {
+                triggerAntiTamperAction("Uninstallation and permission resets are locked by Parental Controls")
+                return true
+            }
+
+            // --- Vector 1: Settings, OEM Security Centers, Permission Editors (All OEMs) ---
+            if (isSettingsOrSecurityPackage(packageName)) {
                 if (rootNode != null) {
                     // 1. Auto-Heal: If ScreenHarmony switch is detected in any list or page and is currently OFF, click it ON!
                     val healed = autoHealAndEnforceSettingsSwitches(rootNode)
@@ -162,7 +241,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
                         return true
                     }
 
-                    // 2. Check if this is ScreenHarmony's App Info or detail page
+                    // 2. Check if this is ScreenHarmony's App Info, Detail page, or Permission Editor
                     if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
                         event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
                     ) {
@@ -174,7 +253,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
                     }
                 }
 
-                // Case B: Row-Level Tap (Samsung / One UI / OEM direct switches on list items)
+                // Row-Level Tap (Samsung / One UI / Xiaomi / ColorOS / OEM direct list switches)
                 if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
                     val source = event.source
                     if (source != null) {
@@ -193,15 +272,10 @@ class WebsiteAccessibilityService : AccessibilityService() {
                 }
             }
 
-            // --- Vector 2: System Package Installer (Uninstall Confirmation Dialogs) ---
-            if (packageName.contains("packageinstaller") ||
-                packageName == "com.google.android.packageinstaller" ||
-                packageName == "com.android.packageinstaller" ||
-                packageName == "com.samsung.android.packageinstaller"
-            ) {
-                val rootNode = rootInActiveWindow
+            // --- Vector 2: System Package Installers & OEM Uninstall Cleaners ---
+            if (isPackageInstallerPackage(packageName)) {
                 if (rootNode != null) {
-                    val isOurUninstall = isUninstallDialogForOurApp(rootNode)
+                    val isOurUninstall = isUninstallOrDestructiveDialogForOurApp(rootNode)
                     if (isOurUninstall) {
                         triggerAntiTamperAction("Uninstallation is protected by Parental Controls")
                         return true
@@ -218,7 +292,6 @@ class WebsiteAccessibilityService : AccessibilityService() {
                         val desc = source.contentDescription?.toString()?.lowercase() ?: ""
                         val isUninstallClick = text.contains("uninstall") || desc.contains("uninstall")
                         if (isUninstallClick) {
-                            val rootNode = rootInActiveWindow
                             val isOurAppPage = rootNode != null && isScreenHarmonyDetailPage(rootNode)
                             if (isOurAppPage) {
                                 triggerAntiTamperAction("Uninstallation from Google Play is protected by Parental Controls")
@@ -226,6 +299,14 @@ class WebsiteAccessibilityService : AccessibilityService() {
                             }
                         }
                     }
+                }
+            }
+
+            // --- Vector 4: OEM Launchers (Long press drag-to-uninstall / Context Menu Uninstall) ---
+            if (isLauncherPackage(packageName)) {
+                if (rootNode != null && isUninstallOrDestructiveDialogForOurApp(rootNode)) {
+                    triggerAntiTamperAction("Uninstallation is protected by Parental Controls")
+                    return true
                 }
             }
         } catch (t: Throwable) {
@@ -425,19 +506,29 @@ class WebsiteAccessibilityService : AccessibilityService() {
                lower.contains("com.prism.screenharmony")
     }
 
-    private fun isUninstallDialogForOurApp(root: AccessibilityNodeInfo): Boolean {
+    private fun isUninstallOrDestructiveDialogForOurApp(root: AccessibilityNodeInfo): Boolean {
         try {
             val texts = mutableListOf<String>()
             collectAllText(root, texts, 0)
             val fullText = texts.joinToString(" ").lowercase()
             val mentionsOurApp = isTextRelatesToOurApp(fullText)
-            val mentionsUninstall = fullText.contains("uninstall") ||
+            if (!mentionsOurApp) return false
+
+            val mentionsDestructiveAction = fullText.contains("uninstall") ||
                                    fullText.contains("delete") ||
                                    fullText.contains("remove") ||
-                                   fullText.contains("do you want to uninstall")
-            return mentionsOurApp && mentionsUninstall
+                                   fullText.contains("clear data") ||
+                                   fullText.contains("clear all data") ||
+                                   fullText.contains("force stop") ||
+                                   fullText.contains("do you want to uninstall") ||
+                                   fullText.contains("stop screenharmony") ||
+                                   fullText.contains("turn off screenharmony") ||
+                                   fullText.contains("disable screenharmony") ||
+                                   fullText.contains("turn off service") ||
+                                   fullText.contains("stop service")
+            return mentionsDestructiveAction
         } catch (t: Throwable) {
-            Log.e(TAG, "Error in isUninstallDialogForOurApp", t)
+            Log.e(TAG, "Error in isUninstallOrDestructiveDialogForOurApp", t)
             return false
         }
     }
