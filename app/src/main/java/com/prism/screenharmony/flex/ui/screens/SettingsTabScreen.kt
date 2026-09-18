@@ -936,7 +936,7 @@ fun SettingsTabScreen(
                     UpdateManager.checkForUpdates(context, isUserInitiated = true) { res ->
                         when (res) {
                             is UpdateCheckResult.UpToDate -> {
-                                Toast.makeText(context, "You are on the latest version (v${res.currentName})!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "You are on the latest version (v${res.currentVersion})!", Toast.LENGTH_SHORT).show()
                             }
                             is UpdateCheckResult.UpdateAvailable -> {
                                 updateAvailableData = res
