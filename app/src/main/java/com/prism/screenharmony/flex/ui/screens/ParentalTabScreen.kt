@@ -36,12 +36,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.prism.screenharmony.flex.data.*
 import com.prism.screenharmony.flex.family.*
 import com.prism.screenharmony.flex.ui.components.RemoteAppIcon
 import com.prism.screenharmony.flex.ui.components.ScheduleGraph
+import com.prism.screenharmony.flex.ui.screens.connections.ParentCloudAuthDialog
 import com.prism.screenharmony.flex.ui.screens.update.CompactUpdateCard
 import com.prism.screenharmony.flex.ui.viewmodels.PermissionState
 import kotlinx.coroutines.delay
@@ -79,6 +80,7 @@ fun ParentalTabScreen(
     var showParentLeaveDialog by remember { mutableStateOf(false) }
     var showParentMenu by remember { mutableStateOf(false) }
     var deviceForPermissionsCard by remember { mutableStateOf<RemoteChildDevice?>(null) }
+    var showCreateParentAccountDialog by remember { mutableStateOf(false) }
 
     // If a device is opened for configuration, render the 3-tab detail screen
     selectedDeviceForConfigure?.let { selected ->
@@ -214,16 +216,9 @@ fun ParentalTabScreen(
                         UnpairedRoleSelectionView(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(20.dp),
+                                .padding(horizontal = 20.dp, vertical = 10.dp),
                             onSetupParent = {
-                                FamilySyncManager.setupAsParent(context) { success ->
-                                    if (success) {
-                                        showQrDialog = true
-                                        Toast.makeText(context, "Parent mode ready! Scan QR code on child phone.", Toast.LENGTH_LONG).show()
-                                    } else {
-                                        Toast.makeText(context, "Failed to create family", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
+                                showCreateParentAccountDialog = true
                             },
                             onSetupChildQr = { showScannerView = true },
                             onSetupChildCode = { showManualCodeDialog = true }
@@ -271,6 +266,25 @@ fun ParentalTabScreen(
                 }
             }
         }
+    }
+
+    // Create Parent Account Dialog (Username, Password, Email -> Recovery Phrase with Copy & Download)
+    if (showCreateParentAccountDialog) {
+        ParentCloudAuthDialog(
+            isInitialRegister = true,
+            onDismiss = { showCreateParentAccountDialog = false },
+            onAuthSuccess = { msg ->
+                showCreateParentAccountDialog = false
+                FamilySyncManager.setupAsParent(context) { success ->
+                    if (success) {
+                        showQrDialog = true
+                        Toast.makeText(context, "Parent mode active! Scan QR code on child phone.", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(context, "Parent account ready!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
     }
 
     // Parent Unlink Review Popup Dialog
@@ -617,24 +631,32 @@ private fun UnpairedRoleSelectionView(
     onSetupChildCode: () -> Unit
 ) {
     Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        modifier = modifier
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Spacer(modifier = Modifier.height(4.dp))
+
         Surface(
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(80.dp)
+            modifier = Modifier.size(76.dp)
         ) {
-            Icon(
-                imageVector = Icons.Rounded.FamilyRestroom,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(18.dp).fillMaxSize()
-            )
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Rounded.FamilyRestroom,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        ) {
             Text(
                 text = "Remote Family Protection",
                 style = MaterialTheme.typography.headlineSmall,
@@ -650,7 +672,7 @@ private fun UnpairedRoleSelectionView(
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         // Role 1: Parent Card
         Card(
@@ -660,22 +682,42 @@ private fun UnpairedRoleSelectionView(
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(46.dp)
                 ) {
-                    Icon(Icons.Rounded.SupervisorAccount, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(12.dp))
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Rounded.SupervisorAccount,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Set up as Parent Device", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Generate pairing QR code, monitor child devices, and push block rules remotely.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Set up as Parent Device",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Create parent account, generate pairing QR code, monitor child devices, and push block rules remotely.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
@@ -687,28 +729,56 @@ private fun UnpairedRoleSelectionView(
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(46.dp)
                 ) {
-                    Icon(Icons.Rounded.QrCodeScanner, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondary, modifier = Modifier.padding(12.dp))
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Rounded.QrCodeScanner,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Link as Child Device", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Scan the QR code on the parent's phone to connect this device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Link as Child Device",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Scan the QR code on the parent's phone to connect this device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
-        TextButton(onClick = onSetupChildCode) {
-            Text("Have a 6-digit pairing code instead? Enter code")
+        TextButton(
+            onClick = onSetupChildCode,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                "Have a 6-digit pairing code instead? Enter code",
+                textAlign = TextAlign.Center
+            )
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 

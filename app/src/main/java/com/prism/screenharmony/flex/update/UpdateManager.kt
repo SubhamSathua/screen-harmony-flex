@@ -89,18 +89,30 @@ object UpdateManager {
     ) {
         _updateResult.value = UpdateCheckResult.Checking
         CoroutineScope(Dispatchers.IO).launch {
-            val result = performUpdateEvaluation(context, isUserInitiated)
-            _updateResult.value = result
-            
-            val now = System.currentTimeMillis()
-            _lastCheckedTimestamp.value = now
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .putLong(KEY_LAST_CHECK, now)
-                .apply()
+            try {
+                val result = kotlinx.coroutines.withTimeoutOrNull(15000L) {
+                    performUpdateEvaluation(context, isUserInitiated)
+                } ?: UpdateCheckResult.Error("Update check timed out. Please check your network connection.")
 
-            withContext(Dispatchers.Main) {
-                onComplete?.invoke(result)
+                _updateResult.value = result
+
+                val now = System.currentTimeMillis()
+                _lastCheckedTimestamp.value = now
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit()
+                    .putLong(KEY_LAST_CHECK, now)
+                    .apply()
+
+                withContext(Dispatchers.Main) {
+                    onComplete?.invoke(result)
+                }
+            } catch (t: Throwable) {
+                AppLogger.e(LogCategory.NETWORK, TAG, "Update check crashed: ${t.message}", t)
+                val errResult = UpdateCheckResult.Error("Check failed: ${t.localizedMessage ?: "Network error"}")
+                _updateResult.value = errResult
+                withContext(Dispatchers.Main) {
+                    onComplete?.invoke(errResult)
+                }
             }
         }
     }
