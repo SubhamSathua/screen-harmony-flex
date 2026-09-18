@@ -10,11 +10,6 @@
       "title": "Alpha Testing Ring Paused",
       "message": "A critical issue was discovered in the latest alpha tree. Alpha usage is temporarily halted while an emergency build is prepared."
     },
-    "beta": {
-      "enabled": false,
-      "title": "Beta Staging Paused",
-      "message": "Beta builds are temporarily locked due to scheduled backend synchronization updates."
-    },
     "stable": {
       "enabled": false,
       "title": "Production Service Paused",
@@ -22,9 +17,8 @@
     }
   },
   "stable": {
-    "versionCode": 26,
-    "versionName": "2.9.0",
-    "minSupportedVersionCode": 20,
+    "version": "2.9.0",
+    "minVersion": "2.0.0",
     "releaseDate": "2026-09-18",
     "updateType": "OPTIONAL",
     "deprecationMessage": "Your installed version has reached end-of-life and can no longer synchronize. Please update to 2.9.0 to continue.",
@@ -42,28 +36,9 @@
     },
     "sha256": ""
   },
-  "beta": {
-    "versionCode": 26,
-    "versionName": "2.9.0-beta.1",
-    "minSupportedVersionCode": 22,
-    "releaseDate": "2026-09-18",
-    "updateType": "RECOMMENDED",
-    "deprecationMessage": "This beta milestone has lapsed. Update immediately to prevent staging sync timeouts.",
-    "changelog": [
-      "Preview: Next-gen child-parent real-time handshake protocol.",
-      "Fix: Addressed intermittent connection retry on low-latency networks."
-    ],
-    "downloads": {
-      "directApk": "https://github.com/SubhamSathua/screen-harmony-flex/releases/latest/download/app-prod-universal-release.apk",
-      "github": "https://github.com/SubhamSathua/screen-harmony-flex/releases",
-      "obtainium": "obtainium://add/https://github.com/SubhamSathua/screen-harmony-flex"
-    },
-    "sha256": ""
-  },
   "alpha": {
-    "versionCode": 26,
-    "versionName": "2.9.0-alpha",
-    "minSupportedVersionCode": 24,
+    "version": "2.9.0-alpha",
+    "minVersion": "2.4.0",
     "releaseDate": "2026-09-18",
     "updateType": "OPTIONAL",
     "deprecationMessage": "Experimental build expired. Download the newest nightly iteration.",

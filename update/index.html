@@ -58,8 +58,6 @@
       </div>
       <nav class="hidden md:flex items-center space-x-6 text-sm font-medium">
         <a href="#full-json" class="text-slate-300 hover:text-white transition-colors">Manifest JSON</a>
-        <a href="#dictionary" class="text-slate-300 hover:text-white transition-colors">Dictionary</a>
-        <a href="#states" class="text-slate-300 hover:text-white transition-colors">Evaluation States</a>
         <a href="#flow" class="text-slate-300 hover:text-white transition-colors">Interactive Simulator</a>
       </nav>
       <div class="flex items-center space-x-3">
@@ -82,17 +80,17 @@
           Client-Driven In-App Update Engine &amp; Remote Manifest
         </h2>
         <p class="text-slate-300 text-base sm:text-lg leading-relaxed font-light">
-          A zero-backend update orchestration architecture powered by a single static <code class="font-mono text-xs bg-slate-800 px-1 py-0.5 text-blue-400">update.json</code> served via GitHub Pages. Features fine-grained release ring control (Stable / Beta / Alpha), floor deprecation, emergency kill-switches, and SHA-256 integrity checks.
+          A zero-backend update orchestration architecture powered by a static <code class="font-mono text-xs bg-slate-800 px-1 py-0.5 text-blue-400">update.json</code> served via GitHub Pages. Features release track control (Stable &amp; Alpha), floor deprecation (<code class="font-mono text-xs bg-slate-800 px-1 py-0.5 text-blue-400">minVersion</code>), emergency kill-switches, and SHA-256 integrity checks.
         </p>
       </div>
       <div class="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-slate-800 pt-6">
         <div>
           <div class="font-mono text-xs text-slate-500 uppercase">Current Stable</div>
-          <div class="font-bold text-slate-200 mt-1">v2.9.0 (Code: 26)</div>
+          <div class="font-bold text-slate-200 mt-1">v2.9.0</div>
         </div>
         <div>
           <div class="font-mono text-xs text-slate-500 uppercase">Min Supported Floor</div>
-          <div class="font-bold text-slate-200 mt-1">Code: 20</div>
+          <div class="font-bold text-slate-200 mt-1">v2.0.0</div>
         </div>
         <div>
           <div class="font-mono text-xs text-slate-500 uppercase">Kill Switch</div>
@@ -138,17 +136,16 @@
         
         <div class="lg:col-span-5 space-y-4">
           <div>
-            <label class="block text-xs font-mono text-slate-400 uppercase mb-1">Local Installed VersionCode</label>
-            <input type="number" id="sim-local" value="19" class="w-full bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-white focus:border-blue-500 focus:outline-none">
-            <span class="text-[11px] text-slate-500">Try 19 (Floor Deprecated), 25 (Update Available), or 26 (Up to Date).</span>
+            <label class="block text-xs font-mono text-slate-400 uppercase mb-1">Local Installed Version (e.g. 2.8.5, 2.9.0)</label>
+            <input type="text" id="sim-local" value="1.9.0" class="w-full bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-white focus:border-blue-500 focus:outline-none">
+            <span class="text-[11px] text-slate-500">Try 1.9.0 (Floor Deprecated &lt; 2.0.0), 2.8.5 (Update Available), or 2.9.0 (Up to Date).</span>
           </div>
 
           <div>
             <label class="block text-xs font-mono text-slate-400 uppercase mb-1">Client Track Channel</label>
             <select id="sim-channel" class="w-full bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-white focus:border-blue-500 focus:outline-none">
-              <option value="stable">stable (Latest: 26, Floor: 20)</option>
-              <option value="beta">beta (Latest: 26, Floor: 22)</option>
-              <option value="alpha">alpha (Latest: 26, Floor: 24)</option>
+              <option value="stable">stable (Latest: 2.9.0, Floor: 2.0.0)</option>
+              <option value="alpha">alpha (Latest: 2.9.0-alpha, Floor: 2.4.0)</option>
             </select>
           </div>
 
@@ -241,8 +238,28 @@
       document.body.removeChild(textArea);
     }
 
+    function compareVersions(v1, v2) {
+      if (!v1 && !v2) return 0;
+      if (!v1) return -1;
+      if (!v2) return 1;
+      
+      const clean1 = v1.toString().replace(/^v/i, '').split('-')[0];
+      const clean2 = v2.toString().replace(/^v/i, '').split('-')[0];
+      
+      const p1 = clean1.split('.').map(n => parseInt(n, 10) || 0);
+      const p2 = clean2.split('.').map(n => parseInt(n, 10) || 0);
+      
+      const len = Math.max(p1.length, p2.length);
+      for (let i = 0; i < len; i++) {
+        const n1 = p1[i] || 0;
+        const n2 = p2[i] || 0;
+        if (n1 !== n2) return n1 > n2 ? 1 : -1;
+      }
+      return 0;
+    }
+
     function runSimulation() {
-      const localVersion = parseInt(document.getElementById('sim-local').value, 10) || 1;
+      const localVersion = document.getElementById('sim-local').value.trim() || "0.0.0";
       const channel = document.getElementById('sim-channel').value;
       const killGlobal = document.getElementById('sim-kill-global').checked;
       const killChannel = document.getElementById('sim-kill-channel').checked;
@@ -253,13 +270,13 @@
       const codePreview = document.getElementById('sim-code-preview');
 
       const manifest = manifestData || {
-        stable: { versionCode: 26, minSupportedVersionCode: 20, updateType: 'OPTIONAL' },
-        beta: { versionCode: 26, minSupportedVersionCode: 22, updateType: 'RECOMMENDED' },
-        alpha: { versionCode: 26, minSupportedVersionCode: 24, updateType: 'OPTIONAL' }
+        stable: { version: "2.9.0", minVersion: "2.0.0", updateType: 'OPTIONAL' },
+        alpha: { version: "2.9.0-alpha", minVersion: "2.4.0", updateType: 'OPTIONAL' }
       };
 
       const activeConfig = manifest[channel] || manifest.stable;
-      const minSupported = activeConfig.minSupportedVersionCode || activeConfig.minSupported || 20;
+      const remoteVersion = activeConfig.version || activeConfig.versionName || "2.9.0";
+      const minSupported = activeConfig.minVersion || activeConfig.minSupportedVersion || "2.0.0";
 
       if (killGlobal) {
         badge.className = "font-mono text-xs px-2 py-0.5 bg-rose-900/60 text-rose-300 border border-rose-500 font-bold";
@@ -281,31 +298,33 @@
         return;
       }
 
-      if (localVersion < minSupported) {
+      // Check min supported floor
+      if (compareVersions(localVersion, minSupported) < 0) {
         badge.className = "font-mono text-xs px-2 py-0.5 bg-rose-900/60 text-rose-300 border border-rose-500 font-bold";
         badge.innerText = "FORCED CRITICAL UPDATE";
         title.innerText = "Version Deprecated (Mandatory Upgrade)";
         title.className = "text-lg font-bold text-rose-400";
-        desc.innerText = `Client version (${localVersion}) is strictly below the floor (${minSupported}). Even though the remote update may be marked OPTIONAL, this client is forced to upgrade immediately.`;
-        codePreview.innerText = `Evaluation: local (${localVersion}) < minSupported (${minSupported}) -> Action: Block screen & trigger compulsory update`;
+        desc.innerText = `Client version (${localVersion}) is strictly below the minimum floor (${minSupported}). Even though the remote update may be marked OPTIONAL, this client is forced to upgrade immediately.`;
+        codePreview.innerText = `Evaluation: local (${localVersion}) < minVersion (${minSupported}) -> Action: Block screen & trigger compulsory update`;
         return;
       }
 
-      if (activeConfig.versionCode > localVersion) {
+      // Check update available
+      if (compareVersions(remoteVersion, localVersion) > 0) {
         if (activeConfig.updateType === 'RECOMMENDED') {
           badge.className = "font-mono text-xs px-2 py-0.5 bg-amber-900/60 text-amber-300 border border-amber-500 font-bold";
           badge.innerText = "UPDATE RECOMMENDED";
-          title.innerText = `Recommended Update: v${activeConfig.versionName || activeConfig.versionCode}`;
+          title.innerText = `Recommended Update: v${remoteVersion}`;
           title.className = "text-lg font-bold text-amber-400";
-          desc.innerText = `A newer build is ready (v${activeConfig.versionName || activeConfig.versionCode}). Shows persistent warning banner; user may dismiss to continue usage.`;
-          codePreview.innerText = `Evaluation: remote (${activeConfig.versionCode}) > local (${localVersion}) [RECOMMENDED] -> Show dismissible reminder`;
+          desc.innerText = `A newer build is ready (v${remoteVersion}). Shows persistent warning banner; user may dismiss to continue usage.`;
+          codePreview.innerText = `Evaluation: remote (${remoteVersion}) > local (${localVersion}) [RECOMMENDED] -> Show dismissible reminder`;
         } else {
           badge.className = "font-mono text-xs px-2 py-0.5 bg-emerald-900/60 text-emerald-300 border border-emerald-500 font-bold";
           badge.innerText = "OPTIONAL UPDATE";
-          title.innerText = `New Version Available: v${activeConfig.versionName || activeConfig.versionCode}`;
+          title.innerText = `New Version Available: v${remoteVersion}`;
           title.className = "text-lg font-bold text-emerald-400";
-          desc.innerText = `A newer build is available (v${activeConfig.versionName || activeConfig.versionCode}). Standard update dialog with "Update" and "Later" actions.`;
-          codePreview.innerText = `Evaluation: remote (${activeConfig.versionCode}) > local (${localVersion}) [OPTIONAL] -> Show standard dialog`;
+          desc.innerText = `A newer build is available (v${remoteVersion}). Standard update dialog with "Update" and "Later" actions.`;
+          codePreview.innerText = `Evaluation: remote (${remoteVersion}) > local (${localVersion}) [OPTIONAL] -> Show standard dialog`;
         }
         return;
       }
@@ -314,8 +333,8 @@
       badge.innerText = "UP TO DATE";
       title.innerText = "Application is Current";
       title.className = "text-lg font-bold text-slate-200";
-      desc.innerText = `Installed version (${localVersion}) is equal to or newer than the remote build (${activeConfig.versionCode}). No prompt required.`;
-      codePreview.innerText = `Evaluation: remote (${activeConfig.versionCode}) <= local (${localVersion}) -> Action: None (Idle)`;
+      desc.innerText = `Installed version (${localVersion}) is equal to or newer than the remote build (${remoteVersion}). No prompt required.`;
+      codePreview.innerText = `Evaluation: remote (${remoteVersion}) <= local (${localVersion}) -> Action: None (Idle)`;
     }
 
     window.addEventListener('DOMContentLoaded', () => {

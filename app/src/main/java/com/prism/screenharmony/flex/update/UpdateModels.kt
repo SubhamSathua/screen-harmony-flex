@@ -16,6 +16,49 @@ enum class UpdateType {
     }
 }
 
+object VersionHelper {
+    /**
+     * Robust semantic version comparator (e.g. "2.9.0", "2.9.00", "2.10.1", "2.8.5-alpha", "v2.9.0").
+     * Returns:
+     *   > 0 if v1 > v2
+     *   0 if v1 == v2
+     *   < 0 if v1 < v2
+     */
+    fun compare(v1: String?, v2: String?): Int {
+        if (v1.isNullOrBlank() && v2.isNullOrBlank()) return 0
+        if (v1.isNullOrBlank()) return -1
+        if (v2.isNullOrBlank()) return 1
+
+        val clean1 = v1.trim().removePrefix("v").removePrefix("V")
+        val clean2 = v2.trim().removePrefix("v").removePrefix("V")
+
+        val parts1 = clean1.split("-", limit = 2)
+        val parts2 = clean2.split("-", limit = 2)
+
+        val nums1 = parts1[0].split(".").mapNotNull { it.trim().toIntOrNull() }
+        val nums2 = parts2[0].split(".").mapNotNull { it.trim().toIntOrNull() }
+
+        val maxLen = maxOf(nums1.size, nums2.size)
+        for (i in 0 until maxLen) {
+            val n1 = nums1.getOrElse(i) { 0 }
+            val n2 = nums2.getOrElse(i) { 0 }
+            if (n1 != n2) {
+                return n1.compareTo(n2)
+            }
+        }
+
+        val hasSuffix1 = parts1.size > 1
+        val hasSuffix2 = parts2.size > 1
+        if (!hasSuffix1 && hasSuffix2) return 1
+        if (hasSuffix1 && !hasSuffix2) return -1
+        if (hasSuffix1 && hasSuffix2) {
+            return parts1[1].compareTo(parts2[1])
+        }
+
+        return 0
+    }
+}
+
 data class DownloadsConfig(
     val directApk: String? = null,
     val github: String? = null,
@@ -36,11 +79,10 @@ data class DownloadsConfig(
 }
 
 data class ChannelConfig(
-    val versionCode: Long,
-    val versionName: String,
-    val minSupportedVersionCode: Long,
-    val releaseDate: String,
-    val updateType: UpdateType,
+    val version: String,
+    val minVersion: String = "0.0.0",
+    val releaseDate: String = "",
+    val updateType: UpdateType = UpdateType.OPTIONAL,
     val deprecationMessage: String? = null,
     val changelog: List<String> = emptyList(),
     val downloads: DownloadsConfig = DownloadsConfig(),
@@ -49,8 +91,10 @@ data class ChannelConfig(
     companion object {
         fun fromJson(json: JSONObject?): ChannelConfig? {
             if (json == null) return null
-            val versionCode = json.optLong("versionCode", -1L)
-            if (versionCode < 0) return null
+            val versionStr = json.optString("version", json.optString("versionName", "")).trim()
+            if (versionStr.isBlank()) return null
+
+            val minVersionStr = json.optString("minVersion", json.optString("minSupportedVersion", json.optString("min", "0.0.0"))).trim()
 
             val changelogArray = json.optJSONArray("changelog")
             val changelogList = mutableListOf<String>()
@@ -62,9 +106,8 @@ data class ChannelConfig(
             }
 
             return ChannelConfig(
-                versionCode = versionCode,
-                versionName = json.optString("versionName", "$versionCode"),
-                minSupportedVersionCode = json.optLong("minSupportedVersionCode", 0L),
+                version = versionStr,
+                minVersion = if (minVersionStr.isNotBlank()) minVersionStr else "0.0.0",
                 releaseDate = json.optString("releaseDate", ""),
                 updateType = UpdateType.fromString(json.optString("updateType", "OPTIONAL")),
                 deprecationMessage = json.optString("deprecationMessage", "").takeIf { it.isNotBlank() },
@@ -96,7 +139,6 @@ data class KillSwitchItem(
 data class KillSwitchConfig(
     val global: KillSwitchItem = KillSwitchItem(),
     val alpha: KillSwitchItem = KillSwitchItem(),
-    val beta: KillSwitchItem = KillSwitchItem(),
     val stable: KillSwitchItem = KillSwitchItem()
 ) {
     companion object {
@@ -105,7 +147,6 @@ data class KillSwitchConfig(
             return KillSwitchConfig(
                 global = KillSwitchItem.fromJson(json.optJSONObject("global")),
                 alpha = KillSwitchItem.fromJson(json.optJSONObject("alpha")),
-                beta = KillSwitchItem.fromJson(json.optJSONObject("beta")),
                 stable = KillSwitchItem.fromJson(json.optJSONObject("stable") ?: json.optJSONObject("prod"))
             )
         }
@@ -115,7 +156,6 @@ data class KillSwitchConfig(
 data class UpdateManifest(
     val killSwitch: KillSwitchConfig = KillSwitchConfig(),
     val stable: ChannelConfig? = null,
-    val beta: ChannelConfig? = null,
     val alpha: ChannelConfig? = null
 ) {
     companion object {
@@ -123,7 +163,6 @@ data class UpdateManifest(
             return UpdateManifest(
                 killSwitch = KillSwitchConfig.fromJson(json.optJSONObject("killSwitch")),
                 stable = ChannelConfig.fromJson(json.optJSONObject("stable") ?: json.optJSONObject("prod")),
-                beta = ChannelConfig.fromJson(json.optJSONObject("beta")),
                 alpha = ChannelConfig.fromJson(json.optJSONObject("alpha"))
             )
         }
@@ -135,8 +174,7 @@ sealed class UpdateCheckResult {
     object Checking : UpdateCheckResult()
 
     data class UpToDate(
-        val currentCode: Long,
-        val currentName: String,
+        val currentVersion: String,
         val channel: String
     ) : UpdateCheckResult()
 
@@ -144,8 +182,7 @@ sealed class UpdateCheckResult {
         val config: ChannelConfig,
         val isFloorEnforced: Boolean,
         val updateType: UpdateType,
-        val currentCode: Long,
-        val currentName: String,
+        val currentVersion: String,
         val channel: String
     ) : UpdateCheckResult()
 

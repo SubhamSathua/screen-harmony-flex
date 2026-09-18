@@ -41,7 +41,7 @@ object ApkDownloader {
         context: Context,
         downloadUrl: String,
         expectedSha256: String?,
-        versionCode: Long
+        version: String
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
             _downloadState.value = DownloadState.Downloading(0f, 0L, -1L)
@@ -62,7 +62,8 @@ object ApkDownloader {
 
             val totalBytes = connection.contentLength.toLong()
             val updateDir = File(context.cacheDir, "updates").apply { mkdirs() }
-            val destinationFile = File(updateDir, "screenharmony_v${versionCode}.apk")
+            val cleanVersion = version.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
+            val destinationFile = File(updateDir, "screenharmony_v${cleanVersion}.apk")
             if (destinationFile.exists()) destinationFile.delete()
 
             val digest = MessageDigest.getInstance("SHA-256")

@@ -141,7 +141,6 @@ object UpdateManager {
         // Decision Step 2: Channel-Scoped Emergency Kill-Switch
         val channelKs = when (channel.lowercase()) {
             "alpha" -> manifest.killSwitch.alpha
-            "beta" -> manifest.killSwitch.beta
             else -> manifest.killSwitch.stable
         }
         if (channelKs.enabled) {
@@ -157,51 +156,50 @@ object UpdateManager {
         // Decision Step 3: Resolve Track Channel Configuration
         val channelConfig = when (channel.lowercase()) {
             "alpha" -> manifest.alpha ?: manifest.stable
-            "beta" -> manifest.beta ?: manifest.stable
             else -> manifest.stable
         }
 
         if (channelConfig == null) {
-            return@withContext UpdateCheckResult.UpToDate(localCode, localName, channel)
+            return@withContext UpdateCheckResult.UpToDate(localName, channel)
         }
 
         // Decision Step 4: Minimum Supported Build Floor Test (Mandatory Compulsory Upgrade)
-        if (localCode < channelConfig.minSupportedVersionCode) {
+        val isFloorViolated = VersionHelper.compare(localName, channelConfig.minVersion) < 0
+        if (isFloorViolated) {
             AppLogger.w(
                 LogCategory.SYSTEM,
                 TAG,
-                "FLOOR VIOLATION: Local ($localCode) < MinSupported (${channelConfig.minSupportedVersionCode})"
+                "FLOOR VIOLATION: Local ($localName) < MinSupported (${channelConfig.minVersion})"
             )
             return@withContext UpdateCheckResult.UpdateAvailable(
                 config = channelConfig,
                 isFloorEnforced = true,
                 updateType = UpdateType.CRITICAL,
-                currentCode = localCode,
-                currentName = localName,
+                currentVersion = localName,
                 channel = channel
             )
         }
 
         // Decision Step 5: Version Progression Comparison
-        if (channelConfig.versionCode > localCode) {
+        val isNewerAvailable = VersionHelper.compare(channelConfig.version, localName) > 0
+        if (isNewerAvailable) {
             AppLogger.i(
                 LogCategory.NETWORK,
                 TAG,
-                "UPDATE AVAILABLE: Local ($localCode) < Remote (${channelConfig.versionCode}) [${channelConfig.updateType}]"
+                "UPDATE AVAILABLE: Local ($localName) < Remote (${channelConfig.version}) [${channelConfig.updateType}]"
             )
             return@withContext UpdateCheckResult.UpdateAvailable(
                 config = channelConfig,
                 isFloorEnforced = false,
                 updateType = channelConfig.updateType,
-                currentCode = localCode,
-                currentName = localName,
+                currentVersion = localName,
                 channel = channel
             )
         }
 
         // Decision Step 6: Up to Date
-        AppLogger.i(LogCategory.NETWORK, TAG, "Application is fully up to date on channel: $channel")
-        UpdateCheckResult.UpToDate(localCode, localName, channel)
+        AppLogger.i(LogCategory.NETWORK, TAG, "Application is fully up to date on channel: $channel ($localName)")
+        UpdateCheckResult.UpToDate(localName, channel)
     }
 
     private fun fetchManifest(context: Context, urlString: String): UpdateManifest? {

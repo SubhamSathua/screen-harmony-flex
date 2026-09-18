@@ -209,7 +209,7 @@ fun AppUpdateDialog(
                 }
 
                 Text(
-                    text = "v${updateData.config.versionName} (Build ${updateData.config.versionCode}) • Current: v${updateData.currentName}",
+                    text = "v${updateData.config.version} • Current: v${updateData.currentVersion}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -245,7 +245,7 @@ fun AppUpdateDialog(
                 if (updateData.config.changelog.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "What's New in v${updateData.config.versionName}:",
+                            text = "What's New in v${updateData.config.version}:",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -349,7 +349,7 @@ fun AppUpdateDialog(
                                             context = context,
                                             downloadUrl = directUrl,
                                             expectedSha256 = updateData.config.sha256,
-                                            versionCode = updateData.config.versionCode
+                                            version = updateData.config.version
                                         ).onSuccess { apkFile ->
                                             ApkDownloader.triggerInstall(context, apkFile)
                                         }.onFailure { err ->
@@ -497,7 +497,7 @@ fun UpdateSettingsCard(
                 Column {
                     Text("Installed Version", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        "v${UpdateManager.getLocalVersionName(context)} (${UpdateManager.getLocalVersionCode(context)})",
+                        "v${UpdateManager.getLocalVersionName(context)}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -547,7 +547,10 @@ fun UpdateSettingsCard(
             title = { Text("Select Update Channel") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("stable" to "Production / Stable (Recommended)", "beta" to "Beta Staging Ring", "alpha" to "Alpha Testing Ring").forEach { (chan, desc) ->
+                    listOf(
+                        "stable" to "Production / Stable (Recommended)",
+                        "alpha" to "Alpha Testing Ring"
+                    ).forEach { (chan, desc) ->
                         Surface(
                             onClick = {
                                 UpdateManager.setUpdateChannel(context, chan)
