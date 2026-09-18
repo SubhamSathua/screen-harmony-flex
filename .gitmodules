@@ -1,0 +1,3 @@
+[submodule "app-updates"]
+	path = app-updates
+	url = https://github.com/SubhamSathua/app-updates.git

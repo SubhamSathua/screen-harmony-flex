@@ -26,6 +26,6 @@ object AppConstants {
     const val MAX_PAUSE_MINUTES = 60
 
     // In-App Update Engine Manifest Endpoints
-    const val UPDATE_MANIFEST_URL = "https://subhamsathua.github.io/screen-harmony-flex/update/update.json"
-    const val UPDATE_FALLBACK_MANIFEST_URL = "https://raw.githubusercontent.com/SubhamSathua/screen-harmony-flex/main/update/update.json"
+    const val UPDATE_MANIFEST_URL = "https://subhamsathua.github.io/app-updates/screen-harmony-flex/update.json"
+    const val UPDATE_FALLBACK_MANIFEST_URL = "https://raw.githubusercontent.com/SubhamSathua/app-updates/main/screen-harmony-flex/update.json"
 }
