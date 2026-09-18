@@ -29,8 +29,8 @@ object UpdateManager {
     private const val KEY_IGNORED_VERSION = "ignored_optional_version"
     private const val KEY_CUSTOM_MANIFEST_URL = "custom_manifest_url"
 
-    const val DEFAULT_MANIFEST_URL = "https://subhamsathua.github.io/screen-harmony-flex/update.json"
-    const val FALLBACK_MANIFEST_URL = "https://raw.githubusercontent.com/SubhamSathua/screen-harmony-flex/main/update/update.json"
+    const val DEFAULT_MANIFEST_URL = com.prism.screenharmony.flex.utils.AppConstants.UPDATE_MANIFEST_URL
+    const val FALLBACK_MANIFEST_URL = com.prism.screenharmony.flex.utils.AppConstants.UPDATE_FALLBACK_MANIFEST_URL
 
     private val _updateResult = MutableStateFlow<UpdateCheckResult>(UpdateCheckResult.Idle)
     val updateResult: StateFlow<UpdateCheckResult> = _updateResult.asStateFlow()
