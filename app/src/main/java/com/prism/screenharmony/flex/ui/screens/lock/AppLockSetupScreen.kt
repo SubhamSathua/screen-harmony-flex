@@ -121,149 +121,183 @@ fun AppLockSetupScreen(
         ) {
             when (currentStep) {
                 SetupStep.ENTER_PIN -> {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(72.dp)
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        val isCompactHeight = maxHeight < 560.dp
+                        val isCompactWidth = maxWidth < 340.dp
+                        val isSmallScreen = isCompactHeight || isCompactWidth
+
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Lock,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(36.dp)
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(
+                                    horizontal = if (isSmallScreen) 12.dp else 24.dp,
+                                    vertical = if (isSmallScreen) 6.dp else 16.dp
+                                )
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.size(if (isSmallScreen) 44.dp else 72.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Lock,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(if (isSmallScreen) 22.dp else 36.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(if (isSmallScreen) 6.dp else 20.dp))
+                                Text(
+                                    text = "Set a 4 to 12 digit PIN",
+                                    style = if (isSmallScreen) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center
+                                )
+                                if (!isSmallScreen) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "This PIN will be required to open ScreenHarmony and edit rules",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(if (isSmallScreen) 8.dp else 20.dp))
+
+                                PinDotsDisplay(
+                                    pinLength = firstPin.length,
+                                    isError = isError,
+                                    showCounter = true
                                 )
                             }
-                        }
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Text(
-                            text = "Set a 4 to 12 digit PIN",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "This PIN will be required to open ScreenHarmony and edit rules",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(20.dp))
 
-                        PinDotsDisplay(
-                            pinLength = firstPin.length,
-                            isError = isError,
-                            showCounter = true
-                        )
-                    }
-
-                    CustomPinKeypad(
-                        onDigitPress = { digit ->
-                            if (firstPin.length < 12) {
-                                isError = false
-                                firstPin += digit
-                            }
-                        },
-                        onBackspace = {
-                            if (firstPin.isNotEmpty()) {
-                                firstPin = firstPin.dropLast(1)
-                                isError = false
-                            }
-                        },
-                        onSubmit = {
-                            if (firstPin.length >= 4) {
-                                currentStep = SetupStep.RETYPE_PIN
-                            }
-                        },
-                        isSubmitEnabled = firstPin.length >= 4,
-                        submitIcon = Icons.AutoMirrored.Rounded.ArrowForward
-                    )
-                }
-
-                SetupStep.RETYPE_PIN -> {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(72.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Key,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(36.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Text(
-                            text = "Re-enter your PIN",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Please verify your PIN to continue",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        PinDotsDisplay(
-                            pinLength = confirmPin.length,
-                            isError = isError,
-                            showCounter = false
-                        )
-
-                        errorMessage?.let { msg ->
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = msg,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.error,
-                                fontWeight = FontWeight.Bold
+                            CustomPinKeypad(
+                                onDigitPress = { digit ->
+                                    if (firstPin.length < 12) {
+                                        isError = false
+                                        firstPin += digit
+                                    }
+                                },
+                                onBackspace = {
+                                    if (firstPin.isNotEmpty()) {
+                                        firstPin = firstPin.dropLast(1)
+                                        isError = false
+                                    }
+                                },
+                                onSubmit = {
+                                    if (firstPin.length >= 4) {
+                                        currentStep = SetupStep.RETYPE_PIN
+                                    }
+                                },
+                                isSubmitEnabled = firstPin.length >= 4,
+                                submitIcon = Icons.AutoMirrored.Rounded.ArrowForward
                             )
                         }
                     }
+                }
 
-                    CustomPinKeypad(
-                        onDigitPress = { digit ->
-                            if (confirmPin.length < 12) {
-                                isError = false
-                                errorMessage = null
-                                confirmPin += digit
+                SetupStep.RETYPE_PIN -> {
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        val isCompactHeight = maxHeight < 560.dp
+                        val isCompactWidth = maxWidth < 340.dp
+                        val isSmallScreen = isCompactHeight || isCompactWidth
+
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(
+                                    horizontal = if (isSmallScreen) 12.dp else 24.dp,
+                                    vertical = if (isSmallScreen) 6.dp else 16.dp
+                                )
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.size(if (isSmallScreen) 44.dp else 72.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Key,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(if (isSmallScreen) 22.dp else 36.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(if (isSmallScreen) 6.dp else 20.dp))
+                                Text(
+                                    text = "Re-enter your PIN",
+                                    style = if (isSmallScreen) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center
+                                )
+                                if (!isSmallScreen) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "Please verify your PIN to continue",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(if (isSmallScreen) 8.dp else 20.dp))
+
+                                PinDotsDisplay(
+                                    pinLength = confirmPin.length,
+                                    isError = isError,
+                                    showCounter = false
+                                )
+
+                                errorMessage?.let { msg ->
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = msg,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
-                        },
-                        onBackspace = {
-                            if (confirmPin.isNotEmpty()) {
-                                confirmPin = confirmPin.dropLast(1)
-                                isError = false
-                                errorMessage = null
-                            }
-                        },
-                        onSubmit = {
-                            if (confirmPin == firstPin) {
-                                currentStep = SetupStep.RECOVERY_PAGE
-                            } else {
-                                isError = true
-                                errorMessage = "PINs do not match. Try again."
-                                confirmPin = ""
-                            }
-                        },
-                        isSubmitEnabled = confirmPin.length == firstPin.length,
-                        submitIcon = Icons.AutoMirrored.Rounded.ArrowForward
-                    )
+
+                            CustomPinKeypad(
+                                onDigitPress = { digit ->
+                                    if (confirmPin.length < 12) {
+                                        isError = false
+                                        errorMessage = null
+                                        confirmPin += digit
+                                    }
+                                },
+                                onBackspace = {
+                                    if (confirmPin.isNotEmpty()) {
+                                        confirmPin = confirmPin.dropLast(1)
+                                        isError = false
+                                        errorMessage = null
+                                    }
+                                },
+                                onSubmit = {
+                                    if (confirmPin == firstPin) {
+                                        currentStep = SetupStep.RECOVERY_PAGE
+                                    } else {
+                                        isError = true
+                                        errorMessage = "PINs do not match. Try again."
+                                        confirmPin = ""
+                                    }
+                                },
+                                isSubmitEnabled = confirmPin.length == firstPin.length,
+                                submitIcon = Icons.AutoMirrored.Rounded.ArrowForward
+                            )
+                        }
+                    }
                 }
 
                 SetupStep.RECOVERY_PAGE -> {

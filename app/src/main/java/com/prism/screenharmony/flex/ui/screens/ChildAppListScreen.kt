@@ -70,13 +70,17 @@ fun ChildAppListScreen(
                     Column {
                         Text(
                             text = "Select Apps (${tempSelectedApps.size})",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = "Installed on $childName's Phone",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 },
@@ -101,8 +105,9 @@ fun ChildAppListScreen(
                         }
                     ) {
                         Text(
-                            if (tempSelectedApps.size == installedApps.size) "Deselect All" else "Select All",
-                            fontWeight = FontWeight.Bold
+                            text = if (tempSelectedApps.size == installedApps.size) "Deselect" else "Select All",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
                         )
                     }
                 }
@@ -246,7 +251,7 @@ fun ChildAppListScreen(
 
                     if (isGridView) {
                         LazyVerticalGrid(
-                            columns = GridCells.Adaptive(100.dp),
+                            columns = GridCells.Adaptive(85.dp),
                             contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 88.dp)
                         ) {
                             items(filteredApps, key = { it.packageName }) { app ->

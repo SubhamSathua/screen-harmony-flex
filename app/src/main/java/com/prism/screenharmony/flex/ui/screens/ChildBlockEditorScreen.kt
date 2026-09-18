@@ -54,13 +54,17 @@ fun ChildBlockEditorScreen(
                     Column {
                         Text(
                             text = if (rule.name.isEmpty()) "Create Parental Block" else rule.name,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Text(
                             text = "Enforcing on $childName's Phone",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                 },
@@ -308,25 +312,25 @@ fun ChildBlockEditorScreen(
                                         .fillMaxWidth()
                                         .padding(horizontal = 16.dp)
                                         .padding(bottom = 16.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     durationPresets.forEach { seconds ->
                                         val isSelected = rule.blockDurationSeconds == seconds
                                         Surface(
-                                            shape = RoundedCornerShape(12.dp),
+                                            shape = RoundedCornerShape(10.dp),
                                             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .clip(RoundedCornerShape(12.dp))
+                                                .clip(RoundedCornerShape(10.dp))
                                                 .clickable { onRuleChanged(rule.copy(blockDurationSeconds = seconds)) }
                                         ) {
                                             Box(
-                                                modifier = Modifier.padding(vertical = 10.dp),
+                                                modifier = Modifier.padding(vertical = 8.dp),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Text(
                                                     text = "${seconds}s",
-                                                    style = MaterialTheme.typography.labelMedium,
+                                                    style = MaterialTheme.typography.labelSmall,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                                     color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                                 )

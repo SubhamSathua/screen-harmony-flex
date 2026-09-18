@@ -87,90 +87,92 @@ fun ParentCloudAuthDialog(
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
             modifier = Modifier
-                .fillMaxWidth(0.94f)
+                .fillMaxWidth(0.95f)
                 .widthIn(max = 480.dp)
-                .heightIn(max = 680.dp)
-                .padding(vertical = 16.dp)
+                .heightIn(max = 700.dp)
+                .padding(vertical = 12.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp)
-                    .verticalScroll(rememberScrollState())
-                    .imePadding(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Dialog Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val isCompact = maxWidth < 340.dp
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(if (isCompact) 14.dp else 22.dp)
+                        .verticalScroll(rememberScrollState())
+                        .imePadding(),
+                    verticalArrangement = Arrangement.spacedBy(if (isCompact) 12.dp else 16.dp)
                 ) {
+                    // Dialog Header
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(42.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = if (!isRegisterMode) {
-                                        Icons.Rounded.AccountCircle
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(if (isCompact) 36.dp else 42.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (!isRegisterMode) {
+                                            Icons.Rounded.AccountCircle
+                                        } else if (registrationStep == 1) {
+                                            Icons.Rounded.PersonAdd
+                                        } else {
+                                            Icons.Rounded.Key
+                                        },
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(if (isCompact) 20.dp else 24.dp)
+                                    )
+                                }
+                            }
+
+                            Column {
+                                Text(
+                                    text = if (!isRegisterMode) {
+                                        "Parent Login"
                                     } else if (registrationStep == 1) {
-                                        Icons.Rounded.PersonAdd
+                                        "Create Account"
                                     } else {
-                                        Icons.Rounded.Key
+                                        "Recovery Phrase"
                                     },
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
+                                    style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (!isRegisterMode) {
+                                        "Sign in to sync family rules"
+                                    } else if (registrationStep == 1) {
+                                        "Step 1/2: Account credentials"
+                                    } else {
+                                        "Step 2/2: Security keys"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
 
-                        Column {
-                            Text(
-                                text = if (!isRegisterMode) {
-                                    "Parent Account Login"
-                                } else if (registrationStep == 1) {
-                                    "Create Parent Account"
-                                } else {
-                                    "Master Recovery Phrase"
-                                },
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = if (!isRegisterMode) {
-                                    "Sign in to manage and sync family rules."
-                                } else if (registrationStep == 1) {
-                                    "Step 1 of 2: Account credentials"
-                                } else {
-                                    "Step 2 of 2: Backup & security keys"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        if (!isSubmitting) {
+                            IconButton(
+                                onClick = onDismiss,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Close,
+                                    contentDescription = "Close",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
-
-                    if (!isSubmitting) {
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                Icons.Rounded.Close,
-                                contentDescription = "Close",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
 
                 // Mode Toggle (Sign In vs Register) - Only on Step 1
                 if (registrationStep == 1) {
@@ -502,7 +504,7 @@ fun ParentCloudAuthDialog(
                                 // COPY & DOWNLOAD BUTTONS ROW
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     // Copy Button
                                     OutlinedButton(
@@ -515,18 +517,19 @@ fun ParentCloudAuthDialog(
                                             Toast.makeText(context, "12-word recovery phrase copied to clipboard! ✅", Toast.LENGTH_SHORT).show()
                                         },
                                         shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = if (isCompact) 4.dp else 10.dp, vertical = 6.dp)
                                     ) {
                                         Icon(
                                             imageVector = if (hasCopiedPhrase) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
                                             contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(if (isCompact) 14.dp else 16.dp)
                                         )
-                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = if (hasCopiedPhrase) "Copied! ✅" else "Copy Phrase",
+                                            text = if (hasCopiedPhrase) "Copied! ✅" else if (isCompact) "Copy" else "Copy Phrase",
                                             maxLines = 1,
-                                            fontSize = 12.sp,
+                                            fontSize = if (isCompact) 11.sp else 12.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -544,18 +547,19 @@ fun ParentCloudAuthDialog(
                                             hasConfirmedSaved = true
                                         },
                                         shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = if (isCompact) 4.dp else 10.dp, vertical = 6.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Rounded.Download,
                                             contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(if (isCompact) 14.dp else 16.dp)
                                         )
-                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = if (hasDownloadedPhrase) "Downloaded" else "Download Key",
+                                            text = if (hasDownloadedPhrase) "Downloaded" else if (isCompact) "Download" else "Download Key",
                                             maxLines = 1,
-                                            fontSize = 12.sp,
+                                            fontSize = if (isCompact) 11.sp else 12.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -638,6 +642,7 @@ fun ParentCloudAuthDialog(
             }
         }
     }
+}
 }
 
 /**

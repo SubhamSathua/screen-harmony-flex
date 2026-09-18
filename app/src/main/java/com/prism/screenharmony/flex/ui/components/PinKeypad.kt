@@ -179,19 +179,30 @@ fun PinDotsDisplay(
         }
     }
 
+    val dotSize = when {
+        pinLength > 8 -> 14.dp
+        pinLength > 6 -> 18.dp
+        else -> 22.dp
+    }
+    val dotSpacing = when {
+        pinLength > 8 -> 6.dp
+        pinLength > 6 -> 8.dp
+        else -> 10.dp
+    }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.offset(x = shakeOffset.value.dp)
     ) {
         Box(
             modifier = Modifier
-                .height(38.dp)
-                .padding(vertical = 4.dp),
+                .height(34.dp)
+                .padding(vertical = 2.dp),
             contentAlignment = Alignment.Center
         ) {
             if (pinLength > 0) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(dotSpacing),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     for (i in 0 until pinLength) {
@@ -199,7 +210,7 @@ fun PinDotsDisplay(
                             M3ShapeMorphingDot(
                                 index = i,
                                 isError = isError,
-                                size = 24.dp
+                                size = dotSize
                             )
                         }
                     }
@@ -208,7 +219,7 @@ fun PinDotsDisplay(
         }
 
         if (showCounter) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = "$pinLength / $maxDigits (min 4)",
                 style = MaterialTheme.typography.labelSmall,
@@ -234,42 +245,74 @@ fun CustomPinKeypad(
         listOf("backspace", "0", "submit")
     )
 
-    Column(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 24.dp)
-            .padding(bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.Center
     ) {
-        rows.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                row.forEach { key ->
-                    when (key) {
-                        "backspace" -> {
-                            KeypadIconButton(
-                                icon = Icons.AutoMirrored.Rounded.Backspace,
-                                contentDescription = "Backspace",
-                                onClick = onBackspace
-                            )
-                        }
-                        "submit" -> {
-                            KeypadActionButton(
-                                icon = submitIcon,
-                                enabled = isSubmitEnabled,
-                                onClick = onSubmit
-                            )
-                        }
-                        else -> {
-                            KeypadDigitButton(
-                                digit = key,
-                                onClick = { onDigitPress(key) }
-                            )
+        val availableWidth = maxWidth
+        val isCompact = availableWidth < 340.dp
+        val isUltraCompact = availableWidth < 280.dp
+
+        val horizontalPad = when {
+            isUltraCompact -> 6.dp
+            isCompact -> 12.dp
+            else -> 20.dp
+        }
+        val buttonSpacing = when {
+            isUltraCompact -> 4.dp
+            isCompact -> 8.dp
+            else -> 12.dp
+        }
+        val rowSpacing = when {
+            isUltraCompact -> 4.dp
+            isCompact -> 8.dp
+            else -> 12.dp
+        }
+
+        val calculatedButtonSize = ((availableWidth - (horizontalPad * 2) - (buttonSpacing * 2)) / 3)
+            .coerceIn(40.dp, 72.dp)
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = horizontalPad)
+                .padding(bottom = if (isCompact) 6.dp else 12.dp),
+            verticalArrangement = Arrangement.spacedBy(rowSpacing),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            rows.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(buttonSpacing, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    row.forEach { key ->
+                        when (key) {
+                            "backspace" -> {
+                                KeypadIconButton(
+                                    icon = Icons.AutoMirrored.Rounded.Backspace,
+                                    contentDescription = "Backspace",
+                                    size = calculatedButtonSize,
+                                    onClick = onBackspace
+                                )
+                            }
+                            "submit" -> {
+                                KeypadActionButton(
+                                    icon = submitIcon,
+                                    enabled = isSubmitEnabled,
+                                    size = calculatedButtonSize,
+                                    onClick = onSubmit
+                                )
+                            }
+                            else -> {
+                                KeypadDigitButton(
+                                    digit = key,
+                                    size = calculatedButtonSize,
+                                    onClick = { onDigitPress(key) }
+                                )
+                            }
                         }
                     }
                 }
@@ -281,6 +324,7 @@ fun CustomPinKeypad(
 @Composable
 private fun KeypadDigitButton(
     digit: String,
+    size: Dp = 72.dp,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -290,14 +334,14 @@ private fun KeypadDigitButton(
         shape = CircleShape,
         color = if (isPressed) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier
-            .size(74.dp)
+            .size(size)
             .clip(CircleShape)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
                 text = digit,
-                style = MaterialTheme.typography.headlineMedium,
+                style = if (size < 54.dp) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (isPressed) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
             )
@@ -309,6 +353,7 @@ private fun KeypadDigitButton(
 private fun KeypadIconButton(
     icon: ImageVector,
     contentDescription: String,
+    size: Dp = 72.dp,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -318,7 +363,7 @@ private fun KeypadIconButton(
         shape = CircleShape,
         color = if (isPressed) MaterialTheme.colorScheme.surfaceContainerHighest else Color.Transparent,
         modifier = Modifier
-            .size(74.dp)
+            .size(size)
             .clip(CircleShape)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
     ) {
@@ -327,7 +372,7 @@ private fun KeypadIconButton(
                 imageVector = icon,
                 contentDescription = contentDescription,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(if (size < 54.dp) 20.dp else 26.dp)
             )
         }
     }
@@ -337,13 +382,14 @@ private fun KeypadIconButton(
 private fun KeypadActionButton(
     icon: ImageVector,
     enabled: Boolean,
+    size: Dp = 72.dp,
     onClick: () -> Unit
 ) {
     Surface(
         shape = CircleShape,
         color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.4f),
         modifier = Modifier
-            .size(74.dp)
+            .size(size)
             .clip(CircleShape)
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
     ) {
@@ -352,7 +398,7 @@ private fun KeypadActionButton(
                 imageVector = icon,
                 contentDescription = "Confirm",
                 tint = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(if (size < 54.dp) 20.dp else 26.dp)
             )
         }
     }

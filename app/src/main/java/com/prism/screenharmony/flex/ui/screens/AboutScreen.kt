@@ -122,43 +122,47 @@ fun AboutScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.logo_release),
-                        contentDescription = "ScreenHarmony Flex Logo",
-                        modifier = Modifier
-                            .size(88.dp)
-                            .clip(RoundedCornerShape(22.dp))
-                            .clickable { handleLogoClick() }
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = if (isAlwaysUnlocked) "ScreenHarmony (Alpha)" else "ScreenHarmony Flex",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Intelligent & Resilient Screen Time Manager",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val isCompact = maxWidth < 340.dp
+                    Column(
+                        modifier = Modifier.padding(if (isCompact) 16.dp else 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = "Version $versionName • FOSS",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        Image(
+                            painter = painterResource(id = R.drawable.logo_release),
+                            contentDescription = "ScreenHarmony Flex Logo",
+                            modifier = Modifier
+                                .size(if (isCompact) 64.dp else 88.dp)
+                                .clip(RoundedCornerShape(if (isCompact) 16.dp else 22.dp))
+                                .clickable { handleLogoClick() }
                         )
+                        Spacer(modifier = Modifier.height(if (isCompact) 10.dp else 16.dp))
+                        Text(
+                            text = if (isAlwaysUnlocked) "ScreenHarmony (Alpha)" else "ScreenHarmony Flex",
+                            style = if (isCompact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Intelligent & Resilient Screen Time Manager",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = "Version $versionName • FOSS",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }

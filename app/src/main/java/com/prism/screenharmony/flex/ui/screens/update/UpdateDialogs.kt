@@ -624,131 +624,141 @@ fun CompactUpdateCard(
                     color = if (isCritical) MaterialTheme.colorScheme.error.copy(alpha = 0.4f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                 )
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Badge / Icon
-                    Surface(
-                        shape = CircleShape,
-                        color = if (isCritical) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = if (isCritical) Icons.Rounded.PriorityHigh else Icons.Rounded.SystemUpdate,
-                                contentDescription = "Update Available",
-                                tint = if (isCritical) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val isCompact = maxWidth < 340.dp
 
-                    // Text Info
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.Center
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                horizontal = if (isCompact) 10.dp else 14.dp,
+                                vertical = if (isCompact) 8.dp else 10.dp
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(if (isCompact) 8.dp else 12.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        // Badge / Icon
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isCritical) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(if (isCompact) 30.dp else 36.dp)
                         ) {
-                            Text(
-                                text = "v${availableUpdate.config.version} Available",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = contentColor,
-                                maxLines = 1
-                            )
-                            if (isCritical) {
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = MaterialTheme.colorScheme.error
-                                ) {
-                                    Text(
-                                        text = "REQUIRED",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 9.sp,
-                                        color = MaterialTheme.colorScheme.onError,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            } else if (availableUpdate.channel == "alpha") {
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = MaterialTheme.colorScheme.tertiary
-                                ) {
-                                    Text(
-                                        text = "ALPHA",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 9.sp,
-                                        color = MaterialTheme.colorScheme.onTertiary,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (isCritical) Icons.Rounded.PriorityHigh else Icons.Rounded.SystemUpdate,
+                                    contentDescription = "Update Available",
+                                    tint = if (isCritical) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(if (isCompact) 16.dp else 20.dp)
+                                )
                             }
                         }
 
-                        val updateSubtitle = when {
-                            isCritical -> "Essential security & stability update"
-                            !availableUpdate.config.deprecationMessage.isNullOrBlank() -> availableUpdate.config.deprecationMessage
-                            availableUpdate.config.changelog.isNotEmpty() -> availableUpdate.config.changelog.first()
-                            else -> "New features & improvements ready to install"
-                        }
-
-                        Text(
-                            text = updateSubtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = contentColor.copy(alpha = 0.85f),
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    }
-
-                    // Action Buttons
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                if (onOpenDialog != null) {
-                                    onOpenDialog(availableUpdate)
-                                } else {
-                                    showFullDialog = true
-                                }
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isCritical) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                contentColor = if (isCritical) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
-                            ),
-                            modifier = Modifier.height(34.dp)
+                        // Text Info
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.Center
                         ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "v${availableUpdate.config.version}",
+                                    style = if (isCompact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = contentColor,
+                                    maxLines = 1
+                                )
+                                if (isCritical) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = MaterialTheme.colorScheme.error
+                                    ) {
+                                        Text(
+                                            text = "REQ",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 8.sp,
+                                            color = MaterialTheme.colorScheme.onError,
+                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                } else if (availableUpdate.channel == "alpha") {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = MaterialTheme.colorScheme.tertiary
+                                    ) {
+                                        Text(
+                                            text = "ALPHA",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 8.sp,
+                                            color = MaterialTheme.colorScheme.onTertiary,
+                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            val updateSubtitle = when {
+                                isCritical -> "Essential security update"
+                                !availableUpdate.config.deprecationMessage.isNullOrBlank() -> availableUpdate.config.deprecationMessage
+                                availableUpdate.config.changelog.isNotEmpty() -> availableUpdate.config.changelog.first()
+                                else -> "Ready to install"
+                            }
+
                             Text(
-                                text = "Update",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold
+                                text = updateSubtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = contentColor.copy(alpha = 0.85f),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                         }
 
-                        if (!isCritical) {
-                            IconButton(
-                                onClick = { isDismissedLocally = true },
-                                modifier = Modifier.size(28.dp)
+                        // Action Buttons
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    if (onOpenDialog != null) {
+                                        onOpenDialog(availableUpdate)
+                                    } else {
+                                        showFullDialog = true
+                                    }
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(
+                                    horizontal = if (isCompact) 8.dp else 12.dp,
+                                    vertical = 4.dp
+                                ),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isCritical) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                    contentColor = if (isCritical) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
+                                ),
+                                modifier = Modifier.height(30.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = "Dismiss",
-                                    tint = contentColor.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(16.dp)
+                                Text(
+                                    text = "Update",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
                                 )
+                            }
+
+                            if (!isCritical) {
+                                IconButton(
+                                    onClick = { isDismissedLocally = true },
+                                    modifier = Modifier.size(if (isCompact) 24.dp else 28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = "Dismiss",
+                                        tint = contentColor.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
                             }
                         }
                     }

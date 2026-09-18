@@ -146,6 +146,8 @@ fun DiagnosticsLogScreen(
         )
     }
 
+    var showOverflowMenu by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -154,12 +156,15 @@ fun DiagnosticsLogScreen(
                         Text(
                             text = "Diagnostics & Logs",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Text(
                             text = "${filteredLogs.size} of ${allLogs.size} events",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
                         )
                     }
                 },
@@ -172,22 +177,48 @@ fun DiagnosticsLogScreen(
                     IconButton(onClick = ::copyCurrentLogs) {
                         Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy Logs")
                     }
-                    IconButton(onClick = ::exportAndShareLogs) {
-                        Icon(Icons.Rounded.Share, contentDescription = "Download / Share Logs")
-                    }
-                    if (!DiagnosticsUnlockManager.isAlwaysUnlocked()) {
-                        IconButton(
-                            onClick = {
-                                DiagnosticsUnlockManager.setLogsUnlocked(context, false)
-                                Toast.makeText(context, "Diagnostics Logs locked", Toast.LENGTH_SHORT).show()
-                                onBack()
-                            }
-                        ) {
-                            Icon(Icons.Rounded.Lock, contentDescription = "Lock Diagnostics")
+
+                    Box {
+                        IconButton(onClick = { showOverflowMenu = true }) {
+                            Icon(Icons.Rounded.MoreVert, contentDescription = "More options")
                         }
-                    }
-                    IconButton(onClick = { showClearDialog = true }) {
-                        Icon(Icons.Rounded.DeleteOutline, contentDescription = "Clear Logs", tint = MaterialTheme.colorScheme.error)
+
+                        DropdownMenu(
+                            expanded = showOverflowMenu,
+                            onDismissRequest = { showOverflowMenu = false },
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Share / Export Logs") },
+                                leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    exportAndShareLogs()
+                                }
+                            )
+
+                            if (!DiagnosticsUnlockManager.isAlwaysUnlocked()) {
+                                DropdownMenuItem(
+                                    text = { Text("Lock Diagnostics") },
+                                    leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        DiagnosticsUnlockManager.setLogsUnlocked(context, false)
+                                        Toast.makeText(context, "Diagnostics Logs locked", Toast.LENGTH_SHORT).show()
+                                        onBack()
+                                    }
+                                )
+                            }
+
+                            DropdownMenuItem(
+                                text = { Text("Clear All Logs", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    showClearDialog = true
+                                }
+                            )
+                        }
                     }
                 }
             )

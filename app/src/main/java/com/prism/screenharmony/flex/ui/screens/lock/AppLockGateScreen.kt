@@ -62,111 +62,125 @@ fun AppLockGateScreen(
             .background(MaterialTheme.colorScheme.background),
         color = MaterialTheme.colorScheme.background
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val isCompactHeight = maxHeight < 560.dp
+            val isCompactWidth = maxWidth < 340.dp
+
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .padding(horizontal = 24.dp)
-                    .padding(top = 32.dp)
+                    .fillMaxSize()
+                    .statusBarsPadding(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(76.dp)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .padding(horizontal = if (isCompactWidth) 12.dp else 24.dp)
+                        .padding(top = if (isCompactHeight) 12.dp else 28.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Rounded.Lock,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(38.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "ScreenHarmony",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontFamily = com.prism.screenharmony.flex.ui.theme.UrbanistFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            text = "FLEX",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "Enter PIN to Unlock",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Only shows dots when digits are typed
-                PinDotsDisplay(
-                    pinLength = inputPin.length,
-                    isError = isError,
-                    showCounter = false
-                )
-
-                errorMessage?.let { msg ->
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = msg,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                // Biometrics & Forgot PIN Actions Row
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    if (AppLockManager.isBiometricsEnabled && BiometricHelper.isBiometricAvailable(context)) {
-                        FilledTonalIconButton(
-                            onClick = { triggerBiometrics() },
-                            modifier = Modifier.size(44.dp)
+                    if (!isCompactHeight) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(56.dp)
                         ) {
-                            Icon(Icons.Rounded.Fingerprint, contentDescription = "Biometric Unlock", tint = MaterialTheme.colorScheme.primary)
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Lock,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "ScreenHarmony",
+                            style = if (isCompactWidth) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+                            fontFamily = com.prism.screenharmony.flex.ui.theme.UrbanistFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "FLEX",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
                         }
                     }
 
-                    TextButton(onClick = { showRecoveryDialog = true }) {
-                        Icon(Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Forgot PIN?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Enter PIN to Unlock",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(if (isCompactHeight) 8.dp else 12.dp))
+
+                    // Only shows dots when digits are typed
+                    PinDotsDisplay(
+                        pinLength = inputPin.length,
+                        isError = isError,
+                        showCounter = false
+                    )
+
+                    errorMessage?.let { msg ->
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = msg,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
-                    if (AppLockManager.hasHint) {
-                        TextButton(onClick = { showHintDialog = true }) {
-                            Icon(Icons.Rounded.Lightbulb, contentDescription = null, modifier = Modifier.size(16.dp))
+                    // Biometrics & Forgot PIN Actions Row
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        if (AppLockManager.isBiometricsEnabled && BiometricHelper.isBiometricAvailable(context)) {
+                            FilledTonalIconButton(
+                                onClick = { triggerBiometrics() },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(Icons.Rounded.Fingerprint, contentDescription = "Biometric Unlock", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                            }
+                        }
+
+                        TextButton(
+                            onClick = { showRecoveryDialog = true },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Hint", style = MaterialTheme.typography.labelMedium)
+                            Text("Forgot PIN?", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        if (AppLockManager.hasHint) {
+                            TextButton(
+                                onClick = { showHintDialog = true },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Rounded.Lightbulb, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Hint", style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
                 }
-            }
 
             CustomPinKeypad(
                 onDigitPress = { digit ->
@@ -196,6 +210,7 @@ fun AppLockGateScreen(
             )
         }
     }
+}
 
     if (showRecoveryDialog) {
         AppLockRecoveryDialog(

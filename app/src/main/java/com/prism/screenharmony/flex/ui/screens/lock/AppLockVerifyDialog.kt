@@ -41,98 +41,106 @@ fun AppLockVerifyDialog(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Rounded.Close, contentDescription = "Close")
-                    }
-                }
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val isCompactHeight = maxHeight < 560.dp
+                val isCompactWidth = maxWidth < 340.dp
+                val isSmallScreen = isCompactHeight || isCompactWidth
 
                 Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(if (isSmallScreen) 12.dp else 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.size(64.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Rounded.LockOpen,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(32.dp)
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(if (isSmallScreen) 32.dp else 48.dp)) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Close")
+                        }
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = if (isSmallScreen) 8.dp else 16.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(if (isSmallScreen) 44.dp else 64.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.LockOpen,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(if (isSmallScreen) 22.dp else 32.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(if (isSmallScreen) 6.dp else 16.dp))
+                        Text(
+                            text = title,
+                            style = if (isSmallScreen) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        if (!isSmallScreen) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(if (isSmallScreen) 8.dp else 20.dp))
+
+                        PinDotsDisplay(
+                            pinLength = inputPin.length,
+                            isError = isError
+                        )
+
+                        errorMessage?.let { msg ->
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = msg,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(20.dp))
 
-                    PinDotsDisplay(
-                        pinLength = inputPin.length,
-                        isError = isError
+                    CustomPinKeypad(
+                        onDigitPress = { digit ->
+                            if (inputPin.length < 12) {
+                                isError = false
+                                errorMessage = null
+                                inputPin += digit
+                            }
+                        },
+                        onBackspace = {
+                            if (inputPin.isNotEmpty()) {
+                                inputPin = inputPin.dropLast(1)
+                                isError = false
+                                errorMessage = null
+                            }
+                        },
+                        onSubmit = {
+                            if (AppLockManager.verifyPin(inputPin)) {
+                                onVerified()
+                            } else {
+                                isError = true
+                                errorMessage = "Incorrect PIN. Try again."
+                                inputPin = ""
+                            }
+                        },
+                        isSubmitEnabled = inputPin.length >= 4
                     )
-
-                    errorMessage?.let { msg ->
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = msg,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
                 }
-
-                CustomPinKeypad(
-                    onDigitPress = { digit ->
-                        if (inputPin.length < 12) {
-                            isError = false
-                            errorMessage = null
-                            inputPin += digit
-                        }
-                    },
-                    onBackspace = {
-                        if (inputPin.isNotEmpty()) {
-                            inputPin = inputPin.dropLast(1)
-                            isError = false
-                            errorMessage = null
-                        }
-                    },
-                    onSubmit = {
-                        if (AppLockManager.verifyPin(inputPin)) {
-                            onVerified()
-                        } else {
-                            isError = true
-                            errorMessage = "Incorrect PIN. Try again."
-                            inputPin = ""
-                        }
-                    },
-                    isSubmitEnabled = inputPin.length >= 4
-                )
             }
         }
     }

@@ -1022,7 +1022,10 @@ fun SettingsTabScreen(
             icon = { Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             title = { Text("Set Custom Unlink PIN") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Text("This PIN will be required whenever a device is being unlinked from Family Control.", style = MaterialTheme.typography.bodyMedium)
 
                     OutlinedTextField(
@@ -1118,7 +1121,10 @@ fun SettingsTabScreen(
             icon = { Icon(Icons.Rounded.FamilyRestroom, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             title = { Text("Customise Family Name") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text("Enter a display name for your family group (e.g. \"The Smiths\" or \"Alex's Family\").", style = MaterialTheme.typography.bodyMedium)
                     OutlinedTextField(
                         value = familyNameInput,
@@ -1184,7 +1190,10 @@ fun SettingsTabScreen(
             onDismissRequest = { showTimeoutDialog = false },
             title = { Text("Select Lock Timeout") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     LockTimeout.entries.forEach { timeout ->
                         val isSelected = currentTimeout == timeout
                         Row(
@@ -1232,11 +1241,13 @@ fun SettingsTabScreen(
                 Text("Self-Block Rules Active", fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             },
             text = {
-                Text(
-                    "You have ${localRules.size} local self-blocking rule(s) configured on this device.\n\nTo enable 'Only Parent Mode' and turn off all background blocker services, please delete or clear your local self-block rules first.",
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        "You have ${localRules.size} local self-blocking rule(s) configured on this device.\n\nTo enable 'Only Parent Mode' and turn off all background blocker services, please delete or clear your local self-block rules first.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             },
             confirmButton = {
                 Button(onClick = { showHasSelfBlocksDialog = false }) {
@@ -1274,7 +1285,10 @@ fun SettingsTabScreen(
             icon = { Icon(Icons.Rounded.AccountCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp)) },
             title = { Text("Parent Account Options") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text("Currently logged in as @${parentAccount.username}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
                     if (parentAccount.email.isNotBlank()) {
                         Text("Email: ${parentAccount.email}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1401,45 +1415,55 @@ fun GroupedItemRow(
     onClick: (() -> Unit)? = null,
     trailing: @Composable () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (onClick != null && enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(
-            shape = CircleShape,
-            color = if (enabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.size(40.dp)
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val isCompact = maxWidth < 340.dp
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (onClick != null && enabled) Modifier.clickable(onClick = onClick) else Modifier)
+                .padding(
+                    horizontal = if (isCompact) 12.dp else 16.dp,
+                    vertical = if (isCompact) 10.dp else 16.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                    modifier = Modifier.size(22.dp)
+            Surface(
+                shape = CircleShape,
+                color = if (enabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.size(if (isCompact) 32.dp else 40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.size(if (isCompact) 18.dp else 22.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(if (isCompact) 10.dp else 14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = if (isCompact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 0.8f else 0.4f),
+                    maxLines = if (isCompact) 2 else 3,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            trailing()
         }
-
-        Spacer(modifier = Modifier.width(14.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 0.8f else 0.4f)
-            )
-        }
-
-        trailing()
     }
 }
 
@@ -1461,7 +1485,7 @@ fun SingleChoiceSegmentedRow(
         color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
         Row(
-            modifier = Modifier.padding(3.dp),
+            modifier = Modifier.padding(2.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             AppThemeMode.entries.forEach { mode ->
@@ -1474,7 +1498,7 @@ fun SingleChoiceSegmentedRow(
                         .clickable { onSelect(mode) }
                 ) {
                     Box(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
