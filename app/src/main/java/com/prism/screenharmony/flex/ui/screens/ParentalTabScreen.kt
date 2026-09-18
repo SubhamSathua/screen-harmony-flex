@@ -42,6 +42,7 @@ import com.prism.screenharmony.flex.data.*
 import com.prism.screenharmony.flex.family.*
 import com.prism.screenharmony.flex.ui.components.RemoteAppIcon
 import com.prism.screenharmony.flex.ui.components.ScheduleGraph
+import com.prism.screenharmony.flex.ui.screens.update.CompactUpdateCard
 import com.prism.screenharmony.flex.ui.viewmodels.PermissionState
 import kotlinx.coroutines.delay
 import org.json.JSONObject
@@ -194,69 +195,80 @@ fun ParentalTabScreen(
             )
         }
     ) { innerPadding ->
-        when (familyProfile.role) {
-            FamilyRole.STANDALONE -> {
-                UnpairedRoleSelectionView(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .padding(20.dp),
-                    onSetupParent = {
-                        FamilySyncManager.setupAsParent(context) { success ->
-                            if (success) {
-                                showQrDialog = true
-                                Toast.makeText(context, "Parent mode ready! Scan QR code on child phone.", Toast.LENGTH_LONG).show()
-                            } else {
-                                Toast.makeText(context, "Failed to create family", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
-                    onSetupChildQr = { showScannerView = true },
-                    onSetupChildCode = { showManualCodeDialog = true }
-                )
-            }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            CompactUpdateCard(
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 4.dp)
+            )
 
-            FamilyRole.PARENT -> {
-                ParentDashboardView(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    familyProfile = familyProfile,
-                    devices = connectedDevices,
-                    onShowQr = { showQrDialog = true },
-                    onConfigureDevice = { device ->
-                        selectedDeviceForConfigure = device
-                    },
-                    onOpenUnlinkReview = { device ->
-                        deviceForUnlinkReview = device
-                    },
-                    onOpenRemoveDialog = { device ->
-                        deviceForRemoveConfirm = device
-                    },
-                    onOpenPermissionsCard = { device ->
-                        deviceForPermissionsCard = device
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                when (familyProfile.role) {
+                    FamilyRole.STANDALONE -> {
+                        UnpairedRoleSelectionView(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(20.dp),
+                            onSetupParent = {
+                                FamilySyncManager.setupAsParent(context) { success ->
+                                    if (success) {
+                                        showQrDialog = true
+                                        Toast.makeText(context, "Parent mode ready! Scan QR code on child phone.", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(context, "Failed to create family", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            onSetupChildQr = { showScannerView = true },
+                            onSetupChildCode = { showManualCodeDialog = true }
+                        )
                     }
-                )
-            }
 
-            FamilyRole.CHILD -> {
-                ChildProtectedView(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    familyProfile = familyProfile,
-                    pushedRules = childRules,
-                    showDenialAlert = oneTimeDenialAlert,
-                    onDismissDenialAlert = { FamilySyncManager.dismissDenialAlert() },
-                    onRequestUnlink = { showChildRequestUnlinkDialog = true },
-                    onCancelUnlink = {
-                        FamilySyncManager.cancelUnlinkRequestFromChild(context) { success ->
-                            if (success) {
-                                Toast.makeText(context, "Unlink request cancelled", Toast.LENGTH_SHORT).show()
+                    FamilyRole.PARENT -> {
+                        ParentDashboardView(
+                            modifier = Modifier.fillMaxSize(),
+                            familyProfile = familyProfile,
+                            devices = connectedDevices,
+                            onShowQr = { showQrDialog = true },
+                            onConfigureDevice = { device ->
+                                selectedDeviceForConfigure = device
+                            },
+                            onOpenUnlinkReview = { device ->
+                                deviceForUnlinkReview = device
+                            },
+                            onOpenRemoveDialog = { device ->
+                                deviceForRemoveConfirm = device
+                            },
+                            onOpenPermissionsCard = { device ->
+                                deviceForPermissionsCard = device
                             }
-                        }
+                        )
                     }
-                )
+
+                    FamilyRole.CHILD -> {
+                        ChildProtectedView(
+                            modifier = Modifier.fillMaxSize(),
+                            familyProfile = familyProfile,
+                            pushedRules = childRules,
+                            showDenialAlert = oneTimeDenialAlert,
+                            onDismissDenialAlert = { FamilySyncManager.dismissDenialAlert() },
+                            onRequestUnlink = { showChildRequestUnlinkDialog = true },
+                            onCancelUnlink = {
+                                FamilySyncManager.cancelUnlinkRequestFromChild(context) { success ->
+                                    if (success) {
+                                        Toast.makeText(context, "Unlink request cancelled", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
             }
         }
     }

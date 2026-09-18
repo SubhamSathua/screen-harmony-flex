@@ -32,6 +32,7 @@ import com.prism.screenharmony.flex.ui.screens.BlocksPage
 import com.prism.screenharmony.flex.ui.screens.CreateBlockPage
 import com.prism.screenharmony.flex.ui.screens.ParentalTabScreen
 import com.prism.screenharmony.flex.ui.screens.SettingsTabScreen
+import com.prism.screenharmony.flex.ui.screens.update.CompactUpdateCard
 import com.prism.screenharmony.flex.ui.screens.lock.AppLockGateScreen
 import com.prism.screenharmony.flex.ui.screens.lock.AppLockSetupScreen
 import com.prism.screenharmony.flex.ui.theme.ScreenHarmonyFlexTheme
@@ -284,6 +285,10 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                                         .fillMaxSize()
                                         .padding(innerPadding)
                                 ) {
+                                    CompactUpdateCard(
+                                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
+                                    )
+
                                     if (!isOnlyParentMode) {
                                         PermissionWarningBanner(
                                             permissionState = permissionState,
