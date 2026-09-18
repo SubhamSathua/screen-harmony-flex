@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScreenHarmony Flex - In-App Update Engine &amp; Manifest Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Nunito', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    *, *::before, *::after {
+      border-radius: 0px !important;
+    }
+    html {
+      scroll-behavior: smooth;
+    }
+    pre code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-200 font-sans antialiased selection:bg-blue-600 selection:text-white">
+
+  <header class="sticky top-0 z-50 bg-slate-900 border-b border-slate-800 backdrop-blur">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <span class="font-mono text-xs uppercase tracking-widest px-2 py-0.5 bg-blue-600/20 text-blue-400 border border-blue-500/40">RFC-042</span>
+        <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white flex items-center space-x-2">
+          <span>ScreenHarmony Flex</span>
+          <span class="text-slate-500 font-normal text-sm hidden sm:inline">| In-App Update Engine</span>
+        </h1>
+      </div>
+      <nav class="hidden md:flex items-center space-x-6 text-sm font-medium">
+        <a href="#full-json" class="text-slate-300 hover:text-white transition-colors">Manifest JSON</a>
+        <a href="#dictionary" class="text-slate-300 hover:text-white transition-colors">Dictionary</a>
+        <a href="#states" class="text-slate-300 hover:text-white transition-colors">Evaluation States</a>
+        <a href="#flow" class="text-slate-300 hover:text-white transition-colors">Interactive Simulator</a>
+      </nav>
+      <div class="flex items-center space-x-3">
+        <a href="update.json" target="_blank" class="px-3 py-1.5 text-xs font-mono font-bold bg-blue-600 hover:bg-blue-500 text-white border border-blue-400 transition">
+          RAW JSON
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-16">
+
+    <section class="border border-slate-800 bg-slate-900/60 p-6 sm:p-8">
+      <div class="max-w-3xl space-y-4">
+        <div class="inline-flex items-center space-x-2">
+          <span class="h-2 w-2 bg-emerald-500"></span>
+          <span class="font-mono text-xs uppercase tracking-wider text-emerald-400">Live Production Endpoint</span>
+        </div>
+        <h2 class="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
+          Client-Driven In-App Update Engine &amp; Remote Manifest
+        </h2>
+        <p class="text-slate-300 text-base sm:text-lg leading-relaxed font-light">
+          A zero-backend update orchestration architecture powered by a single static <code class="font-mono text-xs bg-slate-800 px-1 py-0.5 text-blue-400">update.json</code> served via GitHub Pages. Features fine-grained release ring control (Stable / Beta / Alpha), floor deprecation, emergency kill-switches, and SHA-256 integrity checks.
+        </p>
+      </div>
+      <div class="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-slate-800 pt-6">
+        <div>
+          <div class="font-mono text-xs text-slate-500 uppercase">Current Stable</div>
+          <div class="font-bold text-slate-200 mt-1">v2.9.0 (Code: 26)</div>
+        </div>
+        <div>
+          <div class="font-mono text-xs text-slate-500 uppercase">Min Supported Floor</div>
+          <div class="font-bold text-slate-200 mt-1">Code: 20</div>
+        </div>
+        <div>
+          <div class="font-mono text-xs text-slate-500 uppercase">Kill Switch</div>
+          <div class="font-bold text-emerald-400 mt-1">All Rings Normal</div>
+        </div>
+        <div>
+          <div class="font-mono text-xs text-slate-500 uppercase">Direct Protocol</div>
+          <div class="font-bold text-slate-200 mt-1">GitHub / Obtainium / Direct</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="full-json" class="space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+        <div>
+          <h3 class="text-xl font-bold text-white tracking-tight">1. Active Manifest JSON (<a href="update.json" class="text-blue-400 underline">update.json</a>)</h3>
+          <p class="text-xs text-slate-400 mt-0.5">Live payload evaluated by ScreenHarmony Flex client applications.</p>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span id="copy-status" class="text-xs font-mono text-emerald-400 hidden">Copied to clipboard!</span>
+          <button onclick="copyJsonManifest()" class="px-3 py-1 text-xs font-mono bg-blue-600 hover:bg-blue-500 text-white border border-blue-400 font-bold transition">
+            Copy Schema
+          </button>
+        </div>
+      </div>
+
+      <div class="border border-slate-800 bg-slate-900 overflow-hidden">
+        <div class="bg-slate-950 px-4 py-2 border-b border-slate-800 flex items-center justify-between text-xs font-mono text-slate-400">
+          <span>endpoint: ./update.json</span>
+          <span class="text-emerald-400">application/json</span>
+        </div>
+        <pre class="p-4 sm:p-6 overflow-x-auto text-xs sm:text-sm font-mono text-slate-300 leading-relaxed max-h-[580px]"><code id="raw-json">Loading manifest...</code></pre>
+      </div>
+    </section>
+
+    <section id="flow" class="space-y-6">
+      <div class="border-b border-slate-800 pb-3">
+        <h3 class="text-xl font-bold text-white tracking-tight">2. Interactive Evaluation Simulator</h3>
+        <p class="text-xs text-slate-400 mt-0.5">Simulate how client instances on any build or channel evaluate the current manifest.</p>
+      </div>
+
+      <div class="border border-slate-800 bg-slate-900 p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <div class="lg:col-span-5 space-y-4">
+          <div>
+            <label class="block text-xs font-mono text-slate-400 uppercase mb-1">Local Installed VersionCode</label>
+            <input type="number" id="sim-local" value="19" class="w-full bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-white focus:border-blue-500 focus:outline-none">
+            <span class="text-[11px] text-slate-500">Try 19 (Floor Deprecated), 25 (Update Available), or 26 (Up to Date).</span>
+          </div>
+
+          <div>
+            <label class="block text-xs font-mono text-slate-400 uppercase mb-1">Client Track Channel</label>
+            <select id="sim-channel" class="w-full bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-white focus:border-blue-500 focus:outline-none">
+              <option value="stable">stable (Latest: 26, Floor: 20)</option>
+              <option value="beta">beta (Latest: 26, Floor: 22)</option>
+              <option value="alpha">alpha (Latest: 26, Floor: 24)</option>
+            </select>
+          </div>
+
+          <div class="space-y-2 pt-2 border-t border-slate-800">
+            <label class="block text-xs font-mono text-slate-400 uppercase">Simulate Emergency Kill-Switches</label>
+            <div class="flex flex-col space-y-2 text-xs font-mono">
+              <label class="flex items-center space-x-2 cursor-pointer">
+                <input type="checkbox" id="sim-kill-global" class="w-4 h-4 bg-slate-950 border border-slate-700 text-blue-600 focus:ring-0">
+                <span class="text-rose-400 font-bold">killSwitch.global.enabled</span>
+              </label>
+              <label class="flex items-center space-x-2 cursor-pointer">
+                <input type="checkbox" id="sim-kill-channel" class="w-4 h-4 bg-slate-950 border border-slate-700 text-blue-600 focus:ring-0">
+                <span class="text-amber-400 font-bold">killSwitch[channel].enabled</span>
+              </label>
+            </div>
+          </div>
+
+          <button onclick="runSimulation()" class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-mono text-xs font-bold tracking-wider uppercase border border-blue-400 transition">
+            Evaluate Logic
+          </button>
+        </div>
+
+        <div class="lg:col-span-7 bg-slate-950 border border-slate-800 p-6 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <span class="font-mono text-xs uppercase text-slate-500">Evaluation Output</span>
+              <span id="sim-badge" class="font-mono text-xs px-2 py-0.5 bg-slate-800 text-slate-300">Ready</span>
+            </div>
+            <div id="sim-result-box" class="py-6 space-y-3">
+              <h4 id="sim-title" class="text-lg font-bold text-white">System Awaiting Run</h4>
+              <p id="sim-description" class="text-sm text-slate-400 leading-relaxed font-light">
+                Configure parameters on the left to simulate in-app decision flow.
+              </p>
+            </div>
+          </div>
+          <div id="sim-code-preview" class="p-3 bg-slate-900 border border-slate-800 font-mono text-xs text-slate-400">
+            Status: IDLE &bull; Ready for test
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-slate-800 bg-slate-950 py-8 text-center text-xs font-mono text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 space-y-2">
+      <p>ScreenHarmony Flex Update Engine &bull; Zero Corner Radius Standard &bull; JetBrains Mono</p>
+      <p>Hosted via GitHub Pages &bull; SubhamSathua/screen-harmony-flex</p>
+    </div>
+  </footer>
+
+  <script>
+    let manifestData = null;
+
+    async function loadManifest() {
+      try {
+        const resp = await fetch('update.json');
+        manifestData = await resp.json();
+        document.getElementById('raw-json').textContent = JSON.stringify(manifestData, null, 2);
+      } catch (e) {
+        document.getElementById('raw-json').textContent = "// Error loading update.json dynamically: " + e.message;
+      }
+      runSimulation();
+    }
+
+    function copyJsonManifest() {
+      const codeElement = document.getElementById('raw-json');
+      const textToCopy = codeElement.innerText || codeElement.textContent;
+      
+      const textArea = document.createElement('textarea');
+      textArea.value = textToCopy;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      try {
+        document.execCommand('copy');
+        const status = document.getElementById('copy-status');
+        status.classList.remove('hidden');
+        setTimeout(() => {
+          status.classList.add('hidden');
+        }, 2500);
+      } catch (err) {
+        console.error('Copy failed', err);
+      }
+      document.body.removeChild(textArea);
+    }
+
+    function runSimulation() {
+      const localVersion = parseInt(document.getElementById('sim-local').value, 10) || 1;
+      const channel = document.getElementById('sim-channel').value;
+      const killGlobal = document.getElementById('sim-kill-global').checked;
+      const killChannel = document.getElementById('sim-kill-channel').checked;
+
+      const badge = document.getElementById('sim-badge');
+      const title = document.getElementById('sim-title');
+      const desc = document.getElementById('sim-description');
+      const codePreview = document.getElementById('sim-code-preview');
+
+      const manifest = manifestData || {
+        stable: { versionCode: 26, minSupportedVersionCode: 20, updateType: 'OPTIONAL' },
+        beta: { versionCode: 26, minSupportedVersionCode: 22, updateType: 'RECOMMENDED' },
+        alpha: { versionCode: 26, minSupportedVersionCode: 24, updateType: 'OPTIONAL' }
+      };
+
+      const activeConfig = manifest[channel] || manifest.stable;
+      const minSupported = activeConfig.minSupportedVersionCode || activeConfig.minSupported || 20;
+
+      if (killGlobal) {
+        badge.className = "font-mono text-xs px-2 py-0.5 bg-rose-900/60 text-rose-300 border border-rose-500 font-bold";
+        badge.innerText = "LOCKED: GLOBAL KILL-SWITCH";
+        title.innerText = "Service Temporarily Suspended";
+        title.className = "text-lg font-bold text-rose-400";
+        desc.innerText = "A global killswitch is asserted in update.json. The app locks out all interactions on all channels regardless of version.";
+        codePreview.innerText = "Decision: HALT_EXECUTION -> Display lockdown modal (dismissible: false)";
+        return;
+      }
+
+      if (killChannel) {
+        badge.className = "font-mono text-xs px-2 py-0.5 bg-purple-900/60 text-purple-300 border border-purple-500 font-bold";
+        badge.innerText = `LOCKED: ${channel.toUpperCase()} RING PAUSED`;
+        title.innerText = `${channel.toUpperCase()} Channel Suspended`;
+        title.className = "text-lg font-bold text-purple-400";
+        desc.innerText = `The developer paused the ${channel} track. Stable users remain unaffected, but this client is halted.`;
+        codePreview.innerText = `Decision: HALT_CHANNEL -> Display channel pause banner (channel: ${channel})`;
+        return;
+      }
+
+      if (localVersion < minSupported) {
+        badge.className = "font-mono text-xs px-2 py-0.5 bg-rose-900/60 text-rose-300 border border-rose-500 font-bold";
+        badge.innerText = "FORCED CRITICAL UPDATE";
+        title.innerText = "Version Deprecated (Mandatory Upgrade)";
+        title.className = "text-lg font-bold text-rose-400";
+        desc.innerText = `Client version (${localVersion}) is strictly below the floor (${minSupported}). Even though the remote update may be marked OPTIONAL, this client is forced to upgrade immediately.`;
+        codePreview.innerText = `Evaluation: local (${localVersion}) < minSupported (${minSupported}) -> Action: Block screen & trigger compulsory update`;
+        return;
+      }
+
+      if (activeConfig.versionCode > localVersion) {
+        if (activeConfig.updateType === 'RECOMMENDED') {
+          badge.className = "font-mono text-xs px-2 py-0.5 bg-amber-900/60 text-amber-300 border border-amber-500 font-bold";
+          badge.innerText = "UPDATE RECOMMENDED";
+          title.innerText = `Recommended Update: v${activeConfig.versionName || activeConfig.versionCode}`;
+          title.className = "text-lg font-bold text-amber-400";
+          desc.innerText = `A newer build is ready (v${activeConfig.versionName || activeConfig.versionCode}). Shows persistent warning banner; user may dismiss to continue usage.`;
+          codePreview.innerText = `Evaluation: remote (${activeConfig.versionCode}) > local (${localVersion}) [RECOMMENDED] -> Show dismissible reminder`;
+        } else {
+          badge.className = "font-mono text-xs px-2 py-0.5 bg-emerald-900/60 text-emerald-300 border border-emerald-500 font-bold";
+          badge.innerText = "OPTIONAL UPDATE";
+          title.innerText = `New Version Available: v${activeConfig.versionName || activeConfig.versionCode}`;
+          title.className = "text-lg font-bold text-emerald-400";
+          desc.innerText = `A newer build is available (v${activeConfig.versionName || activeConfig.versionCode}). Standard update dialog with "Update" and "Later" actions.`;
+          codePreview.innerText = `Evaluation: remote (${activeConfig.versionCode}) > local (${localVersion}) [OPTIONAL] -> Show standard dialog`;
+        }
+        return;
+      }
+
+      badge.className = "font-mono text-xs px-2 py-0.5 bg-slate-800 text-slate-300 border border-slate-700";
+      badge.innerText = "UP TO DATE";
+      title.innerText = "Application is Current";
+      title.className = "text-lg font-bold text-slate-200";
+      desc.innerText = `Installed version (${localVersion}) is equal to or newer than the remote build (${activeConfig.versionCode}). No prompt required.`;
+      codePreview.innerText = `Evaluation: remote (${activeConfig.versionCode}) <= local (${localVersion}) -> Action: None (Idle)`;
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadManifest();
+    });
+  </script>
+</body>
+</html>

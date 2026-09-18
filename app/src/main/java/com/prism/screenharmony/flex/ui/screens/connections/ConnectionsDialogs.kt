@@ -75,7 +75,7 @@ fun ParentCloudAuthDialog(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = if (isRegisterMode) Icons.Rounded.PersonAdd else Icons.AutoMirrored.Rounded.Login,
+                        imageVector = if (isRegisterMode) Icons.Rounded.PersonAdd else Icons.Rounded.AccountCircle,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp)

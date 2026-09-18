@@ -47,6 +47,10 @@ import com.prism.screenharmony.flex.utils.PermissionHelper
 
 import com.prism.screenharmony.flex.ui.screens.connections.ParentCloudAuthDialog
 import com.prism.screenharmony.flex.ui.screens.connections.ByobConfigDialog
+import com.prism.screenharmony.flex.update.UpdateManager
+import com.prism.screenharmony.flex.update.UpdateCheckResult
+import com.prism.screenharmony.flex.ui.screens.update.UpdateSettingsCard
+import com.prism.screenharmony.flex.ui.screens.update.AppUpdateDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -150,6 +154,10 @@ fun SettingsTabScreen(
     val hasSelfBlocks = localRules.isNotEmpty()
     var isOnlyParentMode by remember { mutableStateOf(ParentalAuthManager.isOnlyParentMode(context)) }
     var showHasSelfBlocksDialog by remember { mutableStateOf(false) }
+
+    // App Update State
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    var updateAvailableData by remember { mutableStateOf<UpdateCheckResult.UpdateAvailable?>(null) }
 
     Scaffold(
         modifier = modifier,
@@ -919,7 +927,35 @@ fun SettingsTabScreen(
             }
 
             // =========================================================
-            // 5. ABOUT & LEGAL
+            // 5. RELEASES & UPDATES
+            // =========================================================
+            SectionHeader(title = "Releases & Updates")
+
+            UpdateSettingsCard(
+                onCheckRequested = {
+                    UpdateManager.checkForUpdates(context, isUserInitiated = true) { res ->
+                        when (res) {
+                            is UpdateCheckResult.UpToDate -> {
+                                Toast.makeText(context, "You are on the latest version (v${res.currentName})!", Toast.LENGTH_SHORT).show()
+                            }
+                            is UpdateCheckResult.UpdateAvailable -> {
+                                updateAvailableData = res
+                                showUpdateDialog = true
+                            }
+                            is UpdateCheckResult.KillSwitchTriggered -> {
+                                // Evaluated and displayed by root KillSwitchDialog
+                            }
+                            is UpdateCheckResult.Error -> {
+                                Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                            }
+                            else -> {}
+                        }
+                    }
+                }
+            )
+
+            // =========================================================
+            // 6. ABOUT & LEGAL
             // =========================================================
             SectionHeader(title = "About & Legal")
 
@@ -1265,6 +1301,16 @@ fun SettingsTabScreen(
                 TextButton(onClick = { showLogoutConfirmDialog = false }) {
                     Text("Cancel")
                 }
+            }
+        )
+    }
+
+    // In-App Update Dialog
+    if (showUpdateDialog && updateAvailableData != null) {
+        AppUpdateDialog(
+            updateData = updateAvailableData!!,
+            onDismiss = {
+                showUpdateDialog = false
             }
         )
     }

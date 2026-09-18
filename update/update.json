@@ -1,0 +1,81 @@
+{
+  "killSwitch": {
+    "global": {
+      "enabled": false,
+      "title": "Service Temporarily Suspended",
+      "message": "All app operations are temporarily paused for backend database maintenance. No action is required. Please check back shortly."
+    },
+    "alpha": {
+      "enabled": false,
+      "title": "Alpha Testing Ring Paused",
+      "message": "A critical issue was discovered in the latest alpha tree. Alpha usage is temporarily halted while an emergency build is prepared."
+    },
+    "beta": {
+      "enabled": false,
+      "title": "Beta Staging Paused",
+      "message": "Beta builds are temporarily locked due to scheduled backend synchronization updates."
+    },
+    "stable": {
+      "enabled": false,
+      "title": "Production Service Paused",
+      "message": "Production builds are temporarily paused for maintenance."
+    }
+  },
+  "stable": {
+    "versionCode": 26,
+    "versionName": "2.9.0",
+    "minSupportedVersionCode": 20,
+    "releaseDate": "2026-09-18",
+    "updateType": "OPTIONAL",
+    "deprecationMessage": "Your installed version has reached end-of-life and can no longer synchronize. Please update to 2.9.0 to continue.",
+    "changelog": [
+      "Connections: Added ScreenHarmony Cloud login with live username check and BYOB support.",
+      "Security: Added 12-Word Secret Recovery Phrase generator and validator.",
+      "Reliability: Added Android 12-14+ Exact Alarms permission handling and anti-tamper resilience.",
+      "Performance: Optimized background blocker synchronization and memory usage."
+    ],
+    "downloads": {
+      "directApk": "https://github.com/SubhamSathua/screen-harmony-flex/releases/latest/download/app-prod-universal-release.apk",
+      "github": "https://github.com/SubhamSathua/screen-harmony-flex/releases/latest",
+      "obtainium": "obtainium://add/https://github.com/SubhamSathua/screen-harmony-flex",
+      "fdroid": "https://f-droid.org/packages/com.prism.screenharmony.flex"
+    },
+    "sha256": ""
+  },
+  "beta": {
+    "versionCode": 26,
+    "versionName": "2.9.0-beta.1",
+    "minSupportedVersionCode": 22,
+    "releaseDate": "2026-09-18",
+    "updateType": "RECOMMENDED",
+    "deprecationMessage": "This beta milestone has lapsed. Update immediately to prevent staging sync timeouts.",
+    "changelog": [
+      "Preview: Next-gen child-parent real-time handshake protocol.",
+      "Fix: Addressed intermittent connection retry on low-latency networks."
+    ],
+    "downloads": {
+      "directApk": "https://github.com/SubhamSathua/screen-harmony-flex/releases/latest/download/app-prod-universal-release.apk",
+      "github": "https://github.com/SubhamSathua/screen-harmony-flex/releases",
+      "obtainium": "obtainium://add/https://github.com/SubhamSathua/screen-harmony-flex"
+    },
+    "sha256": ""
+  },
+  "alpha": {
+    "versionCode": 26,
+    "versionName": "2.9.0-alpha",
+    "minSupportedVersionCode": 24,
+    "releaseDate": "2026-09-18",
+    "updateType": "OPTIONAL",
+    "deprecationMessage": "Experimental build expired. Download the newest nightly iteration.",
+    "changelog": [
+      "Experimental: Updated remote manifest in-app update engine.",
+      "Logging: Real-time diagnostics logging and telemetry improvements."
+    ],
+    "downloads": {
+      "directApk": "https://github.com/SubhamSathua/screen-harmony-flex/releases/latest/download/app-alpha-universal-release.apk",
+      "github": "https://github.com/SubhamSathua/screen-harmony-flex/releases",
+      "obtainium": "obtainium://add/https://github.com/SubhamSathua/screen-harmony-flex"
+    },
+    "sha256": ""
+  }
+}

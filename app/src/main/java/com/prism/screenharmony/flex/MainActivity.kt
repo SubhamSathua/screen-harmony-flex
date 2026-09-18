@@ -78,6 +78,10 @@ class MainActivity : FragmentActivity() {
         // Intelligently evaluate block schedules and start blocker service only if active now
         com.prism.screenharmony.flex.service.BlockScheduleManager.reschedule(this)
 
+        // Initialize Update Engine and check for remote manifest updates
+        com.prism.screenharmony.flex.update.UpdateManager.init(this)
+        com.prism.screenharmony.flex.update.UpdateManager.checkForUpdates(this, isUserInitiated = false)
+
         setContent {
             val dbHelper = remember { com.prism.screenharmony.flex.data.db.AppDatabaseHelper.getInstance(this@MainActivity) }
             val themeState = remember {
@@ -357,5 +361,25 @@ fun ScreenHarmonyFlexApp(viewModel: MainViewModel) {
                 }
             }
         )
+    }
+
+    // Global / Channel Emergency Kill Switch & In-App Update Engine Overlay
+    val updateResult by com.prism.screenharmony.flex.update.UpdateManager.updateResult.collectAsState()
+    when (val res = updateResult) {
+        is com.prism.screenharmony.flex.update.UpdateCheckResult.KillSwitchTriggered -> {
+            com.prism.screenharmony.flex.ui.screens.update.KillSwitchDialog(item = res)
+        }
+        is com.prism.screenharmony.flex.update.UpdateCheckResult.UpdateAvailable -> {
+            // Show mandatory floor / critical update dialogs automatically on launch
+            if (res.isFloorEnforced || res.updateType == com.prism.screenharmony.flex.update.UpdateType.CRITICAL) {
+                com.prism.screenharmony.flex.ui.screens.update.AppUpdateDialog(
+                    updateData = res,
+                    onDismiss = {
+                        com.prism.screenharmony.flex.update.UpdateManager.dismissCurrentUpdate()
+                    }
+                )
+            }
+        }
+        else -> {}
     }
 }
