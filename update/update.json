@@ -17,16 +17,16 @@
     }
   },
   "stable": {
-    "version": "2.9.0",
+    "version": "2.9.1",
     "minVersion": "2.0.0",
     "releaseDate": "2026-09-18",
     "updateType": "OPTIONAL",
-    "deprecationMessage": "Your installed version has reached end-of-life and can no longer synchronize. Please update to 2.9.0 to continue.",
+    "deprecationMessage": "Your installed version has reached end-of-life and can no longer synchronize. Please update to 2.9.1 to continue.",
     "changelog": [
-      "Connections: Added ScreenHarmony Cloud login with live username check and BYOB support.",
-      "Security: Added 12-Word Secret Recovery Phrase generator and validator.",
-      "Reliability: Added Android 12-14+ Exact Alarms permission handling and anti-tamper resilience.",
-      "Performance: Optimized background blocker synchronization and memory usage."
+      "Exact Alarms & Schedule Automation: Full Android 12-14+ support with auto-rescheduling.",
+      "Multi-OEM Anti-Tamper: Intercepts uninstallation across Xiaomi, Oppo, Vivo, and Huawei.",
+      "Autostart Resilience: Play Store compliant OEM settings deep-linking and POST_NOTIFICATIONS handling.",
+      "Remote Device Wake-Up: Proactive wake triggers before lock with 1-minute freshness validation."
     ],
     "downloads": {
       "directApk": "https://github.com/SubhamSathua/screen-harmony-flex/releases/latest/download/app-prod-universal-release.apk",
@@ -37,14 +37,15 @@
     "sha256": ""
   },
   "alpha": {
-    "version": "2.9.0-alpha",
+    "version": "2.9.1-alpha",
     "minVersion": "2.4.0",
     "releaseDate": "2026-09-18",
     "updateType": "OPTIONAL",
-    "deprecationMessage": "Experimental build expired. Download the newest nightly iteration.",
+    "deprecationMessage": "Experimental build expired. Download the newest iteration.",
     "changelog": [
-      "Experimental: Updated remote manifest in-app update engine.",
-      "Logging: Real-time diagnostics logging and telemetry improvements."
+      "Exact Alarm & Schedule Automation with resilient fallback.",
+      "Multi-OEM Anti-Tamper Protection Shield.",
+      "Background Autostart & Remote Device Wake-Up engine."
     ],
     "downloads": {
       "directApk": "https://github.com/SubhamSathua/screen-harmony-flex/releases/latest/download/app-alpha-universal-release.apk",
