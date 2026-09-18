@@ -331,6 +331,17 @@ object PermissionHelper {
                     onGrant = { openMiuiOtherPermissions(it) }
                 )
             )
+        } else if (MiuiOptimizationHelper.isOemDeviceWithAggressiveKiller()) {
+            list.add(
+                PermissionItem(
+                    id = "oem_background",
+                    name = "Background Autostart & Power",
+                    description = "Allow background auto-start and set battery to unrestricted so your device doesn't terminate blocker tasks",
+                    isGranted = false,
+                    isCrucialForBackground = true,
+                    onGrant = { MiuiOptimizationHelper.openOemAutostartSettings(it) }
+                )
+            )
         }
 
         list.add(

@@ -37,11 +37,20 @@ import com.prism.screenharmony.flex.ui.screens.lock.AppLockSetupScreen
 import com.prism.screenharmony.flex.ui.theme.ScreenHarmonyFlexTheme
 import com.prism.screenharmony.flex.ui.theme.ThemeState
 import com.prism.screenharmony.flex.ui.viewmodels.AppDestinations
+import androidx.activity.result.contract.ActivityResultContracts
+import android.os.Build
+import com.prism.screenharmony.flex.utils.PermissionHelper
 import com.prism.screenharmony.flex.ui.viewmodels.MainViewModel
 import com.prism.screenharmony.flex.ui.viewmodels.ScreenState
 
 class MainActivity : FragmentActivity() {
     private val viewModel: MainViewModel by viewModels()
+
+    private val requestNotificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        viewModel.onAppForegrounded()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,6 +62,18 @@ class MainActivity : FragmentActivity() {
         com.prism.screenharmony.flex.data.QuoteProvider.initialize(this)
         com.prism.screenharmony.flex.family.FamilySyncManager.initialize(this)
         com.prism.screenharmony.flex.family.ParentalAuthManager.initialize(this)
+
+        // Android 13+ (API 33+): Request POST_NOTIFICATIONS runtime permission once cleanly if missing
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (!PermissionHelper.isNotificationGranted(this)) {
+                val prefs = getSharedPreferences("screenharmony_app_prefs", MODE_PRIVATE)
+                val askedOnce = prefs.getBoolean("asked_post_notifications_runtime", false)
+                if (!askedOnce) {
+                    prefs.edit().putBoolean("asked_post_notifications_runtime", true).apply()
+                    requestNotificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        }
 
         // Intelligently evaluate block schedules and start blocker service only if active now
         com.prism.screenharmony.flex.service.BlockScheduleManager.reschedule(this)

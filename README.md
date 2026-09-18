@@ -93,6 +93,22 @@ We welcome contributions to ScreenHarmony Flex. Follow these steps to set up you
    .\gradlew.bat assembleRelease
    ```
 
+5. **Version Bumping & Release Tagging:**
+   ```powershell
+   # Bump version (interactive or specify type: patch, minor, major)
+   .\bump-version.ps1 -Type patch
+
+   # Bump version and immediately create & push tag
+   .\bump-version.ps1 -Type patch -TagAndPush
+
+   # Create and push a tag using current version in version.properties
+   .\tag-and-push.ps1 -Push
+
+   # Tag and publish a Pre-Release (e.g. v2.8.5-alpha)
+   .\tag-and-push.ps1 -PreRelease -Push
+   ```
+   > GitHub Actions automatically triggers the **Release CD Pipeline**, picks up `.github/release-notes/<tag>.md` (without failing if absent), builds signed release APKs/AABs, and publishes the GitHub Release (as normal or pre-release).
+
 ---
 
 ## # Requirements

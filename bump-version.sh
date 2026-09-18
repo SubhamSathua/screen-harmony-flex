@@ -28,6 +28,9 @@ CURRENT_FORMATTED="$MAJOR.$MINOR.$PATCH"
 CHOICE=""
 CUSTOM_VERSION=""
 CUSTOM_CODE=""
+TAG_AND_PUSH=false
+PRERELEASE=false
+SUFFIX=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -41,6 +44,18 @@ while [[ $# -gt 0 ]]; do
             ;;
         -c|--code|-Code)
             CUSTOM_CODE="$2"
+            shift 2
+            ;;
+        --tag|-Tag)
+            TAG_AND_PUSH=true
+            shift
+            ;;
+        -p|--prerelease|--pre|-PreRelease)
+            PRERELEASE=true
+            shift
+            ;;
+        -s|--suffix|-Suffix)
+            SUFFIX="$2"
             shift 2
             ;;
         *)
@@ -144,3 +159,19 @@ echo "✅ Version successfully bumped without Gradle script changes!"
 echo "   Version Name: $CURRENT_FORMATTED -> $NEW_VERSION_NAME"
 echo "   Version Code: $CODE -> $NEW_VERSION_CODE"
 echo "   Target: version.properties (Zero Gradle Sync required)"
+
+if [ "$TAG_AND_PUSH" = true ]; then
+    echo ""
+    TAG_SCRIPT="$SCRIPT_DIR/tag-and-push.sh"
+    if [ -f "$TAG_SCRIPT" ]; then
+        TAG_ARGS=("-t" "v$NEW_VERSION_NAME")
+        if [ "$PRERELEASE" = true ]; then
+            TAG_ARGS+=("-p")
+        fi
+        if [ -n "$SUFFIX" ]; then
+            TAG_ARGS+=("-s" "$SUFFIX")
+        fi
+        bash "$TAG_SCRIPT" "${TAG_ARGS[@]}"
+    fi
+fi
+

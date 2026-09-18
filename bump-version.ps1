@@ -10,7 +10,19 @@ param (
 
     [Parameter(Mandatory = $false)]
     [Alias("c", "VersionCode", "Code")]
-    [Nullable[int]]$CustomCode = $null
+    [Nullable[int]]$CustomCode = $null,
+
+    [Parameter(Mandatory = $false)]
+    [Alias("Tag", "CreateTag")]
+    [switch]$TagAndPush,
+
+    [Parameter(Mandatory = $false)]
+    [Alias("p", "Pre")]
+    [switch]$PreRelease,
+
+    [Parameter(Mandatory = $false)]
+    [Alias("s", "Channel")]
+    [string]$Suffix = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -146,3 +158,17 @@ Write-Host "✅ Version successfully bumped without Gradle script changes!" -For
 Write-Host "   Version Name: $currentFormatted -> $newVersionName" -ForegroundColor Green
 Write-Host "   Version Code: $code -> $newVersionCode" -ForegroundColor Green
 Write-Host "   Target: version.properties (Zero Gradle Sync required)" -ForegroundColor DarkGray
+
+if ($TagAndPush) {
+    Write-Host ""
+    $tagScript = Join-Path $scriptDir "tag-and-push.ps1"
+    if (Test-Path $tagScript) {
+        $tagParams = @{
+            Tag = "v$newVersionName"
+        }
+        if ($PreRelease) { $tagParams["PreRelease"] = $true }
+        if (-not [string]::IsNullOrWhiteSpace($Suffix)) { $tagParams["Suffix"] = $Suffix }
+        & $tagScript @tagParams
+    }
+}
+
