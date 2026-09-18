@@ -222,19 +222,27 @@ jobs:
 
       - name: Build Release APKs & Bundles
         run: |
-          ./gradlew assembleProdRelease assembleAlphaRelease bundleProdRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx3072m -XX:+UseG1GC" --stacktrace
+          if [ "${{ steps.release_info.outputs.is_prerelease }}" = "true" ]; then
+            echo "🚀 Building ALPHA Release APK only..."
+            ./gradlew assembleAlphaRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx3072m -XX:+UseG1GC" --stacktrace
+          else
+            echo "🚀 Building PRODUCTION Release APKs and AAB Bundle..."
+            ./gradlew assembleProdRelease bundleProdRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx3072m -XX:+UseG1GC" --stacktrace
+          fi
 
       - name: Prepare Artifacts for Release
         id: prepare_files
         run: |
           mkdir -p release-artifacts
 
-          # Copy APKs
-          find app/build/outputs/apk/prod/release -name "*.apk" -exec cp {} release-artifacts/ \; 2>/dev/null || true
-          find app/build/outputs/apk/alpha/release -name "*.apk" -exec cp {} release-artifacts/ \; 2>/dev/null || true
-
-          # Copy AAB Bundle
-          find app/build/outputs/bundle/prodRelease -name "*.aab" -exec cp {} release-artifacts/ \; 2>/dev/null || true
+          if [ "${{ steps.release_info.outputs.is_prerelease }}" = "true" ]; then
+            echo "Packaging ALPHA release artifact..."
+            find app/build/outputs/apk/alpha/release -name "*.apk" -exec cp {} release-artifacts/ \; 2>/dev/null || true
+          else
+            echo "Packaging PRODUCTION release artifacts..."
+            find app/build/outputs/apk/prod/release -name "*.apk" -exec cp {} release-artifacts/ \; 2>/dev/null || true
+            find app/build/outputs/bundle/prodRelease -name "*.aab" -exec cp {} release-artifacts/ \; 2>/dev/null || true
+          fi
 
           echo "Listing release artifacts to upload:"
           ls -lah release-artifacts/
