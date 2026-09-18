@@ -1,19 +1,25 @@
 package com.prism.screenharmony.flex.service
 
+import android.app.AlarmManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        Log.i("ScreenHarmony_Boot", "Boot/Time/Package change received: ${intent.action}")
+        Log.i("ScreenHarmony_Boot", "Boot/Time/Package/ExactAlarm change received: ${intent.action}")
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED,
             "android.intent.action.QUICKBOOT_POWERON",
             Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED -> {
+                BlockScheduleManager.reschedule(context)
+            }
+            AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> {
+                Log.i("ScreenHarmony_Boot", "⏰ Exact Alarm permission state changed! Rescheduling upcoming blocks...")
                 BlockScheduleManager.reschedule(context)
             }
         }

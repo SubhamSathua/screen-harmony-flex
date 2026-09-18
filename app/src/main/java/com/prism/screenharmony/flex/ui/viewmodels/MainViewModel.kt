@@ -154,6 +154,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLockManager.onAppForegrounded()
         checkAppLockState()
         refreshPermissions()
+        com.prism.screenharmony.flex.service.BlockScheduleManager.reschedule(getApplication())
     }
 
     fun onAppUnlocked() {
