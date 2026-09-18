@@ -155,7 +155,13 @@ if git rev-parse "$FINAL_TAG" >/dev/null 2>&1; then
 fi
 
 echo "Creating annotated tag: $FINAL_TAG..."
-git tag -a "$FINAL_TAG" -m "$ANNOTATION"
+if [ -n "$NOTES_FILE" ] && [ -f "$NOTES_FILE" ]; then
+    git tag -a "$FINAL_TAG" -F "$NOTES_FILE"
+elif [ -n "$MESSAGE" ]; then
+    git tag -a "$FINAL_TAG" -m "$MESSAGE"
+else
+    git tag -a "$FINAL_TAG" -m "Release $FINAL_TAG (App Version: $BASE_VERSION)"
+fi
 echo "✅ Tag '$FINAL_TAG' created successfully!"
 
 SHOULD_PUSH="$AUTO_PUSH"

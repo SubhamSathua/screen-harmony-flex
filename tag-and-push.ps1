@@ -151,7 +151,24 @@ if ($existingTags) {
 }
 
 Write-Host "Creating annotated tag: $finalTag..." -ForegroundColor Cyan
-git tag -a $finalTag -m "$tagAnnotation"
+
+$tempMsgFile = [System.IO.Path]::GetTempFileName()
+try {
+    if ($foundNotesFile -and (Test-Path $foundNotesFile)) {
+        Copy-Item -Path $foundNotesFile -Destination $tempMsgFile -Force
+    } else {
+        [System.IO.File]::WriteAllText($tempMsgFile, $tagAnnotation, (New-Object System.Text.UTF8Encoding $false))
+    }
+    
+    git tag -a $finalTag -F $tempMsgFile
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to create git tag '$finalTag'"
+        exit $LASTEXITCODE
+    }
+} finally {
+    if (Test-Path $tempMsgFile) { Remove-Item -Path $tempMsgFile -Force }
+}
+
 Write-Host "✅ Tag '$finalTag' created successfully!" -ForegroundColor Green
 
 # 5. Push tag to remote
@@ -170,6 +187,10 @@ if ($shouldPush) {
         git push origin $finalTag --force
     } else {
         git push origin $finalTag
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to push git tag '$finalTag' to origin"
+        exit $LASTEXITCODE
     }
     Write-Host "🎉 Successfully pushed tag '$finalTag' to origin!" -ForegroundColor Green
     Write-Host "⚡ GitHub Actions Release CD workflow has been triggered automatically!" -ForegroundColor Magenta
