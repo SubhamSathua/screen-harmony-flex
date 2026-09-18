@@ -45,6 +45,9 @@ import com.prism.screenharmony.flex.utils.BiometricHelper
 import com.prism.screenharmony.flex.utils.MiuiOptimizationHelper
 import com.prism.screenharmony.flex.utils.PermissionHelper
 
+import com.prism.screenharmony.flex.ui.screens.connections.ParentCloudAuthDialog
+import com.prism.screenharmony.flex.ui.screens.connections.ByobConfigDialog
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsTabScreen(
@@ -65,9 +68,17 @@ fun SettingsTabScreen(
     val activity = context as? FragmentActivity
 
     val familyProfile by FamilySyncManager.familyProfile.collectAsState()
+    val parentAccount by ParentCloudAuthManager.accountState.collectAsState()
+    val byobConfig by ByobConfigManager.configFlow.collectAsState()
+
+    var showParentAuthDialog by remember { mutableStateOf(false) }
+    var showByobDialog by remember { mutableStateOf(false) }
+    var showLogoutConfirmDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         FamilySyncManager.initialize(context)
+        ParentCloudAuthManager.initialize(context)
+        ByobConfigManager.initialize(context)
     }
 
     // Pulse animation for permission highlighting
@@ -166,6 +177,92 @@ fun SettingsTabScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // =========================================================
+            // 0. CONNECTIONS & BACKEND SECTION (TOP)
+            // =========================================================
+            SectionHeader(title = "Connections & Backend")
+
+            GroupedContainer {
+                // Card 1: ScreenHarmony Cloud (Parent Login / Register)
+                GroupedItemRow(
+                    icon = if (parentAccount.isLoggedIn) Icons.Rounded.CloudDone else Icons.Rounded.CloudQueue,
+                    title = "ScreenHarmony Cloud",
+                    subtitle = if (parentAccount.isLoggedIn) {
+                        "Logged in as @${parentAccount.username} • Cloud Sync Active"
+                    } else {
+                        "Sign in or register master parent account to manage child devices"
+                    },
+                    onClick = {
+                        if (parentAccount.isLoggedIn) {
+                            showLogoutConfirmDialog = true
+                        } else {
+                            showParentAuthDialog = true
+                        }
+                    }
+                ) {
+                    if (parentAccount.isLoggedIn) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Rounded.AccountCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "@${parentAccount.username}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { showParentAuthDialog = true },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text("Login", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                ItemDivider()
+
+                // Card 2: BYOB (Bring Your Own Backend)
+                GroupedItemRow(
+                    icon = Icons.Rounded.Dns,
+                    title = "BYOB (Custom Backend)",
+                    subtitle = if (byobConfig.isConfigured) {
+                        "Active • Project: ${byobConfig.projectId}"
+                    } else {
+                        "For advanced users: Connect your own self-hosted Firebase project"
+                    },
+                    onClick = { showByobDialog = true }
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (byobConfig.isConfigured) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+                    ) {
+                        Text(
+                            text = if (byobConfig.isConfigured) "Custom Active" else "Configure",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (byobConfig.isConfigured) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
             // =========================================================
             // 1. SECURITY & APP LOCK (4 OPTION CARDS)
             // =========================================================
@@ -857,18 +954,6 @@ fun SettingsTabScreen(
 
                 ItemDivider()
 
-                GroupedItemRow(
-                    icon = Icons.Rounded.CloudQueue,
-                    title = "Sync Protocol",
-                    subtitle = "Firebase Spark (100% Free Cloud Tier)"
-                ) {
-                    Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.padding(4.dp)) {
-                        Text("FREE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                    }
-                }
-
-                ItemDivider()
-
                 val isLogsUnlocked = DiagnosticsUnlockManager.isLogsUnlocked(context)
                 if (isLogsUnlocked || DiagnosticsUnlockManager.isAlwaysUnlocked()) {
                     GroupedItemRow(
@@ -1119,7 +1204,66 @@ fun SettingsTabScreen(
             },
             confirmButton = {
                 Button(onClick = { showHasSelfBlocksDialog = false }) {
-                    Text("Got It")
+                    Text("Understood")
+                }
+            }
+        )
+    }
+
+    // Parent Cloud Auth Dialog (Login / Register / 12-Word Phrase)
+    if (showParentAuthDialog) {
+        ParentCloudAuthDialog(
+            onDismiss = { showParentAuthDialog = false },
+            onAuthSuccess = { msg ->
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                FamilySyncManager.startRoleSync(context)
+            }
+        )
+    }
+
+    // BYOB (Bring Your Own Backend) Config Dialog
+    if (showByobDialog) {
+        ByobConfigDialog(
+            onDismiss = { showByobDialog = false },
+            onConfigSaved = {
+                FamilySyncManager.startRoleSync(context)
+            }
+        )
+    }
+
+    // Logout Confirmation Dialog
+    if (showLogoutConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirmDialog = false },
+            icon = { Icon(Icons.Rounded.AccountCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp)) },
+            title = { Text("Parent Account Options") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Currently logged in as @${parentAccount.username}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                    if (parentAccount.email.isNotBlank()) {
+                        Text("Email: ${parentAccount.email}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(
+                        "Logging out will disconnect parent cloud sync on this device. Your connected child devices remain safely bound in the cloud.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        ParentCloudAuthManager.logout(context)
+                        showLogoutConfirmDialog = false
+                        Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Log Out")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirmDialog = false }) {
+                    Text("Cancel")
                 }
             }
         )
