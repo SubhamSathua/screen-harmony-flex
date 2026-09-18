@@ -370,6 +370,19 @@ object FamilySyncManager {
                                 }
                             }
 
+                            val lockExecutedAt = childSnap.child("commands/lockExecutedAt").getValue(Long::class.java) ?: 0L
+                            if (lockExecutedAt > 0L) {
+                                val prefs = getPrefs(context)
+                                val lastNotifiedLock = prefs.getLong("last_notified_lock_$deviceId", 0L)
+                                if (lockExecutedAt > lastNotifiedLock && (System.currentTimeMillis() - lockExecutedAt) < 300_000L) {
+                                    prefs.edit().putLong("last_notified_lock_$deviceId", lockExecutedAt).apply()
+                                    FamilyNotificationHelper.postDeviceLockedNotification(
+                                        context,
+                                        customName.ifBlank { deviceName }
+                                    )
+                                }
+                            }
+
                             val permSnap = childSnap.child("permissions")
                             val childPermissions = ChildPermissionsState(
                                 isUsageGranted = permSnap.child("isUsageGranted").getValue(Boolean::class.java) ?: false,
@@ -599,21 +612,7 @@ object FamilySyncManager {
                         if (lockRequestedAt > lastExecutedLock && lockRequestedAt > lastSeenLock) {
                             lastExecutedLock = lockRequestedAt
                             prefs.edit().putLong("last_executed_remote_lock", lockRequestedAt).apply()
-
-                            Log.i(TAG, "🚨 Remote Lock command received from parent (timestamp=$lockRequestedAt)!")
-                            val locked = com.prism.screenharmony.flex.service.WebsiteAccessibilityService.lockDevice()
-                            Log.i(TAG, "🔒 Remote Lock execution result via AccessibilityService: $locked")
-
-                            if (!locked) {
-                                Log.w(TAG, "Accessibility lock failed or instance unavailable. Falling back to Block Wall overlay...")
-                                com.prism.screenharmony.flex.service.WebsiteAccessibilityService.launchBlockWall(
-                                    context = context,
-                                    target = "Remote Device Lock",
-                                    isWebsite = false,
-                                    quote = "Your parent has remotely locked this device.",
-                                    delaySeconds = 0
-                                )
-                            }
+                            handleRemoteLockCommand(context, lockRequestedAt)
                         }
                     }
 
@@ -1207,34 +1206,147 @@ object FamilySyncManager {
         }
     }
 
-    fun lockChildDevice(childDeviceId: String, onComplete: ((Boolean) -> Unit)? = null) {
+    fun lockChildDevice(childDeviceId: String, onResult: (Boolean, String) -> Unit) {
         ensureAuth {
             val profile = _familyProfile.value
             if (profile.role != FamilyRole.PARENT || profile.familyId.isBlank()) {
-                onComplete?.invoke(false)
+                onResult(false, "No active family connection in Parent mode.")
                 return@ensureAuth
             }
-            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
-            val timestamp = System.currentTimeMillis()
-            db.getReference("families/${profile.familyId}/devices/$childDeviceId/commands/lockRequestedAt")
-                .setValue(timestamp)
-                .addOnSuccessListener {
-                    Log.i(TAG, "🔒 Remote lock command pushed to child $childDeviceId: timestamp=$timestamp")
+            val targetChild = _connectedDevices.value.find { it.deviceId == childDeviceId }
+            if (targetChild == null) {
+                onResult(false, "Child device not found.")
+                return@ensureAuth
+            }
 
-                    // Also dispatch silent FCM high-priority push if token is known
-                    val targetChild = _connectedDevices.value.find { it.deviceId == childDeviceId }
-                    if (targetChild != null && targetChild.fcmToken.isNotBlank()) {
-                        scope.launch {
-                            FcmPushHelper.sendSilentPush(targetChild.fcmToken, "LOCK_NOW")
+            val childName = targetChild.displayName
+
+            // If child device is offline, first attempt to wake it up
+            if (!targetChild.isOnline) {
+                Log.i(TAG, "Child device $childName is offline. Initiating wake-up before dispatching lock command...")
+                wakeUpChildDevice(childDeviceId) { wakeUpSuccess, wakeUpMsg ->
+                    if (!wakeUpSuccess) {
+                        onResult(false, "$childName is OFFLINE. Could not wake up device to lock.")
+                    } else {
+                        // Check live status again
+                        val liveChild = _connectedDevices.value.find { it.deviceId == childDeviceId }
+                        if (liveChild != null && !liveChild.isOnline) {
+                            onResult(false, "$childName is OFFLINE.")
+                        } else {
+                            // Device is online! Dispatch the lock command
+                            dispatchLockCommand(profile.familyId, childDeviceId, liveChild ?: targetChild, onResult)
                         }
                     }
+                }
+            } else {
+                // Device is already online! Directly dispatch the lock command
+                dispatchLockCommand(profile.familyId, childDeviceId, targetChild, onResult)
+            }
+        }
+    }
 
-                    onComplete?.invoke(true)
+    private fun dispatchLockCommand(
+        familyId: String,
+        childDeviceId: String,
+        targetChild: RemoteChildDevice,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+        val timestamp = System.currentTimeMillis()
+        val childName = targetChild.displayName
+
+        val updates = mapOf<String, Any>(
+            "lockRequestedAt" to timestamp
+        )
+
+        db.getReference("families/$familyId/devices/$childDeviceId/commands").updateChildren(updates)
+            .addOnSuccessListener {
+                Log.i(TAG, "🔒 Remote lock command dispatched to $childName (timestamp=$timestamp)")
+
+                // Also dispatch silent FCM high-priority push with timestamp
+                if (targetChild.fcmToken.isNotBlank()) {
+                    scope.launch {
+                        FcmPushHelper.sendSilentPush(
+                            targetChild.fcmToken,
+                            "LOCK_NOW",
+                            mapOf("timestamp" to timestamp.toString())
+                        )
+                    }
                 }
-                .addOnFailureListener {
-                    Log.e(TAG, "Failed to push remote lock command to child $childDeviceId", it)
-                    onComplete?.invoke(false)
+
+                // Listen for child lock acknowledgement (lockExecutedAt or lockAck)
+                var hasResponded = false
+                val ackRef = db.getReference("families/$familyId/devices/$childDeviceId/commands/lockExecutedAt")
+                var ackListener: ValueEventListener? = null
+
+                fun cleanup() {
+                    ackListener?.let { ackRef.removeEventListener(it) }
                 }
+
+                val timeoutJob = scope.launch {
+                    delay(8000L) // 8 second timeout for ack
+                    if (!hasResponded) {
+                        hasResponded = true
+                        cleanup()
+                        onResult(true, "Lock command sent to $childName.")
+                    }
+                }
+
+                ackListener = object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        val executedAt = snapshot.getValue(Long::class.java) ?: 0L
+                        if (executedAt >= timestamp - 1000L && !hasResponded) {
+                            hasResponded = true
+                            timeoutJob.cancel()
+                            cleanup()
+                            onResult(true, "$childName is now LOCKED.")
+                        }
+                    }
+                    override fun onCancelled(error: DatabaseError) {}
+                }
+                ackRef.addValueEventListener(ackListener)
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to push remote lock command to child $childDeviceId", e)
+                onResult(false, "Failed to send lock command: ${e.message}")
+            }
+    }
+
+    fun handleRemoteLockCommand(context: Context, lockRequestedAt: Long) {
+        val now = System.currentTimeMillis()
+        val ageMs = Math.abs(now - lockRequestedAt)
+        if (ageMs > 60_000L) { // Maximum 1 minute allowed between send and receive
+            Log.w(TAG, "⚠️ Ignored remote lock command: difference is ${ageMs / 1000}s (> 60s limit).")
+            return
+        }
+
+        Log.i(TAG, "🚨 Executing Remote Lock within valid 1-minute window (age=${ageMs}ms)...")
+        val locked = com.prism.screenharmony.flex.service.WebsiteAccessibilityService.lockDevice()
+        Log.i(TAG, "🔒 Remote Lock execution result via AccessibilityService: $locked")
+
+        if (!locked) {
+            com.prism.screenharmony.flex.service.WebsiteAccessibilityService.launchBlockWall(
+                context = context,
+                target = "Remote Device Lock",
+                isWebsite = false,
+                quote = "Your parent has remotely locked this device.",
+                delaySeconds = 0
+            )
+        }
+
+        // Acknowledge lock execution back to cloud for parent notification
+        ensureAuth {
+            val profile = _familyProfile.value
+            if (profile.role != FamilyRole.CHILD || profile.familyId.isBlank()) return@ensureAuth
+            val db = database ?: FirebaseDatabase.getInstance().also { database = it }
+            val deviceId = getDeviceId(context)
+
+            val updates = mapOf<String, Any>(
+                "lockExecutedAt" to ServerValue.TIMESTAMP,
+                "lockAck" to lockRequestedAt
+            )
+            db.getReference("families/${profile.familyId}/devices/$deviceId/commands").updateChildren(updates)
+            pushChildTelemetry(context)
         }
     }
 

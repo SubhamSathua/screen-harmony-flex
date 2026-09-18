@@ -351,12 +351,12 @@ fun ChildDeviceDetailScreen(
                                 }
                             },
                             onLockDevice = {
-                                FamilySyncManager.lockChildDevice(device.deviceId) { success ->
-                                    Toast.makeText(
-                                        context,
-                                        if (success) "Lock command sent to ${device.displayName}" else "Failed to send lock command",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                FamilySyncManager.lockChildDevice(device.deviceId) { success, msg ->
+                                    if (success) {
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        wakeUpAlertMessage = msg
+                                    }
                                 }
                             },
                             onOpenRemoveDialog = { showRemoveDialog = true }

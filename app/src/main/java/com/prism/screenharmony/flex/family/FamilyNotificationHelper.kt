@@ -96,4 +96,36 @@ object FamilyNotificationHelper {
             // Notification permission not granted
         }
     }
+
+    fun postDeviceLockedNotification(context: Context, deviceName: String) {
+        createNotificationChannel(context)
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            103,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val content = "$deviceName was successfully locked remotely."
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("🔒 Device Locked")
+            .setContentText(content)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(content))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        try {
+            val notifId = 3000 + (deviceName.hashCode().let { if (it < 0) -it else it } % 1000)
+            NotificationManagerCompat.from(context).notify(notifId, notification)
+        } catch (e: SecurityException) {
+            // Notification permission not granted
+        }
+    }
 }

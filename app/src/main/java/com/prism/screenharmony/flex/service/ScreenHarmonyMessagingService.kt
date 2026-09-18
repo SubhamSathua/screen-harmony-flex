@@ -37,22 +37,9 @@ class ScreenHarmonyMessagingService : FirebaseMessagingService() {
 
             when (action) {
                 "LOCK_NOW" -> {
-                    Log.i(TAG, "🚨 Executing Remote Lock from FCM Push...")
-                    val locked = WebsiteAccessibilityService.lockDevice()
-                    Log.i(TAG, "🔒 Accessibility Lock executed: ")
-
-                    if (!locked) {
-                        WebsiteAccessibilityService.launchBlockWall(
-                            context = applicationContext,
-                            target = "Remote Device Lock",
-                            isWebsite = false,
-                            quote = "Your parent has remotely locked this device.",
-                            delaySeconds = 0
-                        )
-                    }
-
-                    // Also refresh family sync state
-                    FamilySyncManager.startRoleSync(applicationContext)
+                    val timestamp = data["timestamp"]?.toLongOrNull() ?: System.currentTimeMillis()
+                    Log.i(TAG, "🚨 Remote Lock command received from FCM Push (timestamp=$timestamp)...")
+                    FamilySyncManager.handleRemoteLockCommand(applicationContext, timestamp)
                 }
 
                 "SYNC_RULES" -> {
