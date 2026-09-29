@@ -1,0 +1,39 @@
+{
+  "rules": {
+    "usernames": {
+      ".read": true,
+      "$username": {
+        ".write": "auth != null && (!data.exists() || data.val() === auth.uid)"
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.uid === $uid || !data.exists())"
+      }
+    },
+    "code_index": {
+      ".read": "auth != null",
+      "$code": {
+        ".write": "auth != null"
+      }
+    },
+    "families": {
+      "$familyId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "info": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+        "devices": {
+          ".read": "auth != null",
+          "$deviceId": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          }
+        }
+      }
+    }
+  }
+}
