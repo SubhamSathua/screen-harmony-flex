@@ -71,6 +71,18 @@ fun ParentCloudAuthDialog(
 
     var isSubmitting by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showRecoveryDialog by remember { mutableStateOf(false) }
+
+    if (showRecoveryDialog) {
+        ParentPasswordRecoveryDialog(
+            initialUsername = username,
+            onDismiss = { showRecoveryDialog = false },
+            onRecoverySuccess = { msg ->
+                showRecoveryDialog = false
+                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+            }
+        )
+    }
 
     androidx.compose.ui.window.Dialog(
         onDismissRequest = {
@@ -137,22 +149,22 @@ fun ParentCloudAuthDialog(
                             Column {
                                 Text(
                                     text = if (!isRegisterMode) {
-                                        "Parent Login"
+                                        "Parent Sign In"
                                     } else if (registrationStep == 1) {
-                                        "Create Account"
+                                        "Create Parent Account"
                                     } else {
-                                        "Recovery Phrase"
+                                        "Secret Recovery Key"
                                     },
                                     style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = if (!isRegisterMode) {
-                                        "Sign in to sync family rules"
+                                        "Sign in to sync your family & child devices"
                                     } else if (registrationStep == 1) {
-                                        "Step 1/2: Account credentials"
+                                        "Step 1/2: Choose unique username"
                                     } else {
-                                        "Step 2/2: Security keys"
+                                        "Step 2/2: Backup 12-word seed phrase"
                                     },
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -174,444 +186,134 @@ fun ParentCloudAuthDialog(
                         }
                     }
 
-                // Mode Toggle (Sign In vs Register) - Only on Step 1
-                if (registrationStep == 1) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .padding(4.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (!isRegisterMode) MaterialTheme.colorScheme.primary else Color.Transparent,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable {
-                                    isRegisterMode = false
-                                    errorMessage = null
-                                }
-                        ) {
-                            Text(
-                                text = "Sign In",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (!isRegisterMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(vertical = 10.dp)
-                            )
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isRegisterMode) MaterialTheme.colorScheme.primary else Color.Transparent,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable {
-                                    isRegisterMode = true
-                                    errorMessage = null
-                                }
-                        ) {
-                            Text(
-                                text = "Create Account",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isRegisterMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(vertical = 10.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Error Message Banner
-                errorMessage?.let { err ->
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                    // Mode Toggle (Sign In vs Register) - Only on Step 1
+                    if (registrationStep == 1) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
-                            Text(
-                                text = err,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-
-                // =====================================================
-                // BODY: SIGN IN OR REGISTER STEP 1 OR REGISTER STEP 2
-                // =====================================================
-
-                if (!isRegisterMode) {
-                    // SIGN IN FORM
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        OutlinedTextField(
-                            value = username,
-                            onValueChange = { username = it },
-                            label = { Text("Username or Email") },
-                            placeholder = { Text("e.g. parent_alex or alex@mail.com") },
-                            leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = { password = it },
-                            label = { Text("Password") },
-                            placeholder = { Text("Your password") },
-                            leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
-                            trailingIcon = {
-                                IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                                    Icon(
-                                        imageVector = if (isPasswordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                        contentDescription = null
-                                    )
-                                }
-                            },
-                            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Button(
-                            onClick = {
-                                if (username.trim().isBlank() || password.trim().isBlank()) {
-                                    errorMessage = "Please enter both username and password."
-                                    return@Button
-                                }
-                                isSubmitting = true
-                                errorMessage = null
-                                ParentCloudAuthManager.loginParentAccount(
-                                    context = context,
-                                    usernameOrEmail = username,
-                                    password = password
-                                ) { success, msg ->
-                                    isSubmitting = false
-                                    if (success) {
-                                        onAuthSuccess(msg)
-                                        onDismiss()
-                                    } else {
-                                        errorMessage = msg
-                                    }
-                                }
-                            },
-                            enabled = !isSubmitting,
-                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(50.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .padding(4.dp)
                         ) {
-                            if (isSubmitting) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Signing in...")
-                            } else {
-                                Text("Sign In to Account", fontWeight = FontWeight.Bold)
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (!isRegisterMode) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        isRegisterMode = false
+                                        errorMessage = null
+                                    }
+                            ) {
+                                Text(
+                                    text = "Sign In",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (!isRegisterMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 10.dp)
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isRegisterMode) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        isRegisterMode = true
+                                        errorMessage = null
+                                    }
+                            ) {
+                                Text(
+                                    text = "Create Account",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isRegisterMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 10.dp)
+                                )
                             }
                         }
                     }
-                } else if (registrationStep == 1) {
-                    // REGISTER STEP 1: USERNAME, PASSWORD, EMAIL
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        // Username Field with "Check"
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+
+                    // Error Message Banner
+                    errorMessage?.let { err ->
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                Text(
+                                    text = err,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
+                    // =====================================================
+                    // BODY: SIGN IN OR REGISTER STEP 1 OR REGISTER STEP 2
+                    // =====================================================
+
+                    if (!isRegisterMode) {
+                        // SIGN IN FORM
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             OutlinedTextField(
                                 value = username,
-                                onValueChange = {
-                                    username = it
-                                    usernameCheckStatus = null
-                                    isUsernameAvailable = false
-                                },
+                                onValueChange = { username = it },
                                 label = { Text("Username") },
                                 placeholder = { Text("e.g. parent_alex") },
-                                leadingIcon = { Icon(Icons.Rounded.AlternateEmail, contentDescription = null) },
-                                trailingIcon = {
-                                    if (username.trim().length >= 3) {
-                                        TextButton(
-                                            onClick = {
-                                                isCheckingUsername = true
-                                                ParentCloudAuthManager.checkUsernameAvailability(username) { available, msg ->
-                                                    isCheckingUsername = false
-                                                    isUsernameAvailable = available
-                                                    usernameCheckStatus = msg
-                                                }
-                                            },
-                                            enabled = !isCheckingUsername
-                                        ) {
-                                            if (isCheckingUsername) {
-                                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                            } else {
-                                                Text("Check", fontWeight = FontWeight.Bold)
-                                            }
-                                        }
-                                    }
-                                },
+                                leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null) },
                                 singleLine = true,
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.fillMaxWidth()
                             )
 
-                            usernameCheckStatus?.let { status ->
-                                Text(
-                                    text = status,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isUsernameAvailable) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(start = 6.dp)
-                                )
-                            }
-                        }
-
-                        // Password Field
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = { password = it },
-                            label = { Text("Password") },
-                            placeholder = { Text("Min 6 characters") },
-                            leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
-                            trailingIcon = {
-                                IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                                    Icon(
-                                        imageVector = if (isPasswordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                        contentDescription = null
-                                    )
-                                }
-                            },
-                            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        // Email Field
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it },
-                            label = { Text("Email Address") },
-                            placeholder = { Text("e.g. alex@example.com") },
-                            leadingIcon = { Icon(Icons.Rounded.MailOutline, contentDescription = null) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Next Button
-                        Button(
-                            onClick = {
-                                val cleanUser = username.trim()
-                                val cleanPass = password.trim()
-                                val cleanEmail = email.trim()
-
-                                if (cleanUser.length < 3) {
-                                    errorMessage = "Username must be at least 3 characters."
-                                    return@Button
-                                }
-                                if (cleanPass.length < 6) {
-                                    errorMessage = "Password must be at least 6 characters."
-                                    return@Button
-                                }
-                                if (cleanEmail.isNotBlank() && !android.util.Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches()) {
-                                    errorMessage = "Please enter a valid email address."
-                                    return@Button
-                                }
-
-                                errorMessage = null
-                                registrationStep = 2
-                            },
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                        ) {
-                            Text("Next: Security & Recovery Key", fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                } else {
-                    // REGISTER STEP 2: 12-WORD RECOVERY PHRASE WITH COPY & DOWNLOAD
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text(
-                                    text = "Write down, copy, or download your 12-word secret recovery phrase. You will need it to restore parental access if you lose your password.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-
-                                // 12-Words Grid (2 columns x 6 rows for maximum clarity and responsive widths)
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    for (row in 0 until 6) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            for (col in 0 until 2) {
-                                                val index = row * 2 + col
-                                                val word = generatedPhrase[index]
-                                                Surface(
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                                    modifier = Modifier.weight(1f)
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Text(
-                                                            text = "${(index + 1).toString().padStart(2, '0')}.",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = MaterialTheme.colorScheme.primary,
-                                                            fontWeight = FontWeight.Bold
-                                                        )
-                                                        Spacer(modifier = Modifier.width(6.dp))
-                                                        Text(
-                                                            text = word,
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            fontWeight = FontWeight.SemiBold,
-                                                            fontFamily = FontFamily.Monospace
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(2.dp))
-
-                                // COPY & DOWNLOAD BUTTONS ROW
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    // Copy Button
-                                    OutlinedButton(
-                                        onClick = {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            val clip = ClipData.newPlainText("Recovery Phrase", generatedPhrase.joinToString(" "))
-                                            clipboard.setPrimaryClip(clip)
-                                            hasCopiedPhrase = true
-                                            hasConfirmedSaved = true
-                                            Toast.makeText(context, "12-word recovery phrase copied to clipboard! ✅", Toast.LENGTH_SHORT).show()
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.weight(1f),
-                                        contentPadding = PaddingValues(horizontal = if (isCompact) 4.dp else 10.dp, vertical = 6.dp)
-                                    ) {
+                            OutlinedTextField(
+                                value = password,
+                                onValueChange = { password = it },
+                                label = { Text("Password") },
+                                placeholder = { Text("Your password") },
+                                leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                                trailingIcon = {
+                                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
                                         Icon(
-                                            imageVector = if (hasCopiedPhrase) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(if (isCompact) 14.dp else 16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = if (hasCopiedPhrase) "Copied! ✅" else if (isCompact) "Copy" else "Copy Phrase",
-                                            maxLines = 1,
-                                            fontSize = if (isCompact) 11.sp else 12.sp,
-                                            fontWeight = FontWeight.Bold
+                                            imageVector = if (isPasswordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                            contentDescription = null
                                         )
                                     }
-
-                                    // Download Button
-                                    OutlinedButton(
-                                        onClick = {
-                                            downloadOrExportRecoveryPhrase(
-                                                context = context,
-                                                username = username,
-                                                email = email,
-                                                phrase = generatedPhrase
-                                            )
-                                            hasDownloadedPhrase = true
-                                            hasConfirmedSaved = true
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.weight(1f),
-                                        contentPadding = PaddingValues(horizontal = if (isCompact) 4.dp else 10.dp, vertical = 6.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Download,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(if (isCompact) 14.dp else 16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = if (hasDownloadedPhrase) "Downloaded" else if (isCompact) "Download" else "Download Key",
-                                            maxLines = 1,
-                                            fontSize = if (isCompact) 11.sp else 12.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Confirmation Checkbox
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { hasConfirmedSaved = !hasConfirmedSaved }
-                        ) {
-                            Checkbox(
-                                checked = hasConfirmedSaved,
-                                onCheckedChange = { hasConfirmedSaved = it }
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "I have safely copied or downloaded my recovery phrase.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        // Bottom Actions: Back & Create Account
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { registrationStep = 1 },
-                                enabled = !isSubmitting,
+                                },
+                                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                singleLine = true,
                                 shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier
-                                    .weight(0.4f)
-                                    .height(50.dp)
-                            ) {
-                                Text("Back")
-                            }
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(modifier = Modifier.height(2.dp))
 
                             Button(
                                 onClick = {
+                                    val cleanUser = username.trim()
+                                    val cleanPass = password.trim()
+                                    if (cleanUser.isBlank() || cleanPass.isBlank()) {
+                                        errorMessage = "Please enter both username and password."
+                                        return@Button
+                                    }
                                     isSubmitting = true
                                     errorMessage = null
-                                    ParentCloudAuthManager.registerParentAccount(
+                                    ParentCloudAuthManager.loginParentAccount(
                                         context = context,
-                                        username = username,
-                                        password = password,
-                                        email = email.ifBlank { null },
-                                        recoveryPhrase = generatedPhrase
+                                        usernameOrEmail = cleanUser,
+                                        password = cleanPass
                                     ) { success, msg ->
                                         isSubmitting = false
                                         if (success) {
@@ -622,18 +324,343 @@ fun ParentCloudAuthDialog(
                                         }
                                     }
                                 },
-                                enabled = !isSubmitting && hasConfirmedSaved,
+                                enabled = !isSubmitting,
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier
-                                    .weight(0.6f)
+                                    .fillMaxWidth()
                                     .height(50.dp)
                             ) {
                                 if (isSubmitting) {
-                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Creating...")
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Signing in...")
                                 } else {
-                                    Text("Create Account", fontWeight = FontWeight.Bold)
+                                    Text("Sign In to Account", fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            TextButton(
+                                onClick = { showRecoveryDialog = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "Forgot password? Recover with 12-word phrase",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else if (registrationStep == 1) {
+                        // REGISTER STEP 1: USERNAME (WITH CHECK BUTTON), PASSWORD, OPTIONAL EMAIL
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            // Username Field with "Check" Button
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                OutlinedTextField(
+                                    value = username,
+                                    onValueChange = {
+                                        username = it
+                                        usernameCheckStatus = null
+                                        isUsernameAvailable = false
+                                    },
+                                    label = { Text("Username (Unique)") },
+                                    placeholder = { Text("e.g. parent_alex") },
+                                    leadingIcon = { Icon(Icons.Rounded.AlternateEmail, contentDescription = null) },
+                                    trailingIcon = {
+                                        if (username.trim().length >= 3) {
+                                            TextButton(
+                                                onClick = {
+                                                    isCheckingUsername = true
+                                                    ParentCloudAuthManager.checkUsernameAvailability(username) { available, msg ->
+                                                        isCheckingUsername = false
+                                                        isUsernameAvailable = available
+                                                        usernameCheckStatus = msg
+                                                    }
+                                                },
+                                                enabled = !isCheckingUsername
+                                            ) {
+                                                if (isCheckingUsername) {
+                                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                                } else {
+                                                    Text("Check", fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                usernameCheckStatus?.let { status ->
+                                    Text(
+                                        text = status,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isUsernameAvailable) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.padding(start = 6.dp)
+                                    )
+                                }
+                            }
+
+                            // Password Field
+                            OutlinedTextField(
+                                value = password,
+                                onValueChange = { password = it },
+                                label = { Text("Password") },
+                                placeholder = { Text("Min 6 characters") },
+                                leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                                trailingIcon = {
+                                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                        Icon(
+                                            imageVector = if (isPasswordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                            contentDescription = null
+                                        )
+                                    }
+                                },
+                                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            // Optional Email Field (Zero Mandatory Email)
+                            OutlinedTextField(
+                                value = email,
+                                onValueChange = { email = it },
+                                label = { Text("Email Address (Optional)") },
+                                placeholder = { Text("Optional - for recovery alerts") },
+                                leadingIcon = { Icon(Icons.Rounded.MailOutline, contentDescription = null) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Next Button
+                            Button(
+                                onClick = {
+                                    val cleanUser = username.trim()
+                                    val cleanPass = password.trim()
+                                    val cleanEmail = email.trim()
+
+                                    if (cleanUser.length < 3) {
+                                        errorMessage = "Username must be at least 3 characters."
+                                        return@Button
+                                    }
+                                    if (cleanPass.length < 6) {
+                                        errorMessage = "Password must be at least 6 characters."
+                                        return@Button
+                                    }
+                                    if (cleanEmail.isNotBlank() && !android.util.Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches()) {
+                                        errorMessage = "Please enter a valid email address or leave it blank."
+                                        return@Button
+                                    }
+
+                                    errorMessage = null
+                                    registrationStep = 2
+                                },
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp)
+                            ) {
+                                Text("Next: Security & Recovery Key", fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    } else {
+                        // REGISTER STEP 2: 12-WORD RECOVERY PHRASE WITH COPY & DOWNLOAD
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text(
+                                        text = "Write down, copy, or download your 12-word secret recovery phrase. You will need it to restore parental access if you lose your password.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+
+                                    // 12-Words Grid (2 columns x 6 rows)
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        for (row in 0 until 6) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                for (col in 0 until 2) {
+                                                    val index = row * 2 + col
+                                                    val word = generatedPhrase[index]
+                                                    Surface(
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text(
+                                                                text = "${(index + 1).toString().padStart(2, '0')}.",
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.primary,
+                                                                fontWeight = FontWeight.Bold
+                                                            )
+                                                            Spacer(modifier = Modifier.width(6.dp))
+                                                            Text(
+                                                                text = word,
+                                                                style = MaterialTheme.typography.bodySmall,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                fontFamily = FontFamily.Monospace
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    // COPY & DOWNLOAD BUTTONS ROW
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        // Copy Button
+                                        OutlinedButton(
+                                            onClick = {
+                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                val clip = ClipData.newPlainText("Recovery Phrase", generatedPhrase.joinToString(" "))
+                                                clipboard.setPrimaryClip(clip)
+                                                hasCopiedPhrase = true
+                                                hasConfirmedSaved = true
+                                                Toast.makeText(context, "12-word recovery phrase copied to clipboard! ✅", Toast.LENGTH_SHORT).show()
+                                            },
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.weight(1f),
+                                            contentPadding = PaddingValues(horizontal = if (isCompact) 4.dp else 10.dp, vertical = 6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (hasCopiedPhrase) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(if (isCompact) 14.dp else 16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = if (hasCopiedPhrase) "Copied! ✅" else if (isCompact) "Copy" else "Copy Phrase",
+                                                maxLines = 1,
+                                                fontSize = if (isCompact) 11.sp else 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+
+                                        // Download Button
+                                        OutlinedButton(
+                                            onClick = {
+                                                downloadOrExportRecoveryPhrase(
+                                                    context = context,
+                                                    username = username,
+                                                    email = email,
+                                                    phrase = generatedPhrase
+                                                )
+                                                hasDownloadedPhrase = true
+                                                hasConfirmedSaved = true
+                                            },
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.weight(1f),
+                                            contentPadding = PaddingValues(horizontal = if (isCompact) 4.dp else 10.dp, vertical = 6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Download,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(if (isCompact) 14.dp else 16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = if (hasDownloadedPhrase) "Downloaded" else if (isCompact) "Download" else "Download Key",
+                                                maxLines = 1,
+                                                fontSize = if (isCompact) 11.sp else 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Confirmation Checkbox
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { hasConfirmedSaved = !hasConfirmedSaved }
+                            ) {
+                                Checkbox(
+                                    checked = hasConfirmedSaved,
+                                    onCheckedChange = { hasConfirmedSaved = it }
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "I have safely copied or downloaded my recovery phrase.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            // Bottom Actions: Back & Create Account
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { registrationStep = 1 },
+                                    enabled = !isSubmitting,
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier
+                                        .weight(0.4f)
+                                        .height(50.dp)
+                                ) {
+                                    Text("Back")
+                                }
+
+                                Button(
+                                    onClick = {
+                                        isSubmitting = true
+                                        errorMessage = null
+                                        ParentCloudAuthManager.registerParentAccount(
+                                            context = context,
+                                            username = username,
+                                            password = password,
+                                            email = email.ifBlank { null },
+                                            recoveryPhrase = generatedPhrase
+                                        ) { success, msg ->
+                                            isSubmitting = false
+                                            if (success) {
+                                                onAuthSuccess(msg)
+                                                onDismiss()
+                                            } else {
+                                                errorMessage = msg
+                                            }
+                                        }
+                                    },
+                                    enabled = !isSubmitting && hasConfirmedSaved,
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier
+                                        .weight(0.6f)
+                                        .height(50.dp)
+                                ) {
+                                    if (isSubmitting) {
+                                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Creating...")
+                                    } else {
+                                        Text("Create Account", fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
@@ -643,6 +670,143 @@ fun ParentCloudAuthDialog(
         }
     }
 }
+
+// =============================================================================
+// PARENT PASSWORD RECOVERY DIALOG (12-WORD PHRASE RECOVERY)
+// =============================================================================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ParentPasswordRecoveryDialog(
+    initialUsername: String = "",
+    onDismiss: () -> Unit,
+    onRecoverySuccess: (String) -> Unit
+) {
+    var username by remember { mutableStateOf(initialUsername) }
+    var phraseInput by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = { if (!isSubmitting) onDismiss() },
+        shape = RoundedCornerShape(24.dp),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Key, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Recover Account", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Enter your username, 12-word recovery phrase, and new password to restore account access.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                errorMessage?.let { err ->
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = err,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Username") },
+                    placeholder = { Text("e.g. parent_alex") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = phraseInput,
+                    onValueChange = { phraseInput = it },
+                    label = { Text("12-Word Recovery Phrase") },
+                    placeholder = { Text("word1 word2 word3 ...") },
+                    minLines = 3,
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    label = { Text("New Password (Min 6 chars)") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val words = phraseInput.trim().split("\\s+".toRegex()).filter { it.isNotBlank() }
+                    if (username.trim().isBlank()) {
+                        errorMessage = "Please enter your username."
+                        return@Button
+                    }
+                    if (words.size != 12) {
+                        errorMessage = "Please enter all 12 words separated by spaces (got ${words.size})."
+                        return@Button
+                    }
+                    if (newPassword.trim().length < 6) {
+                        errorMessage = "New password must be at least 6 characters."
+                        return@Button
+                    }
+
+                    isSubmitting = true
+                    errorMessage = null
+                    ParentCloudAuthManager.resetPasswordWithRecoveryPhrase(
+                        username = username.trim(),
+                        phraseWords = words,
+                        newPassword = newPassword.trim()
+                    ) { success, msg ->
+                        isSubmitting = false
+                        if (success) {
+                            onRecoverySuccess(msg)
+                        } else {
+                            errorMessage = msg
+                        }
+                    }
+                },
+                enabled = !isSubmitting
+            ) {
+                if (isSubmitting) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Verifying...")
+                } else {
+                    Text("Reset Password")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isSubmitting
+            ) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 /**
