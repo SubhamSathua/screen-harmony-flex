@@ -8,7 +8,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -149,12 +149,20 @@ private fun PermissionRow(
             )
         }
         if (isGranted) {
-            Text(
-                text = "✓ Active",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF1B873F),
-                fontWeight = FontWeight.Bold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = Color(0xFF1B873F),
+                    modifier = Modifier.size(13.dp)
+                )
+                Text(
+                    text = "Active",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF1B873F),
+                    fontWeight = FontWeight.Bold
+                )
+            }
         } else {
             Button(
                 onClick = onGrant,

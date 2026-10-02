@@ -104,7 +104,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
                 if (matchingAppRule != null) {
                     if (lastBlockedPackage != packageName) {
                         lastBlockedPackage = packageName
-                        Log.i(TAG, "🚨 ACCESSIBILITY: Intercepted blocked app '$packageName' | Rule: '${matchingAppRule.name}'")
+                        Log.i(TAG, " ACCESSIBILITY: Intercepted blocked app '$packageName' | Rule: '${matchingAppRule.name}'")
 
                         val customQuote = if (matchingAppRule.wallConfig is WallConfig.StandardQuote) {
                             (matchingAppRule.wallConfig as WallConfig.StandardQuote).quote
@@ -262,7 +262,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
                             // If user tapped switch to turn OFF, immediately toggle it back ON
                             val switchNode = findSwitchNode(source)
                             if (switchNode != null && !switchNode.isChecked) {
-                                Log.i(TAG, "🔧 Reversing tamper: clicking switch back ON via Accessibility!")
+                                Log.i(TAG, " Reversing tamper: clicking switch back ON via Accessibility!")
                                 switchNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                             }
                             triggerAntiTamperAction("ScreenHarmony permission modification is locked by Parental Controls")
@@ -319,7 +319,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
     private fun triggerAntiTamperAction(reason: String) {
         try {
             lastAntiTamperActionTimestamp = System.currentTimeMillis()
-            Log.w(TAG, "🚨 ANTI-TAMPER TRIGGERED: $reason. Executing GLOBAL_ACTION_HOME & Protection Wall!")
+            Log.w(TAG, " ANTI-TAMPER TRIGGERED: $reason. Executing GLOBAL_ACTION_HOME & Protection Wall!")
             
             // 1. Instantly exit Settings / Installer to Home screen
             performGlobalAction(GLOBAL_ACTION_HOME)
@@ -337,7 +337,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 android.widget.Toast.makeText(
                     this,
-                    "🔒 $reason",
+                    " $reason",
                     android.widget.Toast.LENGTH_LONG
                 ).show()
             }
@@ -380,7 +380,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
                 val switchNode = findSwitchNode(node)
                 if (switchNode != null) {
                     if (!switchNode.isChecked) {
-                        Log.i(TAG, "🔧 AUTO-HEALING: ScreenHarmony switch was OFF. Automatically toggling ON via Accessibility!")
+                        Log.i(TAG, " AUTO-HEALING: ScreenHarmony switch was OFF. Automatically toggling ON via Accessibility!")
                         switchNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                         triggerAntiTamperAction("ScreenHarmony permission automatically restored by Parental Controls")
                         return true
@@ -561,7 +561,7 @@ class WebsiteAccessibilityService : AccessibilityService() {
                         val (rule, domain) = match
                         if (lastBlockedUrl != domain) {
                             lastBlockedUrl = domain
-                            Log.i(TAG, "🚨 ACCESSIBILITY: Blocked website '$domain' in '$packageName'")
+                            Log.i(TAG, " ACCESSIBILITY: Blocked website '$domain' in '$packageName'")
 
                             val customQuote = if (rule.wallConfig is WallConfig.StandardQuote) {
                                 (rule.wallConfig as WallConfig.StandardQuote).quote

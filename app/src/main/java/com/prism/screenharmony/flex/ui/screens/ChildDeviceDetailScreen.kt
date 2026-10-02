@@ -905,7 +905,7 @@ private fun ControlsTabContent(
                             Text("${device.batteryLevel}%", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                             if (device.isCharging) {
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("⚡", fontSize = 12.sp)
+                                Icon(imageVector = Icons.Rounded.ElectricBolt, contentDescription = "Charging", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
                             }
                         }
                     }
