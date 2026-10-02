@@ -1302,9 +1302,26 @@ fun SettingsTabScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        ParentCloudAuthManager.logout(context)
-                        showLogoutConfirmDialog = false
-                        Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
+                        val act = (context as? androidx.fragment.app.FragmentActivity) ?: (context as? android.content.ContextWrapper)?.baseContext as? androidx.fragment.app.FragmentActivity
+                        if (act != null && com.prism.screenharmony.flex.utils.BiometricHelper.isDeviceCredentialAvailable(context)) {
+                            com.prism.screenharmony.flex.utils.BiometricHelper.showDeviceCredentialPrompt(
+                                activity = act,
+                                title = "Confirm Logout",
+                                subtitle = "Authenticate with biometrics or device PIN to log out",
+                                onSuccess = {
+                                    ParentCloudAuthManager.logout(context)
+                                    showLogoutConfirmDialog = false
+                                    Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
+                                },
+                                onError = { err ->
+                                    Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        } else {
+                            ParentCloudAuthManager.logout(context)
+                            showLogoutConfirmDialog = false
+                            Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
