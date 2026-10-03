@@ -117,18 +117,18 @@ object ParentCloudAuthManager {
                                 if (snapshot.exists()) {
                                     cont.resume(Pair(false, "Username '@$clean' is already taken."))
                                 } else {
-                                    cont.resume(Pair(true, "Username '@$clean' is available! ✅"))
+                                    cont.resume(Pair(true, "Username '@$clean' is available!"))
                                 }
                             }
 
                             override fun onCancelled(error: DatabaseError) {
                                 // If database rules restrict unauthenticated read or offline, accept format
-                                cont.resume(Pair(true, "Username format verified! ✅"))
+                                cont.resume(Pair(true, "Username format verified!"))
                             }
                         }
                         ref.addListenerForSingleValueEvent(listener)
                     } catch (e: Exception) {
-                        cont.resume(Pair(true, "Username format verified! ✅"))
+                        cont.resume(Pair(true, "Username format verified!"))
                     }
                 }
             }
@@ -136,7 +136,7 @@ object ParentCloudAuthManager {
             if (result != null) {
                 onResult(result.first, result.second)
             } else {
-                onResult(true, "Username format verified! ✅")
+                onResult(true, "Username format verified!")
             }
         }
     }
@@ -546,12 +546,12 @@ object ParentCloudAuthManager {
         }
 
         val prefs = getPrefs(context)
-        prefs.edit()
-            .putBoolean(KEY_LOGGED_IN, false)
-            .apply()
+        prefs.edit().clear().apply()
 
-        _accountState.value = _accountState.value.copy(isLoggedIn = false)
-        FamilySyncManager.cleanupListeners()
-        Log.i(TAG, "Parent account logged out and cloud listeners cleaned.")
+        _accountState.value = ParentAccountState()
+
+        // Reset all internal local family DB / state in app only (cloud untouched)
+        FamilySyncManager.unlinkFamily(context)
+        Log.i(TAG, "Parent account logged out and all internal app DB reset.")
     }
 }
