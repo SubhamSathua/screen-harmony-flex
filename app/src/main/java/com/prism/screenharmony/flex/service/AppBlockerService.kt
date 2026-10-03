@@ -156,7 +156,7 @@ class AppBlockerService : Service() {
                             if (matchingRule != null) {
                                 if (lastInterceptedPackage != activeApp) {
                                     lastInterceptedPackage = activeApp
-                                    Log.i(TAG, "🚨 BLOCKED APP DETECTED: '$activeApp' | Rule: '${matchingRule.name}'")
+                                    Log.i(TAG, " BLOCKED APP DETECTED: '$activeApp' | Rule: '${matchingRule.name}'")
 
                                     val customQuote = if (matchingRule.wallConfig is WallConfig.StandardQuote) {
                                         (matchingRule.wallConfig as WallConfig.StandardQuote).quote

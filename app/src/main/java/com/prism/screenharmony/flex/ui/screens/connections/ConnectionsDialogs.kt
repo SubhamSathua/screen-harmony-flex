@@ -540,7 +540,7 @@ fun ParentCloudAuthDialog(
                                                 clipboard.setPrimaryClip(clip)
                                                 hasCopiedPhrase = true
                                                 hasConfirmedSaved = true
-                                                Toast.makeText(context, "12-word recovery phrase copied to clipboard! ✅", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "12-word recovery phrase copied to clipboard!", Toast.LENGTH_SHORT).show()
                                             },
                                             shape = RoundedCornerShape(12.dp),
                                             modifier = Modifier.weight(1f),
@@ -553,7 +553,7 @@ fun ParentCloudAuthDialog(
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
-                                                text = if (hasCopiedPhrase) "Copied! ✅" else if (isCompact) "Copy" else "Copy Phrase",
+                                                text = if (hasCopiedPhrase) "Copied" else if (isCompact) "Copy" else "Copy Phrase",
                                                 maxLines = 1,
                                                 fontSize = if (isCompact) 11.sp else 12.sp,
                                                 fontWeight = FontWeight.Bold

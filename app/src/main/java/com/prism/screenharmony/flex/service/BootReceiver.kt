@@ -19,7 +19,7 @@ class BootReceiver : BroadcastReceiver() {
                 BlockScheduleManager.reschedule(context)
             }
             AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> {
-                Log.i("ScreenHarmony_Boot", "⏰ Exact Alarm permission state changed! Rescheduling upcoming blocks...")
+                Log.i("ScreenHarmony_Boot", " Exact Alarm permission state changed! Rescheduling upcoming blocks...")
                 BlockScheduleManager.reschedule(context)
             }
         }

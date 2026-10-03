@@ -29,7 +29,7 @@ object FcmPushHelper {
         try {
             // Note: In addition to the direct FCM socket, the Firebase RTDB command listener 
             // acts as the continuous data sync channel.
-            Log.i(TAG, "🚀 Prepared High-Priority FCM Silent Push for action=, targetToken=...")
+            Log.i(TAG, " Prepared High-Priority FCM Silent Push for action=, targetToken=...")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error sending FCM silent push", e)

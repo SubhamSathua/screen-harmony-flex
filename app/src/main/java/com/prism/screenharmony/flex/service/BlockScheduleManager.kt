@@ -36,7 +36,7 @@ object BlockScheduleManager {
         // If 'Only Parent Mode' is active, this phone is purely a parent monitor.
         // Complete background shutdown: 0% CPU, 0% battery, no alarms, no blocker service.
         if (com.prism.screenharmony.flex.family.ParentalAuthManager.isOnlyParentMode(appContext)) {
-            Log.i(TAG, "🛡️ 'Only Parent Mode' is ACTIVE. Blocker service stopped, all alarms cleared (0% BG drain).")
+            Log.i(TAG, "️ 'Only Parent Mode' is ACTIVE. Blocker service stopped, all alarms cleared (0% BG drain).")
             AppBlockerService.stop(appContext)
             alarmManager?.let { cancelAlarm(appContext, it) }
             return
@@ -54,7 +54,7 @@ object BlockScheduleManager {
         val hasActiveRuleNow = activeRules.isNotEmpty()
 
         if (hasActiveRuleNow) {
-            Log.i(TAG, "🟢 Active rules detected (${activeRules.size} rules). Starting Blocker Service...")
+            Log.i(TAG, " Active rules detected (${activeRules.size} rules). Starting Blocker Service...")
             AppBlockerService.start(appContext)
 
             // Calculate when the current active block window will end or pause will expire
@@ -68,7 +68,7 @@ object BlockScheduleManager {
                 scheduleExactWakeup(appContext, alarmManager, earliestEvent, "End of current block window")
             }
         } else {
-            Log.i(TAG, "⚪ No active rules right now. Stopping Blocker Service (0% Idle CPU/Battery)...")
+            Log.i(TAG, " No active rules right now. Stopping Blocker Service (0% Idle CPU/Battery)...")
             AppBlockerService.stop(appContext)
 
             // Calculate when the NEXT block window will start or when a paused rule resumes
@@ -105,7 +105,7 @@ object BlockScheduleManager {
         )
 
         val secondsUntil = ((triggerAtMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(1)
-        Log.i(TAG, "⏰ Scheduling exact alarm for '$reason' in ${secondsUntil}s (at $triggerAtMillis)")
+        Log.i(TAG, " Scheduling exact alarm for '$reason' in ${secondsUntil}s (at $triggerAtMillis)")
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -116,7 +116,7 @@ object BlockScheduleManager {
                         pendingIntent
                     )
                 } else {
-                    Log.w(TAG, "⚠️ Exact Alarm permission not granted. Falling back to setAndAllowWhileIdle().")
+                    Log.w(TAG, "️ Exact Alarm permission not granted. Falling back to setAndAllowWhileIdle().")
                     alarmManager.setAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
                         triggerAtMillis,

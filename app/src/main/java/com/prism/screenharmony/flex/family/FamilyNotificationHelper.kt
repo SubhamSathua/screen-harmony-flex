@@ -53,7 +53,7 @@ object FamilyNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("⚠️ Unlink Request from Child")
+            .setContentTitle("Unlink Request from Child")
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -113,7 +113,7 @@ object FamilyNotificationHelper {
         val content = "$deviceName was successfully locked remotely."
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("🔒 Device Locked")
+            .setContentTitle("Device Locked")
             .setContentText(content)
             .setStyle(NotificationCompat.BigTextStyle().bigText(content))
             .setPriority(NotificationCompat.PRIORITY_HIGH)

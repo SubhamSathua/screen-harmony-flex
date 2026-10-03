@@ -73,7 +73,7 @@ fun AboutScreen(
             DiagnosticsUnlockManager.setLogsUnlocked(context, true)
             isUnlocked = true
             tapCount = 0
-            Toast.makeText(context, "🎉 Diagnostics Logs & Developer Mode unlocked!", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Diagnostics Logs & Developer Mode unlocked!", Toast.LENGTH_LONG).show()
         }
     }
 

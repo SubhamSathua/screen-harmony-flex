@@ -17,7 +17,7 @@ class ScreenHarmonyMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.i(TAG, "🔑 New FCM Registration Token received: ")
+        Log.i(TAG, " New FCM Registration Token received: ")
         FamilySyncManager.registerFcmToken(applicationContext, token)
     }
 
@@ -33,17 +33,17 @@ class ScreenHarmonyMessagingService : FirebaseMessagingService() {
         try {
             val data = remoteMessage.data
             val action = data["action"] ?: "SYNC_RULES"
-            Log.i(TAG, "⚡ FCM High-Priority Data Push received! action=, data=")
+            Log.i(TAG, " FCM High-Priority Data Push received! action=, data=")
 
             when (action) {
                 "LOCK_NOW" -> {
                     val timestamp = data["timestamp"]?.toLongOrNull() ?: System.currentTimeMillis()
-                    Log.i(TAG, "🚨 Remote Lock command received from FCM Push (timestamp=$timestamp)...")
+                    Log.i(TAG, " Remote Lock command received from FCM Push (timestamp=$timestamp)...")
                     FamilySyncManager.handleRemoteLockCommand(applicationContext, timestamp)
                 }
 
                 "SYNC_RULES" -> {
-                    Log.i(TAG, "🔄 Syncing remote rules triggered by FCM Push...")
+                    Log.i(TAG, " Syncing remote rules triggered by FCM Push...")
                     FamilySyncManager.startRoleSync(applicationContext)
                     BlockScheduleManager.reschedule(applicationContext)
 
@@ -56,7 +56,7 @@ class ScreenHarmonyMessagingService : FirebaseMessagingService() {
                 }
 
                 "PING", "WAKEUP" -> {
-                    Log.i(TAG, "📡 Heartbeat / Wake-Up signal received from parent via FCM")
+                    Log.i(TAG, " Heartbeat / Wake-Up signal received from parent via FCM")
                     FamilySyncManager.handleWakeUpSignal(applicationContext)
                 }
 
