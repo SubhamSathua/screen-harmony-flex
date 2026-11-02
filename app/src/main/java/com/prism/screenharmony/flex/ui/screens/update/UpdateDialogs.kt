@@ -1,12 +1,9 @@
 package com.prism.screenharmony.flex.ui.screens.update
 
 import android.app.Activity
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -20,7 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -29,7 +25,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.prism.screenharmony.flex.update.*
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -142,15 +137,11 @@ fun AppUpdateDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val isMandatory = updateData.isFloorEnforced || updateData.updateType == UpdateType.CRITICAL
-
-    val downloadState by ApkDownloader.downloadState.collectAsState()
 
     AlertDialog(
         onDismissRequest = {
             if (!isMandatory) {
-                ApkDownloader.resetState()
                 onDismiss()
             }
         },
@@ -209,7 +200,7 @@ fun AppUpdateDialog(
                 }
 
                 Text(
-                    text = "v${updateData.config.version} • Current: v${updateData.currentVersion}",
+                    text = "v${updateData.config.version} • Installed: v${updateData.currentVersion}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -263,142 +254,62 @@ fun AppUpdateDialog(
                     }
                 }
 
-                // In-App Download Progress Card
-                when (val state = downloadState) {
-                    is DownloadState.Downloading -> {
-                        val animatedProgress by animateFloatAsState(targetValue = state.progress, label = "DownloadProgress")
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("Downloading APK...", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
-                                    Text("${(state.progress * 100).toInt()}%", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                                }
-                                LinearProgressIndicator(
-                                    progress = { animatedProgress },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(8.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                )
-                                if (state.totalBytes > 0) {
-                                    val currentMb = "%.1f".format(state.downloadedBytes / (1024f * 1024f))
-                                    val totalMb = "%.1f".format(state.totalBytes / (1024f * 1024f))
-                                    Text("$currentMb MB / $totalMb MB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
-                    }
-                    is DownloadState.Verifying -> {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                Text("Verifying SHA-256 cryptographic digest...", style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                    is DownloadState.ReadyToInstall -> {
-                        Button(
-                            onClick = { ApkDownloader.triggerInstall(context, state.file) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Rounded.InstallMobile, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Install Downloaded APK")
-                        }
-                    }
-                    is DownloadState.Failed -> {
-                        Surface(
-                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Download Failed", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-                                Text(state.error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
-                            }
-                        }
-                    }
-                    is DownloadState.Idle -> {
-                        // Options to download
+                // Transparent Browser-Based Update Notice
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "To update safely, view release details and download the update package from our official GitHub Releases page in your web browser.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
 
-                // Download Alternative Hub
-                if (downloadState is DownloadState.Idle || downloadState is DownloadState.Failed) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // Direct APK Option
-                        updateData.config.downloads.directApk?.let { directUrl ->
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        ApkDownloader.downloadAndVerifyApk(
-                                            context = context,
-                                            downloadUrl = directUrl,
-                                            expectedSha256 = updateData.config.sha256,
-                                            version = updateData.config.version
-                                        ).onSuccess { apkFile ->
-                                            ApkDownloader.triggerInstall(context, apkFile)
-                                        }.onFailure { err ->
-                                            Toast.makeText(context, "Download failed: ${err.message}", Toast.LENGTH_LONG).show()
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(Icons.Rounded.CloudDownload, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Download & Install (In-App)")
-                            }
+                // Primary Action: Open Official GitHub Releases Page
+                Button(
+                    onClick = {
+                        val targetUrl = updateData.config.downloads.github
+                            ?: UpdateManager.OFFICIAL_RELEASES_URL
+                        UpdateManager.openGitHubRelease(context, targetUrl)
+                        if (!isMandatory) {
+                            onDismiss()
                         }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isMandatory) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("View Update on GitHub", fontWeight = FontWeight.Bold)
+                }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Obtainium Option
-                            updateData.config.downloads.obtainium?.let { obtainiumUri ->
-                                OutlinedButton(
-                                    onClick = {
-                                        val fallback = updateData.config.downloads.github ?: "https://github.com/SubhamSathua/screen-harmony-flex"
-                                        UpdateManager.openObtainium(context, obtainiumUri, fallback)
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("Obtainium", maxLines = 1)
-                                }
-                            }
-
-                            // GitHub Release Page Option
-                            updateData.config.downloads.github?.let { ghUrl ->
-                                OutlinedButton(
-                                    onClick = {
-                                        UpdateManager.openGitHubRelease(context, ghUrl)
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("GitHub", maxLines = 1)
-                                }
-                            }
-                        }
+                // Optional Obtainium App Manager shortcut
+                updateData.config.downloads.obtainium?.let { obtainiumUri ->
+                    OutlinedButton(
+                        onClick = {
+                            val fallback = updateData.config.downloads.github ?: UpdateManager.OFFICIAL_RELEASES_URL
+                            UpdateManager.openObtainium(context, obtainiumUri, fallback)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Open with Obtainium App Manager", maxLines = 1)
                     }
                 }
             }
@@ -407,10 +318,7 @@ fun AppUpdateDialog(
         dismissButton = {
             if (!isMandatory) {
                 TextButton(
-                    onClick = {
-                        ApkDownloader.resetState()
-                        onDismiss()
-                    }
+                    onClick = onDismiss
                 ) {
                     Text("Later")
                 }
@@ -484,7 +392,7 @@ fun UpdateSettingsCard(
             }
 
             Text(
-                text = "ScreenHarmony Flex uses a serverless GitHub Pages manifest to deliver secure releases, emergency patches, and channel updates.",
+                text = "ScreenHarmony Flex checks the official GitHub repository for new releases. Updates are opened in your browser for transparent, user-controlled installation.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -530,7 +438,7 @@ fun UpdateSettingsCard(
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Checking Manifest...")
+                    Text("Checking Releases...")
                 } else {
                     Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
@@ -594,7 +502,7 @@ fun CompactUpdateCard(
 
     val isVisible = availableUpdate != null && (!isDismissedLocally || availableUpdate.isFloorEnforced || availableUpdate.updateType == UpdateType.CRITICAL)
 
-    androidx.compose.animation.AnimatedVisibility(
+    AnimatedVisibility(
         visible = isVisible,
         enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
         exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
@@ -704,7 +612,7 @@ fun CompactUpdateCard(
                                 isCritical -> "Essential security update"
                                 !availableUpdate.config.deprecationMessage.isNullOrBlank() -> availableUpdate.config.deprecationMessage
                                 availableUpdate.config.changelog.isNotEmpty() -> availableUpdate.config.changelog.first()
-                                else -> "Ready to install"
+                                else -> "New release available"
                             }
 
                             Text(
@@ -741,7 +649,7 @@ fun CompactUpdateCard(
                                 modifier = Modifier.height(30.dp)
                             ) {
                                 Text(
-                                    text = "Update",
+                                    text = "View",
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -774,4 +682,3 @@ fun CompactUpdateCard(
         }
     }
 }
-
