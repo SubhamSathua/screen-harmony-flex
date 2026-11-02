@@ -1,10 +1,13 @@
 package com.prism.screenharmony.flex.update
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import com.prism.screenharmony.flex.BuildConfig
 import com.prism.screenharmony.flex.diagnostics.AppLogger
 import com.prism.screenharmony.flex.diagnostics.LogCategory
@@ -31,6 +34,7 @@ object UpdateManager {
 
     const val DEFAULT_MANIFEST_URL = com.prism.screenharmony.flex.utils.AppConstants.UPDATE_MANIFEST_URL
     const val FALLBACK_MANIFEST_URL = com.prism.screenharmony.flex.utils.AppConstants.UPDATE_FALLBACK_MANIFEST_URL
+    const val OFFICIAL_RELEASES_URL = "https://github.com/SubhamSathua/screen-harmony-flex/releases"
 
     private val _updateResult = MutableStateFlow<UpdateCheckResult>(UpdateCheckResult.Idle)
     val updateResult: StateFlow<UpdateCheckResult> = _updateResult.asStateFlow()
@@ -243,17 +247,64 @@ object UpdateManager {
         }
     }
 
-    fun openGitHubRelease(context: Context, url: String) {
-        try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    /**
+     * Validates and sanitizes a release URL to ensure it points to an expected official releases page.
+     * Prevents arbitrary or non-HTTPS schemes from triggering browser intents.
+     */
+    fun sanitizeReleaseUrl(candidateUrl: String?): String {
+        val trimmed = candidateUrl?.trim()
+        if (trimmed.isNullOrBlank()) return OFFICIAL_RELEASES_URL
+        return try {
+            val uri = Uri.parse(trimmed)
+            val scheme = uri.scheme?.lowercase()
+            val host = uri.host?.lowercase()
+            if (scheme == "https" && (host == "github.com" || host?.endsWith(".github.com") == true)) {
+                trimmed
+            } else {
+                OFFICIAL_RELEASES_URL
             }
-            context.startActivity(intent)
         } catch (e: Exception) {
-            AppLogger.e(LogCategory.SYSTEM, TAG, "Failed opening GitHub Release: ${e.message}", e)
+            OFFICIAL_RELEASES_URL
         }
     }
 
+    /**
+     * Opens the official GitHub Releases page in the user's default web browser.
+     * The app does not download, write, or install APK files itself.
+     */
+    fun openGitHubRelease(context: Context, url: String? = null) {
+        val targetUrl = sanitizeReleaseUrl(url)
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            AppLogger.i(LogCategory.SYSTEM, TAG, "Opened official release URL in browser: $targetUrl")
+        } catch (e: ActivityNotFoundException) {
+            AppLogger.e(LogCategory.SYSTEM, TAG, "No web browser found: ${e.message}", e)
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(
+                    context,
+                    "No web browser available to open the release page.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        } catch (e: Exception) {
+            AppLogger.e(LogCategory.SYSTEM, TAG, "Failed opening GitHub Release: ${e.message}", e)
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(
+                    context,
+                    "Unable to open release page: ${e.localizedMessage ?: "Unknown error"}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    /**
+     * Optional bridge for Obtainium app manager if installed on the user device,
+     * falling back to the official GitHub releases page in the browser.
+     */
     fun openObtainium(context: Context, obtainiumUri: String, fallbackUrl: String) {
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(obtainiumUri)).apply {
